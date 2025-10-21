@@ -92,7 +92,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
     const newEvent = {
       id: `event_${Date.now()}`,
       title: "新しいイベント",
-      date: today.toISOString().split('T')[0],
+      date: currentDate.toISOString().split('T')[0],
       time: "10:00",
       description: "",
       color: "#3B82F6"
@@ -377,25 +377,47 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
         {view === 'day' && (() => {
           const timeSlots = generateDayTimeSlots();
           return (
-            <div className="space-y-1">
+            <div className="space-y-1 max-h-96 overflow-y-auto">
               {timeSlots.map((slot) => (
-                <div key={slot.hour} className="flex border-b border-gray-100">
-                  <div className="w-20 p-2 text-sm text-gray-600 border-r border-gray-200">
+                <div key={slot.hour} className={`flex border-b border-gray-100 hover:bg-gray-50 ${
+                  slot.hour === new Date().getHours() ? 'bg-blue-50 border-blue-200' : ''
+                }`}>
+                  <div className={`w-20 p-2 text-sm text-gray-600 border-r border-gray-200 ${
+                    slot.hour === new Date().getHours() ? 'bg-blue-100 text-blue-700 font-medium' : 'bg-gray-50'
+                  }`}>
                     {slot.time}
                   </div>
                   <div className="flex-1 p-2 min-h-12">
-                    {slot.events.map((event) => (
-                      <div
-                        key={event.id}
-                        className="text-xs p-2 rounded mb-1"
-                        style={{ backgroundColor: event.color || '#3B82F6', color: 'white' }}
-                      >
-                        <div className="font-medium">{event.title}</div>
-                        {event.time && (
-                          <div className="text-xs opacity-75">{event.time}</div>
-                        )}
+                    {slot.events.length > 0 ? (
+                      slot.events.map((event) => (
+                        <div
+                          key={event.id}
+                          className="text-sm p-3 rounded-lg mb-2 shadow-sm border-l-4"
+                          style={{ 
+                            backgroundColor: event.color || '#3B82F6', 
+                            color: 'white',
+                            borderLeftColor: event.color || '#3B82F6'
+                          }}
+                        >
+                          <div className="font-semibold mb-1">{event.title}</div>
+                          <div className="text-xs opacity-90 flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {event.time}
+                          </div>
+                          {event.description && (
+                            <div className="text-xs opacity-75 mt-1">
+                              {event.description}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-gray-400 text-xs italic py-2">
+                        予定なし
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               ))}
@@ -420,9 +442,17 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
                     type="text"
                     value={event.title}
                     onChange={(e) => updateEvent(event.id, 'title', e.target.value)}
-                    className="w-full text-sm font-medium bg-transparent border-none outline-none"
+                    className="w-full text-sm font-medium bg-transparent border-none outline-none mb-1"
+                    placeholder="イベントタイトル"
                   />
-                  <div className="flex space-x-2 text-xs text-gray-500">
+                  <textarea
+                    value={event.description || ''}
+                    onChange={(e) => updateEvent(event.id, 'description', e.target.value)}
+                    className="w-full text-xs bg-transparent border-none outline-none resize-none"
+                    placeholder="説明（任意）"
+                    rows={2}
+                  />
+                  <div className="flex space-x-2 text-xs text-gray-500 mt-1">
                     <input
                       type="date"
                       value={event.date}
@@ -435,6 +465,18 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
                       onChange={(e) => updateEvent(event.id, 'time', e.target.value)}
                       className="bg-transparent border-none outline-none"
                     />
+                    <select
+                      value={event.color || '#3B82F6'}
+                      onChange={(e) => updateEvent(event.id, 'color', e.target.value)}
+                      className="bg-transparent border-none outline-none"
+                    >
+                      <option value="#3B82F6">青</option>
+                      <option value="#EF4444">赤</option>
+                      <option value="#10B981">緑</option>
+                      <option value="#F59E0B">黄</option>
+                      <option value="#8B5CF6">紫</option>
+                      <option value="#F97316">オレンジ</option>
+                    </select>
                   </div>
                 </div>
                 <button
