@@ -16,6 +16,14 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
   // 現在の日付を取得
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(today);
+  
+  // 今日の日付文字列を取得（ローカル時間）
+  const getTodayString = () => {
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // 月の日付を生成
   const generateMonthDays = () => {
@@ -72,7 +80,12 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
 
   // 指定された時間のイベントを取得
   const getEventsForHour = (hour: number) => {
-    const dateStr = currentDate.toISOString().split('T')[0];
+    // ローカル時間での日付文字列を作成
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
     return events.filter(event => {
       if (event.date !== dateStr) return false;
       if (!event.time) return false;
@@ -83,16 +96,27 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
 
   // 指定された日付のイベントを取得
   const getEventsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    // ローカル時間での日付文字列を作成（UTC変換を避ける）
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
     return events.filter(event => event.date === dateStr);
   };
 
   // 新しいイベントを追加
   const addEvent = () => {
+    // ローカル時間での日付文字列を作成
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
     const newEvent = {
       id: `event_${Date.now()}`,
       title: "新しいイベント",
-      date: currentDate.toISOString().split('T')[0],
+      date: dateStr,
       time: "10:00",
       description: "",
       color: "#3B82F6"
@@ -274,13 +298,18 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
             ))}
             
             {/* 日付 */}
-            {days.map((date, index) => {
-              if (!date) {
-                return <div key={index} className="p-2 h-16"></div>;
-              }
-              
-              const dayEvents = getEventsForDate(date);
-              const isToday = date.toDateString() === today.toDateString();
+              {days.map((date, index) => {
+                if (!date) {
+                  return <div key={index} className="p-2 h-16"></div>;
+                }
+                
+                const dayEvents = getEventsForDate(date);
+                // 今日の日付判定を修正
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                const isToday = dateStr === getTodayString();
               
               return (
                 <div
@@ -336,7 +365,12 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
               {/* 週の日付 */}
               {weekDays.map((date) => {
                 const dayEvents = getEventsForDate(date);
-                const isToday = date.toDateString() === today.toDateString();
+                // 今日の日付判定を修正
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                const isToday = dateStr === getTodayString();
                 
                 return (
                   <div
