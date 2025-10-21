@@ -131,144 +131,91 @@ export default function ContractsPage() {
             </div>
           </div>
 
-          {/* 統計カード */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-20z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">総書類数</p>
-                  <p className="text-2xl font-bold text-gray-900">{documents.length}</p>
-                </div>
-              </div>
-            </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">規定・規則</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {documents.filter(d => d.category === 'regulation').length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">ポリシー</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {documents.filter(d => d.category === 'policy').length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">マニュアル</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {documents.filter(d => d.category === 'manual').length}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 書類一覧 */}
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200">
+          {/* 書類一覧 - カード表示 */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">書類一覧</h2>
+              <div className="text-sm text-gray-500">
+                全 {documents.length} 件
+              </div>
             </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      書類名
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      カテゴリ
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      アップロード日
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {documents.map((document) => (
-                    <tr key={document.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {document.title}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {document.fileName}
-                          </div>
-                          {document.description && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              {document.description}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(document.category)}`}>
-                          {getCategoryText(document.category)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {document.uploadedAt.toLocaleDateString('ja-JP')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <a
-                            href={document.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#005eb2] hover:text-[#004a96]"
-                          >
-                            表示
-                          </a>
-                          <button className="text-gray-500 hover:text-gray-700">
-                            ダウンロード
-                          </button>
-                          <button className="text-red-600 hover:text-red-800">
-                            削除
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {documents.map((document) => (
+                <div key={document.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                  <div className="p-6">
+                    {/* ヘッダー */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                          {document.title}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          {document.fileName}
+                        </p>
+                      </div>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(document.category)}`}>
+                        {getCategoryText(document.category)}
+                      </span>
+                    </div>
+
+                    {/* 説明 */}
+                    {document.description && (
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                        {document.description}
+                      </p>
+                    )}
+
+                    {/* アップロード日 */}
+                    <div className="text-xs text-gray-400 mb-4">
+                      アップロード日: {document.uploadedAt.toLocaleDateString('ja-JP')}
+                    </div>
+
+                    {/* 操作ボタン */}
+                    <div className="flex space-x-2">
+                      <a
+                        href={document.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 px-3 py-2 bg-[#005eb2] text-white text-sm rounded-md hover:bg-[#004a96] transition-colors text-center"
+                      >
+                        表示
+                      </a>
+                      <button className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition-colors">
+                        ダウンロード
+                      </button>
+                      <button className="px-3 py-2 border border-red-300 text-red-700 text-sm rounded-md hover:bg-red-50 transition-colors">
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* 空の状態 */}
+            {documents.length === 0 && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                <div className="text-gray-400 mb-4">
+                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-20z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  書類がありません
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  最初の書類をアップロードしてください。
+                </p>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
+                >
+                  書類をアップロード
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
