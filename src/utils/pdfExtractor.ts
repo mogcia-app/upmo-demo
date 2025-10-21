@@ -7,11 +7,48 @@ export const extractPDFText = async (file: File): Promise<string> => {
   try {
     const pdfjsLib = await import('pdfjs-dist');
     
-    // PDF.jsのワーカーを設定
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-    
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
+    // 複数の設定を試す
+    const loadOptions = [
+      // 設定1: 最小限の設定
+      { data: arrayBuffer },
+      // 設定2: CDN設定付き
+      { 
+        data: arrayBuffer,
+        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+        cMapPacked: true
+      },
+      // 設定3: 完全設定
+      { 
+        data: arrayBuffer,
+        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'
+      }
+    ];
+    
+    let pdf = null;
+    let lastError = null;
+    
+    // 各設定を順番に試す
+    for (const options of loadOptions) {
+      try {
+        // ワーカー設定をリセット
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+        
+        pdf = await pdfjsLib.getDocument(options).promise;
+        break; // 成功したらループを抜ける
+      } catch (error) {
+        lastError = error;
+        console.warn('PDF読み込み設定を試行中...', error);
+        continue; // 次の設定を試す
+      }
+    }
+    
+    if (!pdf) {
+      throw lastError || new Error('すべての設定でPDF読み込みに失敗しました。');
+    }
     
     let fullText = '';
     
@@ -28,7 +65,19 @@ export const extractPDFText = async (file: File): Promise<string> => {
     return fullText.trim();
   } catch (error) {
     console.error('PDF読み込みエラー:', error);
-    throw new Error('PDFの読み込みに失敗しました。');
+    
+    // より詳細なエラー情報を提供
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid PDF')) {
+        throw new Error('無効なPDFファイルです。ファイルが破損している可能性があります。');
+      } else if (error.message.includes('Password')) {
+        throw new Error('パスワードで保護されたPDFファイルです。');
+      } else if (error.message.includes('network')) {
+        throw new Error('ネットワークエラーが発生しました。インターネット接続を確認してください。');
+      }
+    }
+    
+    throw new Error('PDFの読み込みに失敗しました。ファイル形式を確認してください。');
   }
 };
 
