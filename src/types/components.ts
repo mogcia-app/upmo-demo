@@ -69,11 +69,28 @@ export interface TextComponent extends BaseComponent {
   };
 }
 
+export interface CalendarComponent extends BaseComponent {
+  type: ComponentType.CALENDAR;
+  config: {
+    events: Array<{
+      id: string;
+      title: string;
+      date: string;
+      time?: string;
+      description?: string;
+      color?: string;
+    }>;
+    view: 'month' | 'week' | 'day';
+    showWeekends: boolean;
+  };
+}
+
 export type CustomComponent = 
   | DataTableComponent 
   | ChartComponent 
   | FormComponent 
-  | TextComponent;
+  | TextComponent
+  | CalendarComponent;
 
 export interface CustomTab {
   id: string;

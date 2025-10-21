@@ -7,6 +7,7 @@ import ComponentEditor from "../../../components/ComponentEditor";
 import DataTableComponent from "../../../components/DataTableComponent";
 import ChartComponent from "../../../components/ChartComponent";
 import FormComponent from "../../../components/FormComponent";
+import CalendarComponent from "../../../components/CalendarComponent";
 import { CustomComponent, ComponentType } from "../../../types/components";
 import { useCustomTabs } from "../../../hooks/useCustomTabs";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
@@ -167,6 +168,14 @@ export default function CustomTabPage() {
       case ComponentType.FORM:
         return (
           <FormComponent
+            key={component.id}
+            component={component as any}
+            onUpdate={handleUpdateComponent}
+          />
+        );
+      case ComponentType.CALENDAR:
+        return (
+          <CalendarComponent
             key={component.id}
             component={component as any}
             onUpdate={handleUpdateComponent}

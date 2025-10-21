@@ -19,6 +19,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
     { type: ComponentType.CHART, name: "チャート", icon: "📈", description: "グラフでデータを可視化" },
     { type: ComponentType.FORM, name: "フォーム", icon: "📝", description: "入力フォームを作成" },
     { type: ComponentType.TEXT, name: "テキスト", icon: "📄", description: "テキストブロックを追加" },
+    { type: ComponentType.CALENDAR, name: "カレンダー", icon: "📅", description: "イベント管理カレンダー" },
   ];
 
   const handleAddComponent = () => {
@@ -239,6 +240,42 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                   <option value="right">右揃え</option>
                 </select>
               </div>
+            </div>
+          </div>
+        );
+
+      case ComponentType.CALENDAR:
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  初期表示
+                </label>
+                <select
+                  value={config.view || "month"}
+                  onChange={(e) => setConfig({ ...config, view: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="month">月表示</option>
+                  <option value="week">週表示</option>
+                  <option value="day">日表示</option>
+                </select>
+              </div>
+              <div className="flex items-center">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={config.showWeekends !== false}
+                    onChange={(e) => setConfig({ ...config, showWeekends: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700">週末を表示</span>
+                </label>
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">
+              ※ イベントはカレンダー作成後に追加できます
             </div>
           </div>
         );
