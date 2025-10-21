@@ -41,6 +41,46 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
     return days;
   };
 
+  // 週の日付を生成
+  const generateWeekDays = () => {
+    const startOfWeek = new Date(currentDate);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day;
+    startOfWeek.setDate(diff);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  };
+
+  // 日表示の時間スロットを生成
+  const generateDayTimeSlots = () => {
+    const slots = [];
+    for (let hour = 0; hour < 24; hour++) {
+      slots.push({
+        hour,
+        time: `${hour.toString().padStart(2, '0')}:00`,
+        events: getEventsForHour(hour)
+      });
+    }
+    return slots;
+  };
+
+  // 指定された時間のイベントを取得
+  const getEventsForHour = (hour: number) => {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    return events.filter(event => {
+      if (event.date !== dateStr) return false;
+      if (!event.time) return false;
+      const eventHour = parseInt(event.time.split(':')[0]);
+      return eventHour === hour;
+    });
+  };
+
   // 指定された日付のイベントを取得
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
@@ -106,14 +146,30 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
     }
   };
 
-  // 月を変更
-  const changeMonth = (direction: 'prev' | 'next') => {
+  // 期間を変更
+  const changePeriod = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
-    if (direction === 'prev') {
-      newDate.setMonth(newDate.getMonth() - 1);
-    } else {
-      newDate.setMonth(newDate.getMonth() + 1);
+    
+    if (view === 'month') {
+      if (direction === 'prev') {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else {
+        newDate.setMonth(newDate.getMonth() + 1);
+      }
+    } else if (view === 'week') {
+      if (direction === 'prev') {
+        newDate.setDate(newDate.getDate() - 7);
+      } else {
+        newDate.setDate(newDate.getDate() + 7);
+      }
+    } else if (view === 'day') {
+      if (direction === 'prev') {
+        newDate.setDate(newDate.getDate() - 1);
+      } else {
+        newDate.setDate(newDate.getDate() + 1);
+      }
     }
+    
     setCurrentDate(newDate);
   };
 
@@ -168,10 +224,10 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
           </label>
         </div>
 
-        {/* 月ナビゲーション */}
+        {/* 期間ナビゲーション */}
         <div className="flex items-center justify-between mb-4">
           <button
-            onClick={() => changeMonth('prev')}
+            onClick={() => changePeriod('prev')}
             className="p-2 hover:bg-gray-100 rounded transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -180,11 +236,18 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
           </button>
           
           <h4 className="text-lg font-medium text-gray-900">
-            {currentDate.getFullYear()}年{monthNames[currentDate.getMonth()]}
+            {view === 'month' && `${currentDate.getFullYear()}年${monthNames[currentDate.getMonth()]}`}
+            {view === 'week' && (() => {
+              const weekDays = generateWeekDays();
+              const startDate = weekDays[0];
+              const endDate = weekDays[6];
+              return `${startDate.getMonth() + 1}月${startDate.getDate()}日 - ${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+            })()}
+            {view === 'day' && `${currentDate.getMonth() + 1}月${currentDate.getDate()}日 (${dayNames[currentDate.getDay()]})`}
           </h4>
           
           <button
-            onClick={() => changeMonth('next')}
+            onClick={() => changePeriod('next')}
             className="p-2 hover:bg-gray-100 rounded transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -254,17 +317,91 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpda
           </div>
         )}
         
-        {view === 'week' && (
-          <div className="text-center text-gray-500 py-8">
-            週表示は今後実装予定です
-          </div>
-        )}
+        {view === 'week' && (() => {
+          const weekDays = generateWeekDays();
+          return (
+            <div className="grid grid-cols-7 gap-1">
+              {/* 曜日ヘッダー */}
+              {dayNames.map((day, index) => (
+                <div
+                  key={day}
+                  className={`p-2 text-center text-sm font-medium ${
+                    index === 0 || index === 6 ? 'text-red-500' : 'text-gray-700'
+                  }`}
+                >
+                  {day}
+                </div>
+              ))}
+              
+              {/* 週の日付 */}
+              {weekDays.map((date) => {
+                const dayEvents = getEventsForDate(date);
+                const isToday = date.toDateString() === today.toDateString();
+                
+                return (
+                  <div
+                    key={date.toISOString()}
+                    className={`p-1 h-24 border border-gray-100 ${
+                      isToday ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`text-sm font-medium ${
+                      isToday ? 'text-blue-600' : 'text-gray-900'
+                    }`}>
+                      {date.getDate()}
+                    </div>
+                    <div className="space-y-1">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <div
+                          key={event.id}
+                          className="text-xs p-1 rounded truncate"
+                          style={{ backgroundColor: event.color || '#3B82F6', color: 'white' }}
+                          title={event.title}
+                        >
+                          {event.title}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <div className="text-xs text-gray-500">
+                          +{dayEvents.length - 3} 件
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
         
-        {view === 'day' && (
-          <div className="text-center text-gray-500 py-8">
-            日表示は今後実装予定です
-          </div>
-        )}
+        {view === 'day' && (() => {
+          const timeSlots = generateDayTimeSlots();
+          return (
+            <div className="space-y-1">
+              {timeSlots.map((slot) => (
+                <div key={slot.hour} className="flex border-b border-gray-100">
+                  <div className="w-20 p-2 text-sm text-gray-600 border-r border-gray-200">
+                    {slot.time}
+                  </div>
+                  <div className="flex-1 p-2 min-h-12">
+                    {slot.events.map((event) => (
+                      <div
+                        key={event.id}
+                        className="text-xs p-2 rounded mb-1"
+                        style={{ backgroundColor: event.color || '#3B82F6', color: 'white' }}
+                      >
+                        <div className="font-medium">{event.title}</div>
+                        {event.time && (
+                          <div className="text-xs opacity-75">{event.time}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* イベント一覧 */}
