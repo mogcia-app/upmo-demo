@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
+import { searchCompanyPolicies, generateAIResponse } from "../../utils/companyPolicySearch";
 
 interface Message {
   id: string;
@@ -118,19 +119,57 @@ export default function PersonalChatPage() {
     setIsLoading(true);
 
     // AIまたは他のユーザーの返信をシミュレート
-    setTimeout(() => {
-      const replyMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: activeChat === "ai-assistant" 
-          ? "ありがとうございます。その件について詳しく教えていただけますか？"
-          : "了解しました。後ほど確認して返信します。",
-        sender: activeChat === "ai-assistant" ? 'ai' : 'other',
-        senderName: chats.find(c => c.id === activeChat)?.name,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, replyMessage]);
-      setIsLoading(false);
-    }, 1500);
+    if (activeChat === "ai-assistant") {
+      // AIアシスタントの場合、社内規則検索を実行
+      setTimeout(async () => {
+        // 社内規則検索を実行
+        const searchResults = searchCompanyPolicies(inputText);
+        let aiResponse = "";
+        
+        if (searchResults.length > 0) {
+          // 社内規則が見つかった場合
+          aiResponse = generateAIResponse(inputText, searchResults);
+        } else {
+          // 社内規則が見つからない場合のデフォルト応答
+          if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
+            aiResponse = "こんにちは！AIアシスタントです。社内規則についてお答えできます。何かご質問がありますか？";
+          } else if (inputText.includes("ありがとう")) {
+            aiResponse = "どういたしまして！他にも社内規則についてご質問があれば、お気軽にお聞きください。";
+          } else if (inputText.includes("時間") || inputText.includes("時刻")) {
+            aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
+          } else if (inputText.includes("規則") || inputText.includes("ポリシー") || inputText.includes("マニュアル")) {
+            aiResponse = "社内規則についてお聞きしたいことがございましたら、具体的な内容をお教えください。例えば「労働時間」「有給休暇」「セキュリティ」などのキーワードでお尋ねいただけます。";
+          } else {
+            aiResponse = "申し訳ございませんが、社内規則に関する質問以外はお答えできません。社内規則について具体的なキーワードでお聞きください。";
+          }
+        }
+        
+        const replyMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: aiResponse,
+          sender: 'ai',
+          senderName: 'AIアシスタント',
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, replyMessage]);
+        setIsLoading(false);
+      }, 1500);
+    } else {
+      // 他のユーザーの場合
+      setTimeout(() => {
+        const replyMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: "了解しました。後ほど確認して返信します。",
+          sender: 'other',
+          senderName: chats.find(c => c.id === activeChat)?.name,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, replyMessage]);
+        setIsLoading(false);
+      }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
