@@ -22,16 +22,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   ];
 
   const adminMenuItems = [
-    { name: "契約書・社内規則", icon: "📋", href: "/admin/contracts" },
+    { name: "契約書", icon: "📋", href: "/admin/contracts" },
     { name: "ユーザー管理", icon: "👤", href: "/admin/users" },
-    { name: "AI設定・ナレッジ管理", icon: "🤖", href: "/admin/ai-settings" },
-    { name: "NGワード管理", icon: "🚫", href: "/admin/ng-words" },
+    { name: "ナレッジ管理", icon: "🤖", href: "/admin/ai-settings" },
   ];
 
-  const bottomMenuItems = [
-    { name: "検索", icon: "🔍", href: "/search" },
-    { name: "通知 / 履歴", icon: "📝", href: "/notifications" },
-  ];
 
   return (
     <>
@@ -55,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         {/* ヘッダー */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-[#005eb2]">Upmo Demo</h1>
+            <h1 className="text-xl font-bold text-[#005eb2]">Upmo</h1>
             <button
               onClick={onClose}
               className="lg:hidden p-1 rounded-md hover:bg-gray-100"
@@ -174,29 +169,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
             ))}
           </ul>
 
-          {/* セパレーター */}
-          <div className="mx-4 my-4 border-t border-gray-200"></div>
-
-          {/* 下部メニュー */}
-          <ul className="space-y-1 px-4">
-            {bottomMenuItems.map((item, index) => (
-              <li key={index}>
-                <a
-                  href={item.href}
-                  className="
-                    flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-[#005eb2] hover:text-white
-                    transition-colors duration-200 ease-in-out
-                    group
-                  "
-                >
-                  <span className="text-lg mr-3 group-hover:scale-110 transition-transform duration-200">
-                    {item.icon}
-                  </span>
-                  <span className="font-medium">{item.name}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
         </nav>
 
         {/* フッター */}
