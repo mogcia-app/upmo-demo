@@ -5,6 +5,8 @@ import Layout from "../../../components/Layout";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
 import { addCompanyPolicy, saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
+import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { db } from "../../../lib/firebase";
 
 interface Document {
   id: string;
@@ -19,6 +21,59 @@ interface Document {
 
 export default function ContractsPage() {
   const { user } = useAuth();
+  
+  // Firestoreからドキュメントを取得
+  const fetchDocumentsFromFirestore = async () => {
+    if (!user) return;
+    
+    try {
+      const q = query(
+        collection(db, 'documents'),
+        where('userId', '==', user.uid),
+        orderBy('uploadedAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const docs: Document[] = [];
+      
+      querySnapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        docs.push({
+          id: docSnapshot.id,
+          title: data.title,
+          fileName: data.fileName,
+          fileUrl: data.fileUrl,
+          uploadedAt: data.uploadedAt?.toDate() || new Date(),
+          category: data.category,
+          description: data.description,
+          extractedText: data.extractedText
+        });
+      });
+      
+      setDocuments(docs);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+
+  // Firestoreにドキュメントを保存
+  const saveDocumentToFirestore = async (document: Document): Promise<string> => {
+    try {
+      const docRef = await addDoc(collection(db, 'documents'), {
+        title: document.title,
+        fileName: document.fileName,
+        fileUrl: document.fileUrl,
+        uploadedAt: document.uploadedAt,
+        category: document.category,
+        description: document.description,
+        extractedText: document.extractedText,
+        userId: user?.uid
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error saving document:', error);
+      throw error;
+    }
+  };
   
   // サンプルデータを社内規則検索システムに登録
   useEffect(() => {
@@ -113,7 +168,17 @@ export default function ContractsPage() {
     });
   }, []);
 
-  const [documents, setDocuments] = useState<Document[]>([
+  // ユーザー認証時にFirestoreからドキュメントを取得
+  useEffect(() => {
+    if (user) {
+      fetchDocumentsFromFirestore();
+    }
+  }, [user]);
+
+  const [documents, setDocuments] = useState<Document[]>([]);
+
+  // サンプルデータ（初期化用）
+  const sampleDocuments: Document[] = [
     {
       id: '1',
       title: '就業規則',
@@ -188,7 +253,7 @@ export default function ContractsPage() {
 2. 入社当日
 各種手続きを行い、オンボーディングを実施する。`
     }
-  ]);
+  ];
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [newDocument, setNewDocument] = useState({
@@ -253,11 +318,19 @@ export default function ContractsPage() {
         // Firestoreのエラーは警告として扱い、処理は継続
       }
 
-      setDocuments(prev => [document, ...prev]);
-      setNewDocument({ title: '', description: '', category: 'regulation', file: null });
-      setShowUploadModal(false);
-      
-      alert('書類のアップロードとテキスト抽出が完了しました！');
+      // Firestoreにドキュメントを保存
+      try {
+        const docId = await saveDocumentToFirestore(document);
+        document.id = docId; // FirestoreのIDを設定
+        setDocuments(prev => [document, ...prev]);
+        setNewDocument({ title: '', description: '', category: 'regulation', file: null });
+        setShowUploadModal(false);
+        
+        alert('書類のアップロードとテキスト抽出が完了しました！');
+      } catch (firestoreError) {
+        console.error('Firestore保存エラー:', firestoreError);
+        alert('ドキュメントの保存中にエラーが発生しました。');
+      }
     } catch (error) {
       console.error('PDF読み込みエラー:', error);
       
@@ -297,6 +370,24 @@ export default function ContractsPage() {
       case 'manual': return 'マニュアル';
       case 'other': return 'その他';
       default: return '不明';
+    }
+  };
+
+  // ドキュメントを削除
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!confirm('このドキュメントを削除しますか？')) return;
+    
+    try {
+      // Firestoreから削除
+      await deleteDoc(doc(db, 'documents', documentId));
+      
+      // ローカル状態から削除
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      
+      alert('ドキュメントを削除しました。');
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('ドキュメントの削除中にエラーが発生しました。');
     }
   };
 
@@ -381,7 +472,10 @@ export default function ContractsPage() {
                       <button className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition-colors">
                         ダウンロード
                       </button>
-                      <button className="px-3 py-2 border border-red-300 text-red-700 text-sm rounded-md hover:bg-red-50 transition-colors">
+                      <button 
+                        onClick={() => handleDeleteDocument(document.id)}
+                        className="px-3 py-2 border border-red-300 text-red-700 text-sm rounded-md hover:bg-red-50 transition-colors"
+                      >
                         削除
                       </button>
                     </div>
