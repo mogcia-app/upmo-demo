@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Layout from "../../../components/Layout";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
-import { addCompanyPolicy } from "../../../utils/companyPolicySearch";
+import { useAuth } from "../../../contexts/AuthContext";
+import { addCompanyPolicy, saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
 
 interface Document {
   id: string;
@@ -17,6 +18,8 @@ interface Document {
 }
 
 export default function ContractsPage() {
+  const { user } = useAuth();
+  
   // サンプルデータを社内規則検索システムに登録
   useEffect(() => {
     const sampleDocuments: Document[] = [
@@ -226,7 +229,7 @@ export default function ContractsPage() {
         extractedText: extractedText
       };
 
-      // 社内規則検索システムに登録
+      // 社内規則検索システムに登録（ローカル）
       addCompanyPolicy({
         id: document.id,
         title: document.title,
@@ -234,6 +237,21 @@ export default function ContractsPage() {
         content: extractedText,
         lastUpdated: document.uploadedAt
       });
+
+      // Firestoreにも保存（AI検索用）
+      try {
+        await saveCompanyPolicyToFirestore({
+          title: document.title,
+          category: document.category,
+          content: extractedText,
+          userId: user?.uid,
+          source: document.fileName
+        });
+        console.log('PDF内容をAI検索システムに保存しました');
+      } catch (firestoreError) {
+        console.error('Firestore保存エラー:', firestoreError);
+        // Firestoreのエラーは警告として扱い、処理は継続
+      }
 
       setDocuments(prev => [document, ...prev]);
       setNewDocument({ title: '', description: '', category: 'regulation', file: null });

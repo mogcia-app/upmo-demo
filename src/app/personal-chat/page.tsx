@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
-import { searchCompanyPolicies, generateAIResponse } from "../../utils/companyPolicySearch";
+import { searchCompanyPolicies, generateAIResponse, fetchCompanyPoliciesFromFirestore, getCompanyPolicies } from "../../utils/companyPolicySearch";
+import { generateAIResponse as generateAdvancedAIResponse, checkOpenAISetup } from "../../utils/aiAssistant";
 
 interface Message {
   id: string;
@@ -32,6 +33,21 @@ export default function PersonalChatPage() {
   const [activeChat, setActiveChat] = useState<string>("ai-assistant");
   const [chats, setChats] = useState<Chat[]>([]);
   const { user } = useAuth();
+
+  // FirestoreからPDFデータを取得
+  useEffect(() => {
+    const loadPDFData = async () => {
+      if (user) {
+        try {
+          await fetchCompanyPoliciesFromFirestore(user.uid);
+          console.log('PDFデータをAI検索システムに読み込みました');
+        } catch (error) {
+          console.error('PDFデータの読み込みエラー:', error);
+        }
+      }
+    };
+    loadPDFData();
+  }, [user]);
 
   // サンプルチャットとメッセージを追加
   useEffect(() => {
@@ -122,25 +138,46 @@ export default function PersonalChatPage() {
     if (activeChat === "ai-assistant") {
       // AIアシスタントの場合、社内規則検索を実行
       setTimeout(async () => {
-        // 社内規則検索を実行
-        const searchResults = searchCompanyPolicies(inputText);
+        // 最新のPDFデータを再取得
+        if (user) {
+          try {
+            await fetchCompanyPoliciesFromFirestore(user.uid);
+          } catch (error) {
+            console.error('PDFデータの再取得エラー:', error);
+          }
+        }
+        
+        // OpenAI APIの設定確認
+        const openaiStatus = checkOpenAISetup();
         let aiResponse = "";
         
-        if (searchResults.length > 0) {
-          // 社内規則が見つかった場合
-          aiResponse = generateAIResponse(inputText, searchResults);
+        if (openaiStatus.isConfigured) {
+          // 本格的なAI回答を生成
+          try {
+            aiResponse = await generateAdvancedAIResponse(inputText, getCompanyPolicies());
+          } catch (error) {
+            console.error('AI回答生成エラー:', error);
+            aiResponse = "申し訳ございません。AI回答の生成中にエラーが発生しました。";
+          }
         } else {
+          // フォールバック: 従来の検索ロジック
+          const searchResults = searchCompanyPolicies(inputText);
+          
+          if (searchResults.length > 0) {
+            aiResponse = generateAIResponse(inputText, searchResults);
+          } else {
           // 社内規則が見つからない場合のデフォルト応答
           if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
-            aiResponse = "こんにちは！AIアシスタントです。社内規則についてお答えできます。何かご質問がありますか？";
+            aiResponse = "こんにちは！AIアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
           } else if (inputText.includes("ありがとう")) {
-            aiResponse = "どういたしまして！他にも社内規則についてご質問があれば、お気軽にお聞きください。";
+            aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
           } else if (inputText.includes("時間") || inputText.includes("時刻")) {
             aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
-          } else if (inputText.includes("規則") || inputText.includes("ポリシー") || inputText.includes("マニュアル")) {
-            aiResponse = "社内規則についてお聞きしたいことがございましたら、具体的な内容をお教えください。例えば「労働時間」「有給休暇」「セキュリティ」などのキーワードでお尋ねいただけます。";
+          } else if (inputText.includes("規則") || inputText.includes("ポリシー") || inputText.includes("マニュアル") || inputText.includes("PDF")) {
+            aiResponse = "アップロードされたPDF文書についてお聞きしたいことがございましたら、具体的な内容をお教えください。例えば「労働時間」「有給休暇」「セキュリティ」「契約書」などのキーワードでお尋ねいただけます。";
           } else {
-            aiResponse = "申し訳ございませんが、社内規則に関する質問以外はお答えできません。社内規則について具体的なキーワードでお聞きください。";
+            aiResponse = "申し訳ございませんが、アップロードされたPDF文書に関する質問以外はお答えできません。PDF文書について具体的なキーワードでお聞きください。";
+          }
           }
         }
         

@@ -1,3 +1,6 @@
+import { collection, getDocs, query, where, orderBy, addDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
 export interface CompanyPolicy {
   id: string;
   title: string;
@@ -5,10 +8,85 @@ export interface CompanyPolicy {
   content: string;
   chunks: string[];
   lastUpdated: Date;
+  userId?: string; // ユーザーIDを追加
+  source?: string; // PDFファイル名などを記録
 }
 
 // 社内規則データベース（実際はFirestoreから取得）
 let companyPolicies: CompanyPolicy[] = [];
+
+// Firestoreから社内規則を取得
+export const fetchCompanyPoliciesFromFirestore = async (userId?: string): Promise<CompanyPolicy[]> => {
+  try {
+    let q;
+    if (userId) {
+      q = query(
+        collection(db, 'companyPolicies'),
+        where('userId', '==', userId),
+        orderBy('lastUpdated', 'desc')
+      );
+    } else {
+      q = query(
+        collection(db, 'companyPolicies'),
+        orderBy('lastUpdated', 'desc')
+      );
+    }
+    
+    const querySnapshot = await getDocs(q);
+    const policies: CompanyPolicy[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      policies.push({
+        id: doc.id,
+        title: data.title,
+        category: data.category || '一般',
+        content: data.content,
+        chunks: data.chunks || [],
+        lastUpdated: data.lastUpdated?.toDate() || new Date(),
+        userId: data.userId,
+        source: data.source
+      });
+    });
+    
+    companyPolicies = policies;
+    return policies;
+  } catch (error) {
+    console.error('Error fetching company policies:', error);
+    return [];
+  }
+};
+
+// 社内規則をFirestoreに保存
+export const saveCompanyPolicyToFirestore = async (policy: Omit<CompanyPolicy, 'id' | 'chunks' | 'lastUpdated'> & { content: string }): Promise<string> => {
+  try {
+    const chunks = policy.content.split(/\n\n+/).filter(chunk => chunk.trim().length > 0);
+    
+    const policyData = {
+      title: policy.title,
+      category: policy.category,
+      content: policy.content,
+      chunks: chunks,
+      lastUpdated: new Date(),
+      userId: policy.userId,
+      source: policy.source
+    };
+    
+    const docRef = await addDoc(collection(db, 'companyPolicies'), policyData);
+    
+    // ローカルキャッシュも更新
+    const newPolicy: CompanyPolicy = {
+      id: docRef.id,
+      ...policyData
+    };
+    companyPolicies.push(newPolicy);
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving company policy:', error);
+    throw error;
+  }
+};
 
 // キーワード検索用のインデックス
 const createSearchIndex = (text: string): string[] => {
