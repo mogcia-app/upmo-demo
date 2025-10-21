@@ -95,12 +95,15 @@ export default function CustomTabPage() {
       setLoading(true);
       try {
         const route = `/custom/${decodeURIComponent(slug)}`;
+        console.log("Loading components for route:", route);
         const tab = await getCustomTabByRoute(route);
         
         if (tab) {
+          console.log("Found tab:", tab);
           setCurrentTab(tab);
           setComponents(tab.components || []);
         } else {
+          console.log("Tab not found for route:", route);
           // タブが見つからない場合、空の状態で表示
           setComponents([]);
         }
@@ -216,7 +219,7 @@ export default function CustomTabPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                {title}
+                {currentTab ? currentTab.title : title}
               </h1>
               <p className="text-gray-600">
                 カスタムコンポーネントで自由にページを構築できます。

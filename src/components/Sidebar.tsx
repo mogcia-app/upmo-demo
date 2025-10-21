@@ -45,6 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0 lg:static lg:shadow-none
           w-64
+          flex flex-col
         `}
       >
         {/* ヘッダー */}
@@ -63,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         </div>
 
         {/* ナビゲーションメニュー */}
-        <nav className="mt-6 flex-1 overflow-y-auto">
+        <nav className="mt-6 flex-1 overflow-y-auto min-h-0">
           {/* 共通メニュー */}
           <ul className="space-y-1 px-4">
             {commonMenuItems.map((item, index) => (
@@ -172,7 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         </nav>
 
         {/* フッター */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-200">
+        <div className="p-6 border-t border-gray-200 bg-white">
           {user ? (
             <div className="space-y-2">
               <div className="flex items-center space-x-3">
