@@ -113,6 +113,10 @@ export default function ContractsPage() {
       const { extractPDFText } = await import("../../../utils/pdfExtractor");
       const extractedText = await extractPDFText(newDocument.file);
       
+      // デバッグ: 抽出されたテキストを確認
+      console.log('抽出されたテキスト:', extractedText);
+      console.log('テキストの長さ:', extractedText.length);
+      
       const document: Document = {
         id: Date.now().toString(),
         title: newDocument.title,
@@ -134,6 +138,7 @@ export default function ContractsPage() {
           source: document.fileName
         });
         console.log('PDF内容をAI検索システムに保存しました');
+        console.log('保存したコンテンツ:', extractedText.substring(0, 200) + '...');
       } catch (firestoreError) {
         console.error('Firestore保存エラー:', firestoreError);
         // Firestoreのエラーは警告として扱い、処理は継続
