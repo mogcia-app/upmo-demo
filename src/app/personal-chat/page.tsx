@@ -147,7 +147,7 @@ export default function PersonalChatPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="flex h-full max-h-[calc(100vh-8rem)] bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="flex h-full max-h-[calc(300vh-8rem)] bg-white rounded-lg shadow-sm overflow-hidden">
           {/* 左側: チャットリスト */}
           <div className="w-80 border-r border-gray-200 flex flex-col">
             {/* ヘッダー */}
@@ -250,7 +250,7 @@ export default function PersonalChatPage() {
             </div>
 
             {/* メッセージエリア */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[600px]">
               {messages.map((message) => (
                 <div
                   key={message.id}
