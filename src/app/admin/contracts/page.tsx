@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../../components/Layout";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
-import { addCompanyPolicy, saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
+import { saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
 import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { db } from "../../../lib/firebase";
 
@@ -75,98 +75,6 @@ export default function ContractsPage() {
     }
   };
   
-  // サンプルデータを社内規則検索システムに登録
-  useEffect(() => {
-    const sampleDocuments: Document[] = [
-    {
-      id: '1',
-      title: '就業規則',
-      fileName: 'work-regulations-2024.pdf',
-      fileUrl: '/sample-work-regulations.pdf',
-      uploadedAt: new Date('2024-10-20'),
-      category: 'regulation',
-      description: '会社の就業に関する基本規則',
-      extractedText: `第1章 総則
-第1条（目的）
-この就業規則は、労働基準法第89条に基づき、従業員の労働条件を明らかにし、会社と従業員の相互理解を深め、健全な労使関係の確立を図ることを目的とする。
-
-第2条（適用範囲）
-この規則は、会社に雇用されるすべての従業員に適用する。
-
-第2章 労働時間・休日・休暇
-第3条（労働時間）
-1. 所定労働時間は1日8時間、週40時間とする。
-2. 始業時刻は午前9時、終業時刻は午後6時とする。
-3. 休憩時間は正午から午後1時までの1時間とする。
-
-第4条（休日）
-1. 週休日は土曜日及び日曜日とする。
-2. 国民の祝日は休日とする。
-3. 年末年始休暇は12月29日から1月3日までとする。`
-    },
-    {
-      id: '2',
-      title: '情報セキュリティポリシー',
-      fileName: 'security-policy.pdf',
-      fileUrl: '/sample-security-policy.pdf',
-      uploadedAt: new Date('2024-10-18'),
-      category: 'policy',
-      description: '情報セキュリティに関する方針',
-      extractedText: `1. 基本方針
-当社は、情報資産を適切に保護し、顧客及び関係者の信頼を得るため、情報セキュリティマネジメントシステムを構築・運用する。
-
-2. 適用範囲
-このポリシーは、当社の全従業員及び委託先に適用される。
-
-3. 情報資産の管理
-3.1 機密情報の取り扱い
-機密情報は適切に分類し、アクセス制御を行う。
-3.2 パスワード管理
-強固なパスワードを設定し、定期的に変更する。
-3.3 ウイルス対策
-最新のウイルス対策ソフトウェアを導入し、定期的に更新する。`
-    },
-    {
-      id: '3',
-      title: '人事マニュアル',
-      fileName: 'hr-manual.pdf',
-      fileUrl: '/sample-hr-manual.pdf',
-      uploadedAt: new Date('2024-10-15'),
-      category: 'manual',
-      description: '人事業務に関する手順書',
-      extractedText: `人事業務マニュアル
-
-第1章 採用業務
-1. 採用計画の策定
-年度開始時に採用計画を策定し、必要な人材を確保する。
-
-2. 面接プロセス
-2.1 書類選考
-応募書類を確認し、一次選考を行う。
-2.2 面接実施
-複数回の面接を実施し、適性を判断する。
-
-第2章 入社手続き
-1. 入社前準備
-内定者に対して必要な書類の準備を依頼する。
-2. 入社当日
-各種手続きを行い、オンボーディングを実施する。`
-    }
-    ];
-
-    // サンプルデータを社内規則検索システムに登録
-    sampleDocuments.forEach(doc => {
-      if (doc.extractedText) {
-        addCompanyPolicy({
-          id: doc.id,
-          title: doc.title,
-          category: doc.category,
-          content: doc.extractedText,
-          lastUpdated: doc.uploadedAt
-        });
-      }
-    });
-  }, []);
 
   // ユーザー認証時にFirestoreからドキュメントを取得
   useEffect(() => {
@@ -176,84 +84,6 @@ export default function ContractsPage() {
   }, [user]);
 
   const [documents, setDocuments] = useState<Document[]>([]);
-
-  // サンプルデータ（初期化用）
-  const sampleDocuments: Document[] = [
-    {
-      id: '1',
-      title: '就業規則',
-      fileName: 'work-regulations-2024.pdf',
-      fileUrl: '/sample-work-regulations.pdf',
-      uploadedAt: new Date('2024-10-20'),
-      category: 'regulation',
-      description: '会社の就業に関する基本規則',
-      extractedText: `第1章 総則
-第1条（目的）
-この就業規則は、労働基準法第89条に基づき、従業員の労働条件を明らかにし、会社と従業員の相互理解を深め、健全な労使関係の確立を図ることを目的とする。
-
-第2条（適用範囲）
-この規則は、会社に雇用されるすべての従業員に適用する。
-
-第2章 労働時間・休日・休暇
-第3条（労働時間）
-1. 所定労働時間は1日8時間、週40時間とする。
-2. 始業時刻は午前9時、終業時刻は午後6時とする。
-3. 休憩時間は正午から午後1時までの1時間とする。
-
-第4条（休日）
-1. 週休日は土曜日及び日曜日とする。
-2. 国民の祝日は休日とする。
-3. 年末年始休暇は12月29日から1月3日までとする。`
-    },
-    {
-      id: '2',
-      title: '情報セキュリティポリシー',
-      fileName: 'security-policy.pdf',
-      fileUrl: '/sample-security-policy.pdf',
-      uploadedAt: new Date('2024-10-18'),
-      category: 'policy',
-      description: '情報セキュリティに関する方針',
-      extractedText: `1. 基本方針
-当社は、情報資産を適切に保護し、顧客及び関係者の信頼を得るため、情報セキュリティマネジメントシステムを構築・運用する。
-
-2. 適用範囲
-このポリシーは、当社の全従業員及び委託先に適用される。
-
-3. 情報資産の管理
-3.1 機密情報の取り扱い
-機密情報は適切に分類し、アクセス制御を行う。
-3.2 パスワード管理
-強固なパスワードを設定し、定期的に変更する。
-3.3 ウイルス対策
-最新のウイルス対策ソフトウェアを導入し、定期的に更新する。`
-    },
-    {
-      id: '3',
-      title: '人事マニュアル',
-      fileName: 'hr-manual.pdf',
-      fileUrl: '/sample-hr-manual.pdf',
-      uploadedAt: new Date('2024-10-15'),
-      category: 'manual',
-      description: '人事業務に関する手順書',
-      extractedText: `人事業務マニュアル
-
-第1章 採用業務
-1. 採用計画の策定
-年度開始時に採用計画を策定し、必要な人材を確保する。
-
-2. 面接プロセス
-2.1 書類選考
-応募書類を確認し、一次選考を行う。
-2.2 面接実施
-複数回の面接を実施し、適性を判断する。
-
-第2章 入社手続き
-1. 入社前準備
-内定者に対して必要な書類の準備を依頼する。
-2. 入社当日
-各種手続きを行い、オンボーディングを実施する。`
-    }
-  ];
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [newDocument, setNewDocument] = useState({
@@ -294,16 +124,7 @@ export default function ContractsPage() {
         extractedText: extractedText
       };
 
-      // 社内規則検索システムに登録（ローカル）
-      addCompanyPolicy({
-        id: document.id,
-        title: document.title,
-        category: document.category,
-        content: extractedText,
-        lastUpdated: document.uploadedAt
-      });
-
-      // Firestoreにも保存（AI検索用）
+      // Firestoreに保存（AI検索用）
       try {
         await saveCompanyPolicyToFirestore({
           title: document.title,
