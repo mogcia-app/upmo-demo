@@ -56,7 +56,6 @@ export const useCustomTabs = () => {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
       })) as CustomTab[];
       
-      console.log("Fetched custom tabs:", tabs);
       setCustomTabs(tabs);
     } catch (error) {
       console.error("Error fetching custom tabs:", error);
@@ -120,11 +119,8 @@ export const useCustomTabs = () => {
         createdAt: new Date(),
       };
 
-      console.log("Creating custom tab:", { title, slug, route, userId });
       const docRef = await addDoc(collection(db, "customTabs"), newTab);
       const addedTab = { id: docRef.id, ...newTab };
-      
-      console.log("Custom tab created:", addedTab);
       setCustomTabs(prev => [addedTab, ...prev]);
       return addedTab;
     } catch (error) {
@@ -173,7 +169,7 @@ export const useCustomTabs = () => {
   };
 
   // 特定のカスタムタブを取得
-  const getCustomTabByRoute = async (route: string): Promise<CustomTab | null> => {
+  const getCustomTabByRoute = useCallback(async (route: string): Promise<CustomTab | null> => {
     if (!userId) {
       console.error("User not authenticated");
       return null;
@@ -204,7 +200,7 @@ export const useCustomTabs = () => {
       console.error("Error getting custom tab by route:", error);
       return null;
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     if (userId) {
