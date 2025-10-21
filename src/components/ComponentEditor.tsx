@@ -12,7 +12,7 @@ interface ComponentEditorProps {
 const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAddComponent }) => {
   const [selectedType, setSelectedType] = useState<ComponentType | null>(null);
   const [title, setTitle] = useState("");
-  const [config, setConfig] = useState<Record<string, any>>({});
+  const [config, setConfig] = useState<Record<string, unknown>>({});
 
   const componentTypes = [
     { type: ComponentType.DATA_TABLE, name: "データテーブル", icon: "📊", description: "表形式でデータを表示・編集" },
@@ -51,14 +51,14 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 列の設定
               </label>
               <div className="space-y-2">
-                {config.columns?.map((col: any, index: number) => (
+                {(config.columns as Array<{id: string; name: string; type: string; options?: string[]}>)?.map((col, index: number) => (
                   <div key={`column-config-${index}`} className="flex space-x-2">
                     <input
                       type="text"
                       placeholder="列名"
                       value={col.name}
                       onChange={(e) => {
-                        const newColumns = [...config.columns];
+                        const newColumns = [...(config.columns as Array<{id: string; name: string; type: string; options?: string[]}>)];
                         newColumns[index] = { ...col, name: e.target.value };
                         setConfig({ ...config, columns: newColumns });
                       }}
@@ -67,7 +67,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                     <select
                       value={col.type}
                       onChange={(e) => {
-                        const newColumns = [...config.columns];
+                        const newColumns = [...(config.columns as Array<{id: string; name: string; type: string; options?: string[]}>)];
                         newColumns[index] = { ...col, type: e.target.value };
                         setConfig({ ...config, columns: newColumns });
                       }}
@@ -87,7 +87,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                   const newColumnId = `column_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                   setConfig({
                     ...config,
-                    columns: [...(config.columns || []), { id: newColumnId, name: "", type: "text" }],
+                    columns: [...(config.columns as Array<{id: string; name: string; type: string; options?: string[]}> || []), { id: newColumnId, name: "", type: "text" }],
                     data: []
                   });
                 }}
@@ -107,7 +107,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 チャートタイプ
               </label>
               <select
-                value={config.chartType || "bar"}
+                value={(config.chartType as string) || "bar"}
                 onChange={(e) => setConfig({ ...config, chartType: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               >
@@ -123,12 +123,12 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
               </label>
               <textarea
                 placeholder='[{"label": "項目1", "value": 100}, {"label": "項目2", "value": 200}]'
-                value={JSON.stringify(config.data || [], null, 2)}
+                value={JSON.stringify((config.data as any) || [], null, 2)}
                 onChange={(e) => {
                   try {
                     const parsed = JSON.parse(e.target.value);
                     setConfig({ ...config, data: parsed });
-                  } catch (err) {
+                  } catch {
                     // 無効なJSONの場合はそのまま保存
                     setConfig({ ...config, data: e.target.value });
                   }
@@ -148,14 +148,14 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 フォームフィールド
               </label>
               <div className="space-y-2">
-                {config.fields?.map((field: any, index: number) => (
+                {(config.fields as Array<{id: string; label: string; type: string; required: boolean; options?: string[]}>)?.map((field, index: number) => (
                   <div key={`field-config-${index}`} className="flex space-x-2">
                     <input
                       type="text"
                       placeholder="フィールド名"
                       value={field.label}
                       onChange={(e) => {
-                        const newFields = [...config.fields];
+                        const newFields = [...(config.fields as Array<{id: string; label: string; type: string; required: boolean; options?: string[]}>)];
                         newFields[index] = { ...field, label: e.target.value };
                         setConfig({ ...config, fields: newFields });
                       }}
@@ -164,7 +164,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                     <select
                       value={field.type}
                       onChange={(e) => {
-                        const newFields = [...config.fields];
+                        const newFields = [...(config.fields as Array<{id: string; label: string; type: string; required: boolean; options?: string[]}>)];
                         newFields[index] = { ...field, type: e.target.value };
                         setConfig({ ...config, fields: newFields });
                       }}
@@ -185,7 +185,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 onClick={() => {
                   setConfig({
                     ...config,
-                    fields: [...(config.fields || []), { label: "", type: "text", required: false }],
+                    fields: [...(config.fields as Array<{id: string; label: string; type: string; required: boolean; options?: string[]}> || []), { id: `field_${Date.now()}`, label: "", type: "text", required: false }],
                     submitAction: "save"
                   });
                 }}
@@ -205,7 +205,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 テキスト内容
               </label>
               <textarea
-                value={config.content || ""}
+                value={(config.content as string) || ""}
                 onChange={(e) => setConfig({ ...config, content: e.target.value })}
                 placeholder="ここにテキストを入力してください..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
@@ -219,7 +219,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 </label>
                 <input
                   type="number"
-                  value={config.fontSize || 14}
+                  value={(config.fontSize as number) || 14}
                   onChange={(e) => setConfig({ ...config, fontSize: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   min="10"
@@ -231,7 +231,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                   配置
                 </label>
                 <select
-                  value={config.alignment || "left"}
+                  value={(config.alignment as string) || "left"}
                   onChange={(e) => setConfig({ ...config, alignment: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
@@ -253,7 +253,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                   初期表示
                 </label>
                 <select
-                  value={config.view || "month"}
+                  value={(config.view as string) || "month"}
                   onChange={(e) => setConfig({ ...config, view: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
@@ -266,7 +266,7 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
-                    checked={config.showWeekends !== false}
+                    checked={(config.showWeekends as boolean) !== false}
                     onChange={(e) => setConfig({ ...config, showWeekends: e.target.checked })}
                     className="rounded"
                   />

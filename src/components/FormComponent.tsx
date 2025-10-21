@@ -8,11 +8,11 @@ interface FormComponentProps {
   onUpdate: (component: FormComponentType) => void;
 }
 
-const FormComponent: React.FC<FormComponentProps> = ({ component, onUpdate }) => {
-  const [formData, setFormData] = useState<Record<string, any>>({});
+const FormComponent: React.FC<FormComponentProps> = ({ component }) => {
+  const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleInputChange = (fieldId: string, value: any) => {
+  const handleInputChange = (fieldId: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [fieldId]: value
@@ -44,7 +44,7 @@ const FormComponent: React.FC<FormComponentProps> = ({ component, onUpdate }) =>
     }
   };
 
-  const renderField = (field: any) => {
+  const renderField = (field: {id: string; label: string; type: string; required: boolean; options?: string[]}) => {
     const value = formData[field.id] || "";
 
     switch (field.type) {

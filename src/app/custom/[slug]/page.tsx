@@ -9,7 +9,7 @@ import ChartComponent from "../../../components/ChartComponent";
 import FormComponent from "../../../components/FormComponent";
 import CalendarComponent from "../../../components/CalendarComponent";
 import { CustomComponent, ComponentType } from "../../../types/components";
-import { useCustomTabs } from "../../../hooks/useCustomTabs";
+import { useCustomTabs, CustomTab } from "../../../hooks/useCustomTabs";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -18,7 +18,7 @@ export default function CustomTabPage() {
   const slug = params?.slug as string;
   const [components, setComponents] = useState<CustomComponent[]>([]);
   const [showComponentEditor, setShowComponentEditor] = useState(false);
-  const [currentTab, setCurrentTab] = useState<any>(null);
+  const [currentTab, setCurrentTab] = useState<CustomTab | null>(null);
   const [loading, setLoading] = useState(true);
   const { getCustomTabByRoute, updateCustomTabComponents } = useCustomTabs();
   const { user } = useAuth();

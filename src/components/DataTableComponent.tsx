@@ -13,7 +13,7 @@ const DataTableComponent: React.FC<DataTableComponentProps> = ({ component, onUp
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
-  const handleCellEdit = (rowIndex: number, columnId: string, value: any) => {
+  const handleCellEdit = (rowIndex: number, columnId: string, value: string | number) => {
     const newData = [...data];
     if (!newData[rowIndex]) {
       newData[rowIndex] = {};
@@ -58,7 +58,7 @@ const DataTableComponent: React.FC<DataTableComponentProps> = ({ component, onUp
   };
 
   const addRow = () => {
-    const newRow: Record<string, any> = {};
+    const newRow: Record<string, string | number> = {};
     component.config.columns.forEach(col => {
       newRow[col.id] = "";
     });

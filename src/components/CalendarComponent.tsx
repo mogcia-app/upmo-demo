@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { CalendarComponentType } from "../types/components";
+import { CalendarComponent as CalendarComponentType } from "../types/components";
 
 interface CalendarComponentProps {
   component: CalendarComponentType;
@@ -11,7 +11,7 @@ interface CalendarComponentProps {
 const CalendarComponent: React.FC<CalendarComponentProps> = ({ component, onUpdate }) => {
   const [events, setEvents] = useState(component.config.events || []);
   const [view, setView] = useState(component.config.view || 'month');
-  const [showWeekends, setShowWeekends] = useState(component.config.showWeekends || true);
+  const [showWeekends, setShowWeekends] = useState<boolean>(component.config.showWeekends || true);
 
   // 現在の日付を取得
   const today = new Date();
