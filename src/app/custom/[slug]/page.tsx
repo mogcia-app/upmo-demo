@@ -10,6 +10,7 @@ import FormComponent from "../../../components/FormComponent";
 import { CustomComponent, ComponentType } from "../../../types/components";
 import { useCustomTabs } from "../../../hooks/useCustomTabs";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export default function CustomTabPage() {
   const params = useParams();
@@ -19,6 +20,7 @@ export default function CustomTabPage() {
   const [currentTab, setCurrentTab] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { getCustomTabByRoute, updateCustomTabComponents } = useCustomTabs();
+  const { user } = useAuth();
   
   // スラッグからタイトルを復元する関数
   const getTitleFromSlug = (slug: string) => {
@@ -85,7 +87,10 @@ export default function CustomTabPage() {
   // ページロード時にコンポーネントを読み込み
   useEffect(() => {
     const loadComponents = async () => {
-      if (!slug) return;
+      if (!slug || !user) {
+        setLoading(false);
+        return;
+      }
       
       setLoading(true);
       try {
@@ -95,16 +100,20 @@ export default function CustomTabPage() {
         if (tab) {
           setCurrentTab(tab);
           setComponents(tab.components || []);
+        } else {
+          // タブが見つからない場合、空の状態で表示
+          setComponents([]);
         }
       } catch (error) {
         console.error("Error loading components:", error);
+        setComponents([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadComponents();
-  }, [slug, getCustomTabByRoute]);
+  }, [slug, user, getCustomTabByRoute]);
 
   const handleAddComponent = async (newComponent: CustomComponent) => {
     const updatedComponents = [...components, newComponent];
@@ -180,6 +189,18 @@ export default function CustomTabPage() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#005eb2] mx-auto mb-4"></div>
             <p className="text-gray-600">読み込み中...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-64">
+          <div className="text-center">
+            <p className="text-gray-600">ログインが必要です。</p>
           </div>
         </div>
       </Layout>

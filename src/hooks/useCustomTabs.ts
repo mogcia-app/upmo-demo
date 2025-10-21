@@ -171,8 +171,16 @@ export const useCustomTabs = () => {
 
   // 特定のカスタムタブを取得
   const getCustomTabByRoute = async (route: string): Promise<CustomTab | null> => {
+    if (!userId) {
+      console.error("User not authenticated");
+      return null;
+    }
+    
     try {
-      const q = query(collection(db, "customTabs"));
+      const q = query(
+        collection(db, "customTabs"),
+        where("userId", "==", userId)
+      );
       const querySnapshot = await getDocs(q);
       const tab = querySnapshot.docs.find(doc => doc.data().route === route);
       if (tab) {
