@@ -245,12 +245,9 @@ export default function PersonalChatPage() {
             
             aiResponse = response.answer;
             
-            // 信頼度が低い場合は追加情報を提供
-            if (response.confidence < 0.5) {
-              aiResponse += `\n\n💡 **信頼度: ${Math.round(response.confidence * 100)}%**`;
-              if (response.relatedTopics.length > 0) {
-                aiResponse += `\n\n関連トピック: ${response.relatedTopics.join(', ')}`;
-              }
+            // 関連トピックがある場合は表示
+            if (response.relatedTopics && response.relatedTopics.length > 0) {
+              aiResponse += `\n\n関連トピック: ${response.relatedTopics.join(', ')}`;
             }
             
             console.log('自社ロジック回答生成完了:', response.confidence);

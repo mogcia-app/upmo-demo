@@ -55,14 +55,22 @@ export class CustomAnswerEngine {
     const directMatches = this.findDirectMatches(queryLower);
     console.log('🎯 直接マッチ数:', directMatches.length);
     if (directMatches.length > 0) {
-      return this.createResponseFromMatches(directMatches, query, 0.9);
+      const response = this.createResponseFromMatches(directMatches, query, 0.9);
+      // 資料名を追加
+      const documentNames = this.processedTexts.map(pt => pt.summary.split('\n')[0] || 'Signal資料').filter(name => name.trim());
+      response.sources = documentNames.length > 0 ? documentNames : ['Signal資料'];
+      return response;
     }
     
     // 2. 類似度ベースの検索
     const similarMatches = this.findSimilarMatches(queryLower);
     console.log('🔗 類似マッチ数:', similarMatches.length);
     if (similarMatches.length > 0) {
-      return this.createResponseFromMatches(similarMatches, query, 0.7);
+      const response = this.createResponseFromMatches(similarMatches, query, 0.7);
+      // 資料名を追加
+      const documentNames = this.processedTexts.map(pt => pt.summary.split('\n')[0] || 'Signal資料').filter(name => name.trim());
+      response.sources = documentNames.length > 0 ? documentNames : ['Signal資料'];
+      return response;
     }
     
     // 3. 関連トピックの提案
@@ -74,12 +82,30 @@ export class CustomAnswerEngine {
     
     // 4. AIを使った検索（フォールバック）
     console.log('🤖 AI検索を試行中...');
+    
+    // 料金に関する質問の場合は特別処理
+    if (queryLower.includes('料金') || queryLower.includes('価格') || queryLower.includes('費用') || queryLower.includes('コスト')) {
+      const priceInfo = this.extractPriceInfo();
+      if (priceInfo) {
+        // 資料名を取得
+        const documentNames = this.processedTexts.map(pt => pt.summary.split('\n')[0] || 'Signal資料').filter(name => name.trim());
+        return {
+          answer: priceInfo,
+          confidence: 0.9,
+          sources: documentNames.length > 0 ? documentNames : ['Signal資料'],
+          relatedTopics: []
+        };
+      }
+    }
+    
     const aiResponse = await this.generateAIResponse(query, this.processedTexts);
     if (aiResponse) {
+      // 資料名を取得
+      const documentNames = this.processedTexts.map(pt => pt.summary.split('\n')[0] || 'Signal資料').filter(name => name.trim());
       return {
         answer: aiResponse,
         confidence: 0.8, // AI検索の信頼度を上げる
-        sources: ['AI検索'],
+        sources: documentNames.length > 0 ? documentNames : ['Signal資料'],
         relatedTopics: []
       };
     }
@@ -157,15 +183,15 @@ export class CustomAnswerEngine {
       })
       .slice(0, 6);
     
-    const answer = `📄 **${documentName}について**\n\n` +
-      `**概要**\n${summary}\n\n` +
-      `**主要な内容**\n${sectionContent}\n\n` +
-      `**関連キーワード**: ${japaneseKeywords.join(', ')}`;
+    const answer = `${documentName}について\n\n` +
+      `概要\n${summary}\n\n` +
+      `主要な内容\n${sectionContent}\n\n` +
+      `関連キーワード: ${japaneseKeywords.join(', ')}`;
     
     return {
       answer,
       confidence: 0.95,
-      sources: [documentName],
+      sources: [processedText.summary.split('\n')[0] || documentName],
       relatedTopics: processedText.sections.slice(0, 5).map(s => s.title)
     };
   }
@@ -457,16 +483,16 @@ export class CustomAnswerEngine {
       );
     
     if (relevantParts.length > 0) {
-      return `【${section.title}】\n\n${relevantParts.join('。')}。`;
+      return `${section.title}\n\n${relevantParts.join('。')}。`;
     } else {
-      return `【${section.title}】\n\n${section.content.substring(0, 200)}...`;
+      return `${section.title}\n\n${section.content.substring(0, 200)}...`;
     }
   }
   
   // 関連トピックの回答を作成
   private createRelatedTopicsResponse(query: string, relatedTopics: string[]): SmartResponse {
     const answer = `「${query}」について、以下の関連トピックが見つかりました：\n\n` +
-      relatedTopics.map(topic => `• ${topic}`).join('\n') +
+      relatedTopics.map(topic => `${topic}`).join('\n') +
       '\n\n具体的な内容についてお聞きしたい場合は、上記のトピック名でお尋ねください。';
     
     return {
@@ -497,9 +523,9 @@ export class CustomAnswerEngine {
     
     const answer = `申し訳ございませんが、「${query}」に関する具体的な情報が見つかりませんでした。\n\n` +
       `以下のトピックについてお聞きいただけます：\n` +
-      availableTopics.map(topic => `• ${topic}`).join('\n') +
+      availableTopics.map(topic => `${topic}`).join('\n') +
       `\n\n利用可能なキーワード：\n` +
-      availableKeywords.map(keyword => `• ${keyword}`).join('\n') +
+      availableKeywords.map(keyword => `${keyword}`).join('\n') +
       '\n\nまたは、より具体的なキーワードでお尋ねください。';
     
     return {
@@ -521,6 +547,8 @@ export class CustomAnswerEngine {
             .replace(/\s+/g, ' ') // 複数スペースを1つに
             .replace(/([a-zA-Z])([ひらがなカタカナ漢字])/g, '$1 $2') // 英語と日本語の間にスペース
             .replace(/([ひらがなカタカナ漢字])([a-zA-Z])/g, '$1 $2')
+            .replace(/[。！？]/g, '$1\n') // 句読点の後に改行
+            .replace(/\n\s*\n/g, '\n') // 複数改行を1つに
             .trim();
           
           return `【${pt.summary}】\n${cleanText}`;
@@ -531,17 +559,28 @@ export class CustomAnswerEngine {
         return null;
       }
       
+      // デバッグ: AIに送信されるテキストの一部を表示
+      console.log('🤖 AIに送信されるテキスト（最初の500文字）:', combinedText.substring(0, 500));
+      
+      // 料金情報が含まれているかチェック
+      const hasPriceInfo = combinedText.includes('万円') || combinedText.includes('円') || combinedText.includes('料金');
+      console.log('💰 料金情報の有無:', hasPriceInfo ? 'あり' : 'なし');
+      
       // より具体的なAIプロンプト
-      const prompt = `以下の文書から「${query}」に関する情報を探して、読みやすく整理して回答してください。
+      const prompt = `以下の文書から「${query}」に関する情報を探して、簡潔に回答してください。
 
 文書内容:
 ${combinedText}
 
 回答の要件:
-- 日本語で回答してください
-- 読みやすく整理してください
-- 具体的な情報があれば詳細に説明してください
-- 情報が見つからない場合は「該当する情報が見つかりませんでした」と回答してください
+- 簡潔で直接的な回答をしてください
+- 料金の質問なら「○万円/月」の形式で回答
+- 長い説明は不要、要点のみ
+- 情報が見つからない場合は「該当する情報が見つかりませんでした」
+
+回答例:
+質問: 「料金について教えて」
+回答: 「3万円〜/月、6万円/月、12万円/月です。」
 
 回答:`;
       
@@ -554,6 +593,39 @@ ${combinedText}
       console.error('AI検索エラー:', error);
       return null;
     }
+  }
+  
+  // 料金情報を直接抽出
+  private extractPriceInfo(): string | null {
+    const prices: string[] = [];
+    
+    for (const processedText of this.processedTexts) {
+      const text = processedText.cleanedText;
+      
+      // 料金パターンを検索
+      const pricePatterns = [
+        /(\d+)\s*万円\s*[〜～]\s*\/\s*月/g,
+        /(\d+)\s*万円\s*\/\s*月/g,
+        /(\d+)\s*万\s*円\s*[〜～]\s*\/\s*月/g,
+        /(\d+)\s*万\s*円\s*\/\s*月/g
+      ];
+      
+      for (const pattern of pricePatterns) {
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+          const price = match[1] + '万円/月';
+          if (!prices.includes(price)) {
+            prices.push(price);
+          }
+        }
+      }
+    }
+    
+    if (prices.length > 0) {
+      return prices.join('、') + 'です。';
+    }
+    
+    return null;
   }
   
   // より柔軟な検索
