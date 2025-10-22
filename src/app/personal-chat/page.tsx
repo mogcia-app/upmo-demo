@@ -294,7 +294,7 @@ export default function PersonalChatPage() {
       }, 1500);
     } else {
       // 他のユーザーの場合
-      setTimeout(() => {
+      setTimeout(async () => {
         const replyMessage: Message = {
           id: (Date.now() + 1).toString(),
           text: "了解しました。後ほど確認して返信します。",
