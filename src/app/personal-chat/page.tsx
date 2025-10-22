@@ -4,29 +4,12 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
-import { searchCompanyPolicies, generateAIResponse, fetchCompanyPoliciesFromFirestore, getCompanyPolicies, CompanyPolicy } from "../../utils/companyPolicySearch";
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from "../../lib/firebase";
-import { generateAIResponse as generateAdvancedAIResponse, checkOpenAISetup } from "../../utils/aiAssistant";
-import { processPDFText, ProcessedText } from "../../utils/textProcessor";
-import { createAnswerEngine, classifyQuery } from "../../utils/customAnswerEngine";
-import { 
-  ChatMessage, 
-  ChatSession, 
-  saveChatSession, 
-  fetchChatSession, 
-  updateChatSession, 
-  generateChatTitle,
-  addMessageToSession 
-} from "../../utils/chatHistory";
 
 interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'ai' | 'other';
-  senderName?: string;
+  sender: 'user' | 'ai';
   timestamp: Date;
-  isTyping?: boolean;
 }
 
 interface Chat {
@@ -45,375 +28,196 @@ export default function PersonalChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeChat, setActiveChat] = useState<string>("ai-assistant");
   const [chats, setChats] = useState<Chat[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { user } = useAuth();
-
-  // companyPoliciesコレクションからPDFデータを取得してProcessedText形式に変換
-  const fetchPoliciesAsProcessedTexts = async (userId: string): Promise<ProcessedText[]> => {
-    try {
-      const q = query(
-        collection(db, 'companyPolicies'),
-        where('userId', '==', userId),
-        orderBy('lastUpdated', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const processedTexts: ProcessedText[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.content) {
-          // 既にクリーンアップされたテキストを再処理
-          const processedText = processPDFText(data.content);
-          
-          // 書類名の情報を追加
-          processedText.originalText = `${data.title}\n\n${processedText.originalText}`;
-          processedText.keywords.push(data.title); // 書類名をキーワードに追加
-          
-          processedTexts.push(processedText);
-          console.log('📄 書類を読み込み:', data.title);
-        }
-      });
-      
-      return processedTexts;
-    } catch (error) {
-      console.error('Error fetching policies as processed texts:', error);
-      return [];
-    }
-  };
 
   // チャット履歴を読み込み
   const loadChatHistory = async (chatId: string) => {
     if (!user) return;
     
     try {
-      const session = await fetchChatSession(user.uid, chatId);
-      if (session) {
-        setCurrentSessionId(session.id);
-        setMessages(session.messages);
-        console.log('チャット履歴を読み込みました:', session.messages.length, '件のメッセージ');
+      // ローカルストレージから履歴を読み込み
+      const historyKey = `chat_history_${user.uid}_${chatId}`;
+      const savedHistory = localStorage.getItem(historyKey);
+      
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory);
+        const messagesWithDates = parsedHistory.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        setMessages(messagesWithDates);
+        console.log('チャット履歴を読み込みました:', messagesWithDates.length, '件のメッセージ');
       } else {
-        // 新しいセッションを作成
+        // 新しいセッション
         const initialMessages: Message[] = [
           {
             id: "1",
             text: chatId === "ai-assistant" 
-              ? "こんにちは！何かお手伝いできることはありますか？"
-              : `こんにちは！${chats.find(c => c.id === chatId)?.name}さんとのチャットです。`,
-            sender: chatId === "ai-assistant" ? 'ai' : 'other',
-            senderName: chatId === "ai-assistant" ? 'AIアシスタント' : chats.find(c => c.id === chatId)?.name,
-            timestamp: new Date(Date.now() - 60000)
+              ? "こんにちは！手動入力された文書についてお答えできます。何かご質問がありますか？"
+              : "こんにちは！何かお手伝いできることはありますか？",
+            sender: "ai",
+            timestamp: new Date()
           }
         ];
-        
-        const newSession: Omit<ChatSession, 'id'> = {
-          userId: user.uid,
-          chatId: chatId,
-          messages: initialMessages,
-          lastUpdated: new Date(),
-          title: generateChatTitle(initialMessages)
-        };
-        
-        const sessionId = await saveChatSession(newSession);
-        setCurrentSessionId(sessionId);
         setMessages(initialMessages);
-        console.log('新しいチャットセッションを作成しました');
       }
     } catch (error) {
       console.error('チャット履歴の読み込みエラー:', error);
     }
   };
 
-  // FirestoreからPDFデータを取得
-  useEffect(() => {
-    const loadPDFData = async () => {
-      if (user) {
-        try {
-          const processedTexts = await fetchPoliciesAsProcessedTexts(user.uid);
-          console.log('PDFデータを自社ロジックシステムに読み込みました:', processedTexts.length, '件のテキスト');
-          console.log('読み込まれたテキスト:', processedTexts.map(pt => pt.summary.substring(0, 50) + '...'));
-        } catch (error) {
-          console.error('PDFデータの読み込みエラー:', error);
-        }
-      }
-    };
-    loadPDFData();
-  }, [user]);
-
-  // サンプルチャットを追加
-  useEffect(() => {
-    const sampleChats: Chat[] = [
-      {
-        id: "ai-assistant",
-        name: "AIアシスタント",
-        avatar: "🤖",
-        lastMessage: "こんにちは！何かお手伝いできることはありますか？",
-        timestamp: new Date(Date.now() - 60000),
-        unreadCount: 0,
-        isOnline: true
-      },
-      {
-        id: "yamada",
-        name: "山田太郎",
-        avatar: "👨‍💼",
-        lastMessage: "プロジェクトの進捗について相談したいです",
-        timestamp: new Date(Date.now() - 300000),
-        unreadCount: 2,
-        isOnline: true
-      },
-      {
-        id: "sato",
-        name: "佐藤花子",
-        avatar: "👩‍💻",
-        lastMessage: "資料を確認しました",
-        timestamp: new Date(Date.now() - 600000),
-        unreadCount: 0,
-        isOnline: false
-      },
-      {
-        id: "tanaka",
-        name: "田中次郎",
-        avatar: "👨‍🔬",
-        lastMessage: "会議の時間を変更しましょう",
-        timestamp: new Date(Date.now() - 900000),
-        unreadCount: 1,
-        isOnline: true
-      }
-    ];
-    setChats(sampleChats);
-  }, []);
-
-  // 初期チャット履歴を読み込み
-  useEffect(() => {
-    if (user && activeChat) {
-      loadChatHistory(activeChat);
+  // チャット履歴を保存
+  const saveChatHistory = async (chatId: string, messages: Message[]) => {
+    if (!user) return;
+    
+    try {
+      const historyKey = `chat_history_${user.uid}_${chatId}`;
+      localStorage.setItem(historyKey, JSON.stringify(messages));
+    } catch (error) {
+      console.error('チャット履歴の保存エラー:', error);
     }
-  }, [user, activeChat]);
-
-  const handleChatSelect = (chatId: string) => {
-    setActiveChat(chatId);
-    // チャット履歴を読み込み
-    loadChatHistory(chatId);
   };
 
+  // 手動入力データを検索
+  const searchManualDocuments = async (query: string): Promise<string> => {
+    if (!user) return "ユーザーが認証されていません。";
+
+    try {
+      const response = await fetch(`/api/search-manual?q=${encodeURIComponent(query)}&userId=${user.uid}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.answer && data.answer !== '該当する情報が見つかりませんでした。') {
+          return data.answer;
+        }
+      }
+      
+      return "該当する情報が見つかりませんでした。手動入力された文書を確認してください。";
+    } catch (error) {
+      console.error('手動文書検索エラー:', error);
+      return "検索中にエラーが発生しました。";
+    }
+  };
+
+  // メッセージ送信処理
   const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: inputText,
-      sender: 'user',
+      text: inputText.trim(),
+      sender: "user",
       timestamp: new Date()
     };
 
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInputText("");
     setIsLoading(true);
-    
-    // チャット履歴を更新
-    if (currentSessionId) {
-      try {
-        await updateChatSession(currentSessionId, updatedMessages);
-      } catch (error) {
-        console.error('チャット履歴の更新エラー:', error);
-      }
-    }
 
-    // AIまたは他のユーザーの返信をシミュレート
-    if (activeChat === "ai-assistant") {
-      // AIアシスタントの場合、社内規則検索を実行
-      setTimeout(async () => {
-        // 最新のPDFデータを再取得
-        let processedTexts: ProcessedText[] = [];
-        if (user) {
-          try {
-            processedTexts = await fetchPoliciesAsProcessedTexts(user.uid);
-            console.log('自社ロジック回答用に取得したテキスト数:', processedTexts.length);
-          } catch (error) {
-            console.error('PDFデータの再取得エラー:', error);
-          }
-        }
-        
-        let aiResponse = "";
-        
-        // 手動入力データを優先検索
-        try {
-          const manualResponse = await fetch(`/api/search-manual?q=${encodeURIComponent(inputText)}`);
-          
-          if (manualResponse.ok) {
-            const manualData = await manualResponse.json();
-            if (manualData.success && manualData.answer && manualData.answer !== '該当する情報が見つかりませんでした。') {
-              aiResponse = manualData.answer;
-              console.log('手動入力データ検索完了:', manualData.documentType);
-            } else {
-              // 手動入力データが見つからない場合は構造化検索APIを使用
-              const structuredResponse = await fetch(`/api/search?q=${encodeURIComponent(inputText)}`);
-              
-              if (structuredResponse.ok) {
-                const structuredData = await structuredResponse.json();
-                if (structuredData.success && structuredData.answer) {
-                  aiResponse = structuredData.answer;
-                  console.log('構造化検索API回答生成完了:', structuredData.documentType);
-                } else {
-                  aiResponse = "申し訳ございませんが、該当する情報が見つかりませんでした。";
-                }
-              } else {
-                throw new Error('構造化検索APIエラー');
-              }
-            }
-          } else {
-            throw new Error('手動入力検索APIエラー');
-          }
-        } catch (error) {
-          console.error('検索APIエラー:', error);
-          
-          // フォールバック: 既存の自社ロジック
-          if (processedTexts.length > 0) {
-            try {
-              const answerEngine = createAnswerEngine(processedTexts);
-              const response = await answerEngine.generateAnswer(inputText);
-              aiResponse = response.answer;
-              
-              if (response.relatedTopics && response.relatedTopics.length > 0) {
-                aiResponse += `\n\n関連トピック: ${response.relatedTopics.join(', ')}`;
-              }
-              
-              console.log('フォールバック自社ロジック回答生成完了:', response.confidence);
-            } catch (fallbackError) {
-              console.error('フォールバック自社ロジック回答生成エラー:', fallbackError);
-              aiResponse = "申し訳ございません。回答の生成中にエラーが発生しました。";
-            }
-          } else {
-            // PDFデータがない場合のデフォルト応答
-            if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
-              aiResponse = "こんにちは！手動入力データとPDF文書の内容についてお答えできます。何かご質問がありますか？";
-            } else if (inputText.includes("ありがとう")) {
-              aiResponse = "どういたしまして！他にも文書についてご質問があれば、お気軽にお聞きください。";
-            } else if (inputText.includes("時間") || inputText.includes("時刻")) {
-              aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
-            } else {
-              aiResponse = "現在、手動入力された文書がありません。まず管理者ページ（/admin/contracts）で文書を追加してください。";
-            }
-          }
-        }
-        
-        const replyMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: aiResponse,
-          sender: 'ai',
-          senderName: 'AIアシスタント',
-          timestamp: new Date()
-        };
-        
-        const finalMessages = [...updatedMessages, replyMessage];
-        setMessages(finalMessages);
-        setIsLoading(false);
-        
-        // AI回答もチャット履歴に保存
-        if (currentSessionId) {
-          try {
-            await updateChatSession(currentSessionId, finalMessages);
-          } catch (error) {
-            console.error('AI回答の保存エラー:', error);
-          }
-        }
-      }, 1500);
-    } else {
-      // 他のユーザーの場合
-      setTimeout(async () => {
-        const replyMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: "了解しました。後ほど確認して返信します。",
-          sender: 'other',
-          senderName: chats.find(c => c.id === activeChat)?.name,
-          timestamp: new Date()
-        };
-        
-        const finalMessages = [...updatedMessages, replyMessage];
-        setMessages(finalMessages);
-        setIsLoading(false);
-        
-        // 他のユーザーとのチャットも履歴に保存
-        if (currentSessionId) {
-          try {
-            await updateChatSession(currentSessionId, finalMessages);
-          } catch (error) {
-            console.error('チャット履歴の保存エラー:', error);
-          }
-        }
-      }, 1500);
+    try {
+      // 手動入力データを検索
+      const aiResponse = await searchManualDocuments(inputText.trim());
+      
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: aiResponse,
+        sender: "ai",
+        timestamp: new Date()
+      };
+
+      const finalMessages = [...newMessages, aiMessage];
+      setMessages(finalMessages);
+      
+      // チャット履歴を保存
+      await saveChatHistory(activeChat, finalMessages);
+      
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "申し訳ございません。エラーが発生しました。",
+        sender: "ai",
+        timestamp: new Date()
+      };
+
+      const finalMessages = [...newMessages, errorMessage];
+      setMessages(finalMessages);
+      await saveChatHistory(activeChat, finalMessages);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // テンプレートボタンのクリック処理
+  const handleTemplateClick = (template: string) => {
+    setInputText(template);
+  };
+
+  // チャット切り替え
+  const handleChatSelect = (chatId: string) => {
+    setActiveChat(chatId);
+    loadChatHistory(chatId);
+  };
+
+  // 初期化
+  useEffect(() => {
+    if (user) {
+      // デフォルトチャットを読み込み
+      loadChatHistory(activeChat);
+      
+      // チャットリストを初期化
+      setChats([
+        {
+          id: "ai-assistant",
+          name: "AI アシスタント",
+          avatar: "🤖",
+          lastMessage: "手動入力された文書についてお答えできます",
+          timestamp: new Date(),
+          unreadCount: 0,
+          isOnline: true
+        }
+      ]);
+    }
+  }, [user]);
+
+  // Enterキーでメッセージ送信
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const getActiveChatInfo = () => {
-    return chats.find(chat => chat.id === activeChat);
-  };
-
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="flex h-full max-h-[calc(300vh-8rem)] bg-white rounded-lg shadow-sm overflow-hidden">
-          {/* 左側: チャットリスト */}
-          <div className="w-80 border-r border-gray-200 flex flex-col">
-            {/* ヘッダー */}
+        <div className="flex h-screen bg-gray-50">
+          {/* サイドバー */}
+          <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-xl font-bold text-gray-900">チャット</h1>
-                <button className="px-3 py-1 bg-[#005eb2] text-white text-sm rounded-lg hover:bg-[#004a96] transition-colors">
-                  + 新しいチャット
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="チャットを検索..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
-                />
-                <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900">チャット</h2>
             </div>
-
-            {/* チャットリスト */}
+            
             <div className="flex-1 overflow-y-auto">
               {chats.map((chat) => (
                 <div
                   key={chat.id}
                   onClick={() => handleChatSelect(chat.id)}
-                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    activeChat === chat.id ? 'bg-blue-50 border-l-4 border-l-[#005eb2]' : ''
+                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                    activeChat === chat.id ? "bg-blue-50 border-blue-200" : ""
                   }`}
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-xl">
-                        {chat.avatar}
-                      </div>
-                      {chat.isOnline && (
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                      )}
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
+                      {chat.avatar}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {chat.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {chat.timestamp.toLocaleTimeString('ja-JP', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                      <p className="text-sm text-gray-600 truncate">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {chat.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
                         {chat.lastMessage}
                       </p>
                     </div>
@@ -428,98 +232,55 @@ export default function PersonalChatPage() {
             </div>
           </div>
 
-          {/* 右側: アクティブチャット */}
+          {/* メインエリア */}
           <div className="flex-1 flex flex-col">
-            {/* チャットヘッダー */}
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
-                    {getActiveChatInfo()?.avatar}
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      {getActiveChatInfo()?.name}
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {getActiveChatInfo()?.isOnline ? 'オンライン' : 'オフライン'}
-                    </p>
-                  </div>
+            {/* ヘッダー */}
+            <div className="bg-white border-b border-gray-200 p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
+                  🤖
                 </div>
-                <div className="flex items-center space-x-2">
-                  <button className="p-2 text-gray-400 hover:text-gray-600">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5-5-5h5v-5a7.5 7.5 0 00-15 0v5h5l-5 5-5-5h5v-5a7.5 7.5 0 0115 0v5z" />
-                    </svg>
-                  </button>
-                  <button className="p-2 text-gray-400 hover:text-gray-600">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                    </svg>
-                  </button>
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900">AI アシスタント</h1>
+                  <p className="text-sm text-gray-500">手動入力された文書についてお答えできます</p>
                 </div>
               </div>
             </div>
 
             {/* メッセージエリア */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[600px]">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${
+                    message.sender === "user" ? "justify-end" : "justify-start"
+                  }`}
                 >
-                  <div className="flex items-end space-x-2 max-w-xs lg:max-w-md">
-                    {message.sender !== 'user' && (
-                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm">
-                        {message.sender === 'ai' ? '🤖' : getActiveChatInfo()?.avatar}
-                      </div>
-                    )}
-                    <div
-                      className={`px-4 py-3 rounded-lg ${
-                        message.sender === 'user'
-                          ? 'bg-[#005eb2] text-white'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
-                    >
-                      <p className="text-sm">{message.text}</p>
-                      <p
-                        className={`text-xs mt-1 ${
-                          message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                        }`}
-                      >
-                        {message.timestamp.toLocaleTimeString('ja-JP', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                    {message.sender === 'user' && (
-                      <div className="w-8 h-8 bg-[#005eb2] rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-medium">
-                          {user?.email?.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
+                  <div
+                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      message.sender === "user"
+                        ? "bg-blue-500 text-white"
+                        : "bg-white text-gray-900 border border-gray-200"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                    <p className="text-xs mt-1 opacity-70">
+                      {message.timestamp.toLocaleTimeString('ja-JP', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
                   </div>
                 </div>
               ))}
               
-              {/* ローディング表示 */}
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="flex items-end space-x-2">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm">
-                      {getActiveChatInfo()?.avatar}
-                    </div>
-                    <div className="bg-gray-100 text-gray-900 px-4 py-3 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                        <span className="text-xs text-gray-500">入力中...</span>
-                      </div>
+                  <div className="bg-white text-gray-900 border border-gray-200 px-4 py-2 rounded-lg">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
                   </div>
                 </div>
@@ -527,65 +288,54 @@ export default function PersonalChatPage() {
             </div>
 
             {/* テンプレートボタン */}
-            <div className="border-t border-gray-200 p-4 bg-gray-50">
+            <div className="bg-white border-t border-gray-200 p-4">
               <div className="mb-3">
                 <p className="text-sm text-gray-600 mb-2">よくある質問:</p>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setInputText('について教えて')}
-                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                    onClick={() => handleTemplateClick("〇〇について教えて")}
+                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
                   >
-                    について教えて
+                    〇〇について教えて
                   </button>
                   <button
-                    onClick={() => setInputText('料金について教えて')}
-                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                    onClick={() => handleTemplateClick("料金について教えて")}
+                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
                   >
                     料金について教えて
                   </button>
                   <button
-                    onClick={() => setInputText('機能について教えて')}
-                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                    onClick={() => handleTemplateClick("機能について教えて")}
+                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
                   >
                     機能について教えて
                   </button>
                   <button
-                    onClick={() => setInputText('導入について教えて')}
-                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                    onClick={() => handleTemplateClick("手順について教えて")}
+                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
                   >
-                    導入について教えて
-                  </button>
-                  <button
-                    onClick={() => setInputText('サポートについて教えて')}
-                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
-                  >
-                    サポートについて教えて
+                    手順について教えて
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* 入力エリア */}
-            <div className="border-t border-gray-200 p-4">
-              <div className="flex space-x-4">
-                <div className="flex-1">
-                  <textarea
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="メッセージを入力してください..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent resize-none"
-                    rows={2}
-                  />
-                </div>
+              
+              {/* 入力エリア */}
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="メッセージを入力..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isLoading}
+                />
                 <button
                   onClick={handleSendMessage}
                   disabled={!inputText.trim() || isLoading}
-                  className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
+                  送信
                 </button>
               </div>
             </div>
