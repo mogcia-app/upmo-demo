@@ -10,6 +10,7 @@ interface Message {
   text: string;
   sender: 'user' | 'ai';
   timestamp: Date;
+  isTyping?: boolean;
 }
 
 interface Chat {
@@ -143,18 +144,33 @@ export default function PersonalChatPage() {
     setInputText("");
     setIsLoading(true);
 
+    // ローディングメッセージを追加
+    const loadingMessage: Message = {
+      id: "loading",
+      text: "考え中...",
+      sender: "ai",
+      timestamp: new Date(),
+      isTyping: true
+    };
+
+    const messagesWithLoading = [...newMessages, loadingMessage];
+    setMessages(messagesWithLoading);
+
     try {
+      // 少し待機してから検索（考えている演出）
+      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+      
       // 手動入力データを検索
       const aiResponse = await searchManualDocuments(inputText.trim());
       
-      const aiMessage: Message = {
+      // ローディングメッセージを削除してAI回答を追加
+      const finalMessages = newMessages.concat({
         id: (Date.now() + 1).toString(),
         text: aiResponse,
         sender: "ai",
         timestamp: new Date()
-      };
-
-      const finalMessages = [...newMessages, aiMessage];
+      });
+      
       setMessages(finalMessages);
       
       // チャット履歴を保存
@@ -170,7 +186,7 @@ export default function PersonalChatPage() {
         timestamp: new Date()
       };
 
-      const finalMessages = [...newMessages, errorMessage];
+      const finalMessages = newMessages.concat(errorMessage);
       setMessages(finalMessages);
       await saveChatHistory(activeChat, finalMessages);
     } finally {
@@ -291,28 +307,29 @@ export default function PersonalChatPage() {
                         : "bg-white text-gray-900 border border-gray-200"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                    <p className="text-xs mt-1 opacity-70">
-                      {message.timestamp.toLocaleTimeString('ja-JP', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
+                    {message.isTyping ? (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">考え中</span>
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                        <p className="text-xs mt-1 opacity-70">
+                          {message.timestamp.toLocaleTimeString('ja-JP', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
-              
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-white text-gray-900 border border-gray-200 px-4 py-2 rounded-lg">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* テンプレートボタン */}
