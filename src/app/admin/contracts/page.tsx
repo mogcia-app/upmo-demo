@@ -5,123 +5,164 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-interface Document {
+interface ManualDocument {
   id: string;
   title: string;
-  fileName: string;
-  fileUrl: string;
-  uploadedAt: Date;
-  category: 'regulation' | 'contract' | 'manual' | 'other';
+  type: 'meeting' | 'policy' | 'contract' | 'manual' | 'other';
   description: string;
-  extractedText: string;
+  sections: {
+    overview: string;
+    features: string[];
+    pricing: string[];
+    procedures: string[];
+    support?: string[];
+    rules?: string[];
+    terms?: string[];
+  };
+  tags: string[];
+  priority: 'high' | 'medium' | 'low';
+  createdAt: Date;
+  lastUpdated: Date;
 }
 
 export default function ContractsPage() {
   const { user } = useAuth();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [newDocument, setNewDocument] = useState({
+  const [documents, setDocuments] = useState<ManualDocument[]>([]);
+  const [showInputModal, setShowInputModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [newDocument, setNewDocument] = useState<ManualDocument>({
+    id: '',
     title: '',
     description: '',
-    category: 'regulation' as Document['category'],
-    file: null as File | null
+    type: 'meeting',
+    sections: {
+      overview: '',
+      features: [],
+      pricing: [],
+      procedures: []
+    },
+    tags: [],
+    priority: 'medium',
+    createdAt: new Date(),
+    lastUpdated: new Date()
   });
-  const [batchFiles, setBatchFiles] = useState<File[]>([]);
-  const [isBatchMode, setIsBatchMode] = useState(false);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-      'text/plain',
-      'text/markdown'
-    ];
-    
-    if (files && files.length > 0) {
-      // 複数ファイル対応
-      if (files.length === 1) {
-        const file = files[0];
-        if (allowedTypes.includes(file.type)) {
-          setNewDocument(prev => ({ ...prev, file }));
-        } else {
-          alert('PDF、Word、テキスト、Markdownファイルのみアップロード可能です。');
-        }
-      } else {
-        // 複数ファイルの場合は最初のファイルのみ
-        const file = files[0];
-        if (allowedTypes.includes(file.type)) {
-          setNewDocument(prev => ({ ...prev, file }));
-          alert(`${files.length}個のファイルが選択されましたが、1つずつアップロードしてください。最初のファイル「${file.name}」を選択しました。`);
-        } else {
-          alert('PDF、Word、テキスト、Markdownファイルのみアップロード可能です。');
-        }
-      }
-    }
-  };
+  const [currentSection, setCurrentSection] = useState<'overview' | 'features' | 'pricing' | 'procedures' | 'support' | 'rules' | 'terms'>('overview');
+  const [sectionInput, setSectionInput] = useState('');
 
-  const handleUpload = async () => {
-    if (!newDocument.title || !newDocument.file || !user) {
-      alert('タイトルとファイルを選択してください。');
-      return;
-    }
-
-    // ファイルサイズチェック (2MB制限 - テスト用に緩和)
-    if (newDocument.file.size > 2 * 1024 * 1024) {
-      alert('ファイルサイズが大きすぎます。2MB以下のファイルを選択してください。');
+  const handleSaveDocument = async () => {
+    if (!newDocument.title || !user) {
+      alert('タイトルを入力してください。');
       return;
     }
 
     try {
-      setIsUploading(true);
+      setIsSaving(true);
       
-      // 新しいAPIを使用してPDF処理
-      const formData = new FormData();
-      formData.append('file', newDocument.file);
-      formData.append('title', newDocument.title);
-      formData.append('description', newDocument.description);
-      formData.append('category', newDocument.category);
-      
-      const response = await fetch('/api/admin/process-document', {
+      // Firestoreに保存
+      const response = await fetch('/api/admin/save-manual-document', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...newDocument,
+          userId: user.uid
+        })
       });
-      
+
       if (!response.ok) {
-        if (response.status === 413) {
-          throw new Error('ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。');
-        }
-        const errorData = await response.json().catch(() => ({ error: 'PDF処理に失敗しました' }));
-        throw new Error(errorData.error || 'PDF処理に失敗しました');
+        throw new Error('文書の保存に失敗しました');
       }
-      
+
       const result = await response.json();
       
-      console.log('Document processed successfully:', result);
+      console.log('Document saved successfully:', result);
       
       // 成功メッセージ
-      alert(`ファイルが正常に処理されました！\n文書名: ${newDocument.title}\n文書タイプ: ${result.type}\nセクション数: ${result.sections.length}`);
+      alert(`文書が正常に保存されました！\n文書名: ${newDocument.title}\nタイプ: ${newDocument.type}`);
       
       // フォームリセット
       setNewDocument({
+        id: '',
         title: '',
         description: '',
-        category: 'regulation',
-        file: null
+        type: 'meeting',
+        sections: {
+          overview: '',
+          features: [],
+          pricing: [],
+          procedures: []
+        },
+        tags: [],
+        priority: 'medium',
+        createdAt: new Date(),
+        lastUpdated: new Date()
       });
-      setShowUploadModal(false);
+      setShowInputModal(false);
+      setCurrentSection('overview');
+      setSectionInput('');
       
       // ドキュメントリストを更新
       await fetchDocumentsFromFirestore();
       
     } catch (error) {
-      console.error('Upload error:', error);
-      alert(`アップロードに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      console.error('Save error:', error);
+      alert(`保存に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     } finally {
-      setIsUploading(false);
+      setIsSaving(false);
     }
+  };
+
+  const handleAddToSection = () => {
+    if (!sectionInput.trim()) return;
+
+    const currentValue = newDocument.sections?.[currentSection] || [];
+    const updatedValue = Array.isArray(currentValue) 
+      ? [...currentValue, sectionInput.trim()]
+      : [sectionInput.trim()];
+
+    setNewDocument(prev => ({
+      ...prev,
+      sections: {
+        ...prev.sections,
+        [currentSection]: updatedValue
+      }
+    }));
+
+    setSectionInput('');
+  };
+
+  const handleRemoveFromSection = (index: number) => {
+    const currentValue = newDocument.sections?.[currentSection] || [];
+    if (Array.isArray(currentValue)) {
+      const updatedValue = currentValue.filter((_, i) => i !== index);
+      setNewDocument(prev => ({
+        ...prev,
+        sections: {
+          ...prev.sections,
+          [currentSection]: updatedValue
+        }
+      }));
+    }
+  };
+
+  const handleAddTag = () => {
+    const tagInput = document.getElementById('tagInput') as HTMLInputElement;
+    if (tagInput && tagInput.value.trim()) {
+      setNewDocument(prev => ({
+        ...prev,
+        tags: [...(prev.tags || []), tagInput.value.trim()]
+      }));
+      tagInput.value = '';
+    }
+  };
+
+  const handleRemoveTag = (index: number) => {
+    setNewDocument(prev => ({
+      ...prev,
+      tags: prev.tags?.filter((_, i) => i !== index) || []
+    }));
   };
 
   // Firestoreからドキュメントを取得
@@ -129,23 +170,10 @@ export default function ContractsPage() {
     if (!user) return;
     
     try {
-      // 新しい構造化文書コレクションから取得
-      const response = await fetch('/api/search?q=*');
+      const response = await fetch('/api/admin/get-manual-documents');
       if (response.ok) {
         const data = await response.json();
-        // 構造化データをDocument形式に変換
-        const formattedDocs = data.results?.map((doc: any) => ({
-          id: doc.id,
-          title: doc.name,
-          fileName: doc.name,
-          fileUrl: '', // 新しいAPIではファイルURLは不要
-          uploadedAt: new Date(doc.lastUpdated),
-          category: doc.type === 'meeting' ? 'regulation' : 'other',
-          description: `文書タイプ: ${doc.type}`,
-          extractedText: Object.values(doc.sections).join('\n')
-        })) || [];
-        
-        setDocuments(formattedDocs);
+        setDocuments(data.documents || []);
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -159,21 +187,54 @@ export default function ContractsPage() {
     }
   }, [user]);
 
-  const getCategoryColor = (category: Document['category']) => {
-    switch (category) {
-      case 'regulation': return 'bg-blue-100 text-blue-800';
-      case 'contract': return 'bg-green-100 text-green-800';
+  const getTypeColor = (type: ManualDocument['type']) => {
+    switch (type) {
+      case 'meeting': return 'bg-blue-100 text-blue-800';
+      case 'policy': return 'bg-green-100 text-green-800';
+      case 'contract': return 'bg-purple-100 text-purple-800';
       case 'manual': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getCategoryLabel = (category: Document['category']) => {
-    switch (category) {
-      case 'regulation': return '規則';
+  const getTypeLabel = (type: ManualDocument['type']) => {
+    switch (type) {
+      case 'meeting': return '打ち合わせ';
+      case 'policy': return '規則';
       case 'contract': return '契約';
       case 'manual': return 'マニュアル';
       default: return 'その他';
+    }
+  };
+
+  const getPriorityColor = (priority: ManualDocument['priority']) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityLabel = (priority: ManualDocument['priority']) => {
+    switch (priority) {
+      case 'high': return '高';
+      case 'medium': return '中';
+      case 'low': return '低';
+      default: return '中';
+    }
+  };
+
+  const getSectionLabel = (section: string) => {
+    switch (section) {
+      case 'overview': return '概要';
+      case 'features': return '機能';
+      case 'pricing': return '料金';
+      case 'procedures': return '手順';
+      case 'support': return 'サポート';
+      case 'rules': return '規則';
+      case 'terms': return '条項';
+      default: return section;
     }
   };
 
@@ -182,12 +243,12 @@ export default function ContractsPage() {
       <Layout>
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">書類管理</h1>
+            <h1 className="text-2xl font-bold text-gray-900">文書管理（手動入力）</h1>
             <button
-              onClick={() => setShowUploadModal(true)}
+              onClick={() => setShowInputModal(true)}
               className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
             >
-              書類をアップロード
+              文書を追加
             </button>
           </div>
 
@@ -200,115 +261,260 @@ export default function ContractsPage() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
                     <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span>ファイル名: {doc.fileName}</span>
-                      <span>アップロード日: {doc.uploadedAt.toLocaleDateString('ja-JP')}</span>
+                      <span>作成日: {doc.createdAt.toLocaleDateString('ja-JP')}</span>
+                      <span>更新日: {doc.lastUpdated.toLocaleDateString('ja-JP')}</span>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(doc.category)}`}>
-                    {getCategoryLabel(doc.category)}
-                  </span>
+                  <div className="flex space-x-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeColor(doc.type)}`}>
+                      {getTypeLabel(doc.type)}
+                    </span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(doc.priority)}`}>
+                      優先度: {getPriorityLabel(doc.priority)}
+                    </span>
+                  </div>
                 </div>
                 
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">抽出されたテキスト:</h4>
-                  <div className="bg-gray-50 rounded-md p-3 max-h-32 overflow-y-auto">
-                    <p className="text-sm text-gray-600">
-                      {doc.extractedText.substring(0, 200)}
-                      {doc.extractedText.length > 200 && '...'}
-                    </p>
+                {/* タグ */}
+                {doc.tags && doc.tags.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex flex-wrap gap-2">
+                      {doc.tags.map((tag, index) => (
+                        <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
+                )}
+                
+                {/* セクション内容 */}
+                <div className="mt-4">
+                  {Object.entries(doc.sections).map(([key, value]) => (
+                    <div key={key} className="mb-3">
+                      <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
+                      <div className="bg-gray-50 rounded-md p-3">
+                        {Array.isArray(value) ? (
+                          <ul className="text-sm text-gray-600 space-y-1">
+                            {value.map((item, index) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-gray-400 mr-2">•</span>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-gray-600">{value}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
             
             {documents.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-500">アップロードされた書類がありません。</p>
+                <p className="text-gray-500">手動入力された文書がありません。</p>
+                <p className="text-gray-400 text-sm mt-2">「文書を追加」ボタンから文書を追加してください。</p>
               </div>
             )}
           </div>
 
-          {/* アップロードモーダル */}
-          {showUploadModal && (
+          {/* 手動入力モーダル */}
+          {showInputModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h2 className="text-xl font-semibold mb-4">書類をアップロード</h2>
+              <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <h2 className="text-xl font-semibold mb-4">文書を手動入力</h2>
                 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      タイトル <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newDocument.title}
-                      onChange={(e) => setNewDocument(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="文書のタイトルを入力してください"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      required
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* 左側: 基本情報 */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        タイトル <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newDocument.title || ''}
+                        onChange={(e) => setNewDocument(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="文書のタイトルを入力してください"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        説明
+                      </label>
+                      <textarea
+                        value={newDocument.description || ''}
+                        onChange={(e) => setNewDocument(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="文書の説明を入力してください"
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        文書タイプ
+                      </label>
+                      <select
+                        value={newDocument.type || 'meeting'}
+                        onChange={(e) => setNewDocument(prev => ({ 
+                          ...prev, 
+                          type: e.target.value as ManualDocument['type'] 
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      >
+                        <option value="meeting">打ち合わせ</option>
+                        <option value="policy">規則</option>
+                        <option value="contract">契約</option>
+                        <option value="manual">マニュアル</option>
+                        <option value="other">その他</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        優先度
+                      </label>
+                      <select
+                        value={newDocument.priority || 'medium'}
+                        onChange={(e) => setNewDocument(prev => ({ 
+                          ...prev, 
+                          priority: e.target.value as ManualDocument['priority'] 
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      >
+                        <option value="high">高</option>
+                        <option value="medium">中</option>
+                        <option value="low">低</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        タグ
+                      </label>
+                      <div className="flex space-x-2 mb-2">
+                        <input
+                          id="tagInput"
+                          type="text"
+                          placeholder="タグを入力"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                        />
+                        <button
+                          onClick={handleAddTag}
+                          className="px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                        >
+                          追加
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {newDocument.tags?.map((tag, index) => (
+                          <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center">
+                            {tag}
+                            <button
+                              onClick={() => handleRemoveTag(index)}
+                              className="ml-1 text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      説明
-                    </label>
-                    <textarea
-                      value={newDocument.description}
-                      onChange={(e) => setNewDocument(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="文書の説明を入力してください（任意）"
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ファイル <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="file"
-                      onChange={handleFileUpload}
-                      accept=".pdf,.docx,.doc,.txt,.md"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">対応形式: PDF, Word, テキスト, Markdown (最大2MB)</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      カテゴリ
-                    </label>
-                    <select
-                      value={newDocument.category}
-                      onChange={(e) => setNewDocument(prev => ({ 
-                        ...prev, 
-                        category: e.target.value as Document['category'] 
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                    >
-                      <option value="regulation">規則</option>
-                      <option value="contract">契約</option>
-                      <option value="manual">マニュアル</option>
-                      <option value="other">その他</option>
-                    </select>
+                  {/* 右側: セクション入力 */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        セクション選択
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {['overview', 'features', 'pricing', 'procedures', 'support', 'rules', 'terms'].map((section) => (
+                          <button
+                            key={section}
+                            onClick={() => setCurrentSection(section as any)}
+                            className={`px-3 py-2 rounded-md text-sm ${
+                              currentSection === section
+                                ? 'bg-[#005eb2] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {getSectionLabel(section)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {getSectionLabel(currentSection)}の内容
+                      </label>
+                      <div className="space-y-2">
+                        <div className="flex space-x-2">
+                          <input
+                            type="text"
+                            value={sectionInput}
+                            onChange={(e) => setSectionInput(e.target.value)}
+                            placeholder={`${getSectionLabel(currentSection)}の項目を入力`}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                            onKeyPress={(e) => e.key === 'Enter' && handleAddToSection()}
+                          />
+                          <button
+                            onClick={handleAddToSection}
+                            className="px-3 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96]"
+                          >
+                            追加
+                          </button>
+                        </div>
+                        
+                        <div className="bg-gray-50 rounded-md p-3 max-h-32 overflow-y-auto">
+                          {Array.isArray(newDocument.sections?.[currentSection]) ? (
+                            <ul className="space-y-1">
+                              {(newDocument.sections?.[currentSection] as string[])?.map((item, index) => (
+                                <li key={index} className="flex items-center justify-between text-sm">
+                                  <span className="flex items-start">
+                                    <span className="text-gray-400 mr-2">•</span>
+                                    <span>{item}</span>
+                                  </span>
+                                  <button
+                                    onClick={() => handleRemoveFromSection(index)}
+                                    className="text-red-500 hover:text-red-700 ml-2"
+                                  >
+                                    ×
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-gray-500">項目がありません</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
-                    onClick={() => setShowUploadModal(false)}
+                    onClick={() => setShowInputModal(false)}
                     className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                   >
                     キャンセル
                   </button>
                   <button
-                    onClick={handleUpload}
-                    disabled={!newDocument.title || !newDocument.file || isUploading}
+                    onClick={handleSaveDocument}
+                    disabled={!newDocument.title || isSaving}
                     className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isUploading ? 'アップロード中...' : 'アップロード'}
+                    {isSaving ? '保存中...' : '保存'}
                   </button>
                 </div>
               </div>

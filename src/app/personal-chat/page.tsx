@@ -236,21 +236,33 @@ export default function PersonalChatPage() {
         
         let aiResponse = "";
         
-        // 新しい検索APIを使用
+        // 手動入力データを優先検索
         try {
-          const response = await fetch(`/api/search?q=${encodeURIComponent(inputText)}`);
+          const manualResponse = await fetch(`/api/search-manual?q=${encodeURIComponent(inputText)}`);
           
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.answer) {
-              aiResponse = data.answer;
-              console.log('構造化検索API回答生成完了:', data.documentType);
+          if (manualResponse.ok) {
+            const manualData = await manualResponse.json();
+            if (manualData.success && manualData.answer && manualData.answer !== '該当する情報が見つかりませんでした。') {
+              aiResponse = manualData.answer;
+              console.log('手動入力データ検索完了:', manualData.documentType);
             } else {
-              // APIが回答を生成できなかった場合のフォールバック
-              aiResponse = "申し訳ございませんが、該当する情報が見つかりませんでした。";
+              // 手動入力データが見つからない場合は構造化検索APIを使用
+              const structuredResponse = await fetch(`/api/search?q=${encodeURIComponent(inputText)}`);
+              
+              if (structuredResponse.ok) {
+                const structuredData = await structuredResponse.json();
+                if (structuredData.success && structuredData.answer) {
+                  aiResponse = structuredData.answer;
+                  console.log('構造化検索API回答生成完了:', structuredData.documentType);
+                } else {
+                  aiResponse = "申し訳ございませんが、該当する情報が見つかりませんでした。";
+                }
+              } else {
+                throw new Error('構造化検索APIエラー');
+              }
             }
           } else {
-            throw new Error('検索APIエラー');
+            throw new Error('手動入力検索APIエラー');
           }
         } catch (error) {
           console.error('検索APIエラー:', error);
@@ -274,13 +286,13 @@ export default function PersonalChatPage() {
           } else {
             // PDFデータがない場合のデフォルト応答
             if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
-              aiResponse = "こんにちは！自社ロジックアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
+              aiResponse = "こんにちは！手動入力データとPDF文書の内容についてお答えできます。何かご質問がありますか？";
             } else if (inputText.includes("ありがとう")) {
-              aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
+              aiResponse = "どういたしまして！他にも文書についてご質問があれば、お気軽にお聞きください。";
             } else if (inputText.includes("時間") || inputText.includes("時刻")) {
               aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
             } else {
-              aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
+              aiResponse = "現在、手動入力された文書がありません。まず管理者ページ（/admin/contracts）で文書を追加してください。";
             }
           }
         }
