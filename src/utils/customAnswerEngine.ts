@@ -105,19 +105,24 @@ export class CustomAnswerEngine {
   private createDocumentResponse(processedText: ProcessedText, query: string): SmartResponse {
     const documentName = this.extractDocumentName(query);
     
-    // 書類の概要を生成
-    const summary = processedText.summary || processedText.cleanedText.substring(0, 300) + '...';
+    // 書類の概要を生成（より読みやすく）
+    const summary = this.createReadableSummary(processedText);
     
-    // 主要なセクションを抽出
+    // 主要なセクションを抽出（日本語を優先）
     const mainSections = processedText.sections.slice(0, 3);
     const sectionContent = mainSections.map(section => 
-      `**${section.title}**\n${section.content.substring(0, 200)}...`
+      `**${this.cleanSectionTitle(section.title)}**\n${this.cleanSectionContent(section.content)}`
     ).join('\n\n');
+    
+    // 日本語キーワードを優先
+    const japaneseKeywords = processedText.keywords
+      .filter(keyword => /[ひらがなカタカナ漢字]/.test(keyword))
+      .slice(0, 8);
     
     const answer = `📄 **${documentName}について**\n\n` +
       `**概要**\n${summary}\n\n` +
       `**主要な内容**\n${sectionContent}\n\n` +
-      `**キーワード**: ${processedText.keywords.slice(0, 10).join(', ')}`;
+      `**関連キーワード**: ${japaneseKeywords.join(', ')}`;
     
     return {
       answer,
@@ -125,6 +130,40 @@ export class CustomAnswerEngine {
       sources: [documentName],
       relatedTopics: processedText.sections.slice(0, 5).map(s => s.title)
     };
+  }
+  
+  // 読みやすい概要を作成
+  private createReadableSummary(processedText: ProcessedText): string {
+    let summary = processedText.summary || processedText.cleanedText.substring(0, 400);
+    
+    // 日本語の文を抽出
+    const japaneseSentences = summary.split(/[。！？]/)
+      .filter(sentence => /[ひらがなカタカナ漢字]/.test(sentence))
+      .slice(0, 3);
+    
+    if (japaneseSentences.length > 0) {
+      summary = japaneseSentences.join('。') + '。';
+    }
+    
+    return summary;
+  }
+  
+  // セクションタイトルをクリーンアップ
+  private cleanSectionTitle(title: string): string {
+    return title
+      .replace(/[A-Z\s]+/g, '') // 英語の大文字を削除
+      .replace(/\d+/g, '') // 数字を削除
+      .trim() || '内容';
+  }
+  
+  // セクション内容をクリーンアップ
+  private cleanSectionContent(content: string): string {
+    // 日本語の部分を抽出
+    const japaneseParts = content.split(/\s+/)
+      .filter(part => /[ひらがなカタカナ漢字]/.test(part))
+      .join(' ');
+    
+    return japaneseParts.substring(0, 200) + (japaneseParts.length > 200 ? '...' : '');
   }
   
   // クエリから書類名を抽出
