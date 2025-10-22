@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
-import { searchCompanyPolicies, generateAIResponse, fetchCompanyPoliciesFromFirestore, getCompanyPolicies } from "../../utils/companyPolicySearch";
+import { searchCompanyPolicies, generateAIResponse, fetchCompanyPoliciesFromFirestore, getCompanyPolicies, CompanyPolicy } from "../../utils/companyPolicySearch";
 import { generateAIResponse as generateAdvancedAIResponse, checkOpenAISetup } from "../../utils/aiAssistant";
 
 interface Message {
@@ -39,8 +39,9 @@ export default function PersonalChatPage() {
     const loadPDFData = async () => {
       if (user) {
         try {
-          await fetchCompanyPoliciesFromFirestore(user.uid);
-          console.log('PDFデータをAI検索システムに読み込みました');
+          const policies = await fetchCompanyPoliciesFromFirestore(user.uid);
+          console.log('PDFデータをAI検索システムに読み込みました:', policies.length, '件のポリシー');
+          console.log('読み込まれたポリシー:', policies.map(p => p.title));
         } catch (error) {
           console.error('PDFデータの読み込みエラー:', error);
         }
@@ -139,9 +140,11 @@ export default function PersonalChatPage() {
       // AIアシスタントの場合、社内規則検索を実行
       setTimeout(async () => {
         // 最新のPDFデータを再取得
+        let currentPolicies: CompanyPolicy[] = [];
         if (user) {
           try {
-            await fetchCompanyPoliciesFromFirestore(user.uid);
+            currentPolicies = await fetchCompanyPoliciesFromFirestore(user.uid);
+            console.log('AI回答用に取得したポリシー数:', currentPolicies.length);
           } catch (error) {
             console.error('PDFデータの再取得エラー:', error);
           }
@@ -151,33 +154,41 @@ export default function PersonalChatPage() {
         const openaiStatus = checkOpenAISetup();
         let aiResponse = "";
         
-        if (openaiStatus.isConfigured) {
+        if (openaiStatus.isConfigured && currentPolicies.length > 0) {
           // 本格的なAI回答を生成
           try {
-            aiResponse = await generateAdvancedAIResponse(inputText, getCompanyPolicies());
+            aiResponse = await generateAdvancedAIResponse(inputText, currentPolicies);
           } catch (error) {
             console.error('AI回答生成エラー:', error);
             aiResponse = "申し訳ございません。AI回答の生成中にエラーが発生しました。";
           }
         } else {
           // フォールバック: 従来の検索ロジック
-          const searchResults = searchCompanyPolicies(inputText);
+          const searchResults = searchCompanyPolicies(inputText, currentPolicies);
           
           if (searchResults.length > 0) {
             aiResponse = generateAIResponse(inputText, searchResults);
           } else {
-          // 社内規則が見つからない場合のデフォルト応答
-          if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
-            aiResponse = "こんにちは！AIアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
-          } else if (inputText.includes("ありがとう")) {
-            aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
-          } else if (inputText.includes("時間") || inputText.includes("時刻")) {
-            aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
-          } else if (inputText.includes("規則") || inputText.includes("ポリシー") || inputText.includes("マニュアル") || inputText.includes("PDF")) {
-            aiResponse = "アップロードされたPDF文書についてお聞きしたいことがございましたら、具体的な内容をお教えください。例えば「労働時間」「有給休暇」「セキュリティ」「契約書」などのキーワードでお尋ねいただけます。";
-          } else {
-            aiResponse = "申し訳ございませんが、アップロードされたPDF文書に関する質問以外はお答えできません。PDF文書について具体的なキーワードでお聞きください。";
-          }
+            // 社内規則が見つからない場合のデフォルト応答
+            if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
+              aiResponse = "こんにちは！AIアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
+            } else if (inputText.includes("ありがとう")) {
+              aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
+            } else if (inputText.includes("時間") || inputText.includes("時刻")) {
+              aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
+            } else if (inputText.includes("規則") || inputText.includes("ポリシー") || inputText.includes("マニュアル") || inputText.includes("PDF")) {
+              if (currentPolicies.length === 0) {
+                aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
+              } else {
+                aiResponse = `アップロードされたPDF文書（${currentPolicies.length}件）についてお聞きしたいことがございましたら、具体的な内容をお教えください。例えば「労働時間」「有給休暇」「セキュリティ」「契約書」などのキーワードでお尋ねいただけます。`;
+              }
+            } else {
+              if (currentPolicies.length === 0) {
+                aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
+              } else {
+                aiResponse = "申し訳ございませんが、アップロードされたPDF文書に関する質問以外はお答えできません。PDF文書について具体的なキーワードでお聞きください。";
+              }
+            }
           }
         }
         

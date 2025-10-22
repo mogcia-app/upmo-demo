@@ -120,12 +120,13 @@ const calculateRelevanceScore = (query: string, text: string): number => {
 };
 
 // 社内規則を検索
-export const searchCompanyPolicies = (query: string): { policy: CompanyPolicy; relevanceScore: number; matchedChunk: string }[] => {
+export const searchCompanyPolicies = (query: string, policies?: CompanyPolicy[]): { policy: CompanyPolicy; relevanceScore: number; matchedChunk: string }[] => {
   if (!query.trim()) return [];
   
+  const searchPolicies = policies || companyPolicies;
   const results: { policy: CompanyPolicy; relevanceScore: number; matchedChunk: string }[] = [];
   
-  for (const policy of companyPolicies) {
+  for (const policy of searchPolicies) {
     // タイトルでの検索
     const titleScore = calculateRelevanceScore(query, policy.title);
     
