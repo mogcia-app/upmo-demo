@@ -92,28 +92,28 @@ export default function PersonalChatPage() {
           console.log('手動入力データ取得成功:', data.answer);
           console.log('検索クエリ:', query);
           console.log('検索結果の詳細:', data);
-          // AIプロンプトで会話風の補助を追加
-          const naturalResponse = await generateNaturalResponse(query, data.answer);
-          console.log('AI自然回答生成結果:', naturalResponse);
-          console.log('最終回答:', naturalResponse);
-          return naturalResponse;
+          // 手動サンドイッチ形式で回答を生成
+          const sandwichResponse = await generateManualSandwichResponse(query, data.answer);
+          console.log('手動サンドイッチ回答生成結果:', sandwichResponse);
+          console.log('最終回答:', sandwichResponse);
+          return sandwichResponse;
         } else {
           console.log('手動入力データが見つかりませんでした');
           console.log('検索結果:', data);
         }
       }
       
-      return "該当する情報が見つかりませんでした。手動入力された文書を確認してください。";
+      return "申し訳ございません！該当する情報が見つかりませんでした。";
     } catch (error) {
       console.error('手動文書検索エラー:', error);
       return "検索中にエラーが発生しました。";
     }
   };
 
-  // AIでサンドイッチ形式の回答を生成する関数
-  const generateNaturalResponse = async (query: string, manualData: string): Promise<string> => {
+  // 手動ロジックでサンドイッチ形式の回答を生成する関数
+  const generateManualSandwichResponse = async (query: string, manualData: string): Promise<string> => {
     try {
-      console.log('AIサンドイッチ回答生成開始 - 質問:', query, '手動データ:', manualData);
+      console.log('手動サンドイッチ回答生成開始 - 質問:', query, '手動データ:', manualData);
       
       // 手動入力データから不要な部分を削除
       const cleanData = manualData
@@ -133,60 +133,20 @@ export default function PersonalChatPage() {
       const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
       console.log('抽出されたキーワード:', keyword);
 
-      // AIで挨拶部分と締め部分を生成
-      const aiPrompt = `以下の質問に対して、親しみやすい挨拶文と締め文を作成してください。
+      // 手動でサンドイッチ形式を組み立て
+      const greeting = `${keyword}についてのご質問ですね！`;
+      const itemCount = cleanData.split('\n').filter(line => line.trim()).length;
+      const closing = `が主な${keyword}です！`;
 
-質問: ${query}
-
-回答形式:
-- 挨拶: 「${keyword}についてのご質問ですね！」で始める
-- 締め: 「この○つが主な機能です！」のような親しみやすい締め文
-- 絵文字は使用しない
-- です・ます調で統一
-- 簡潔で親しみやすく
-
-例:
-挨拶: Upmoの機能についてのご質問ですね！
-締め: この3つが主な機能です！`;
-
-      console.log('AI挨拶・締め生成プロンプト:', aiPrompt);
-
-      const response = await fetch('/api/generate-natural-response', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: aiPrompt }),
-      });
-
-      console.log('AI APIレスポンスステータス:', response.status);
-
-      if (!response.ok) {
-        throw new Error('AI挨拶・締め生成に失敗しました');
-      }
-
-      const data = await response.json();
-      console.log('AI APIレスポンスデータ:', data);
-      
-      const aiResponse = data.response || `${keyword}についてのご質問ですね！`;
-      console.log('AI挨拶・締め生成完了:', aiResponse);
-
-      // AIの回答から挨拶と締めを抽出
-      const lines = aiResponse.split('\n');
-      const greeting = lines.find((line: string) => line.includes('ご質問ですね')) || `${keyword}についてのご質問ですね！`;
-      const closing = lines.find((line: string) => line.includes('主な') || line.includes('機能')) || `この${cleanData.split('\n').length}つが主な機能です！`;
-
-      // サンドイッチ形式で組み立て
       const result = `${greeting}\n\n${cleanData}\n\n${closing}`;
-      console.log('AIサンドイッチ回答生成完了:', result);
+      console.log('手動サンドイッチ回答生成完了:', result);
       return result;
     } catch (error) {
-      console.error('AI回答生成エラー:', error);
-      // エラー時は手動入力データをそのまま返す
-      console.log('エラー時のフォールバック:', manualData);
+      console.error('手動回答生成エラー:', error);
+      // エラー時も手動で組み立て
       const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
       const itemCount = manualData.split('\n').filter(line => line.trim()).length;
-      return `${keyword}についてのご質問ですね！\n\n${manualData}\n\nこの${itemCount}つが主な機能です！`;
+      return `${keyword}についてのご質問ですね！\n\n${manualData}\n\nが主な${keyword}です！`;
     }
   };
 
