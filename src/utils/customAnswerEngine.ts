@@ -231,7 +231,7 @@ export class CustomAnswerEngine {
   // 直接的なマッチを検索
   private findDirectMatches(query: string): TextSection[] {
     const matches: TextSection[] = [];
-    const queryWords = query.split(/\s+/).filter(word => word.length > 1);
+    const queryWords = this.extractKeywords(query);
     
     console.log('🔍 検索単語:', queryWords);
     
@@ -285,9 +285,52 @@ export class CustomAnswerEngine {
     return matches;
   }
   
+  // 日本語クエリからキーワードを抽出
+  private extractKeywords(query: string): string[] {
+    const keywords: string[] = [];
+    const queryLower = query.toLowerCase();
+    
+    // 1. 助詞や接続詞を除去して単語を抽出
+    const cleanedQuery = queryLower
+      .replace(/[のをについて教えてとは]/g, ' ') // 助詞・接続詞を除去
+      .replace(/[、。！？]/g, ' ') // 句読点を除去
+      .trim();
+    
+    // 2. 空白で分割
+    const words = cleanedQuery.split(/\s+/).filter(word => word.length > 1);
+    
+    // 3. 元のクエリも含める（完全一致用）
+    keywords.push(queryLower);
+    
+    // 4. 分割された単語を追加
+    keywords.push(...words);
+    
+    // 5. 日本語の単語境界で分割（ひらがな、カタカナ、漢字の境界）
+    const japaneseWords = this.splitJapaneseWords(queryLower);
+    keywords.push(...japaneseWords);
+    
+    // 6. 重複を除去
+    return [...new Set(keywords)].filter(word => word.length > 0);
+  }
+  
+  // 日本語の単語境界で分割
+  private splitJapaneseWords(text: string): string[] {
+    const words: string[] = [];
+    
+    // ひらがな、カタカナ、漢字、英数字の境界で分割
+    const segments = text.split(/(?=[ひらがなカタカナ漢字])(?<=[a-zA-Z0-9])|(?=[a-zA-Z0-9])(?<=[ひらがなカタカナ漢字])/);
+    
+    for (const segment of segments) {
+      if (segment.length > 1) {
+        words.push(segment);
+      }
+    }
+    
+    return words;
+  }
   // 関連部分を抽出
   private extractRelevantPart(text: string, query: string): string {
-    const queryWords = query.split(/\s+/);
+    const queryWords = this.extractKeywords(query);
     let bestIndex = -1;
     let bestScore = 0;
     
@@ -447,7 +490,7 @@ export class CustomAnswerEngine {
   // より柔軟な検索
   private findFlexibleMatches(query: string): TextSection[] {
     const matches: TextSection[] = [];
-    const queryWords = query.toLowerCase().split(/\s+/);
+    const queryWords = this.extractKeywords(query);
     
     for (const processedText of this.processedTexts) {
       const fullText = processedText.cleanedText.toLowerCase();
