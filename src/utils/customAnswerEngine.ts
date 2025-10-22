@@ -16,7 +16,7 @@ export class CustomAnswerEngine {
   }
   
   // 質問に対する回答を生成
-  generateAnswer(query: string): SmartResponse {
+  async generateAnswer(query: string): Promise<SmartResponse> {
     const queryLower = query.toLowerCase();
     
     // デバッグ情報を出力
@@ -29,7 +29,18 @@ export class CustomAnswerEngine {
         summary: pt.summary.substring(0, 100) + '...',
         keywords: pt.keywords.slice(0, 5),
         sectionsCount: pt.sections.length,
-        originalTextLength: pt.originalText.length
+        originalTextLength: pt.originalText.length,
+        cleanedTextSample: pt.cleanedText.substring(0, 200) + '...'
+      });
+      
+      // 検索キーワードがテキストに含まれているかチェック
+      const queryWords = this.extractKeywords(queryLower);
+      queryWords.forEach(word => {
+        if (pt.cleanedText.toLowerCase().includes(word)) {
+          console.log(`✅ キーワード「${word}」がテキスト${index + 1}に含まれています`);
+        } else {
+          console.log(`❌ キーワード「${word}」がテキスト${index + 1}に含まれていません`);
+        }
       });
     });
     
@@ -61,7 +72,19 @@ export class CustomAnswerEngine {
       return this.createRelatedTopicsResponse(query, relatedTopics);
     }
     
-    // 4. デフォルト回答
+    // 4. AIを使った検索（フォールバック）
+    console.log('🤖 AI検索を試行中...');
+    const aiResponse = await this.generateAIResponse(query, this.processedTexts);
+    if (aiResponse) {
+      return {
+        answer: aiResponse,
+        confidence: 0.6,
+        sources: ['AI検索'],
+        relatedTopics: []
+      };
+    }
+    
+    // 5. デフォルト回答
     return this.createDefaultResponse(query);
   }
   
@@ -485,6 +508,37 @@ export class CustomAnswerEngine {
       sources: availableTopics,
       relatedTopics: []
     };
+  }
+  
+  // AIを使った検索（フォールバック）
+  private async generateAIResponse(query: string, processedTexts: ProcessedText[]): Promise<string | null> {
+    try {
+      // テキストを結合してAIに送信
+      const combinedText = processedTexts
+        .map(pt => `${pt.summary}\n${pt.cleanedText.substring(0, 1000)}`)
+        .join('\n\n');
+      
+      if (combinedText.length === 0) {
+        return null;
+      }
+      
+      // シンプルなAIプロンプト
+      const prompt = `以下の文書から「${query}」に関する情報を探してください。関連する情報があれば、簡潔に回答してください。
+
+文書内容:
+${combinedText}
+
+回答:`;
+      
+      // OpenAI APIを呼び出し（動的インポート）
+      const { generateAIResponse } = await import('./aiAssistant');
+      const response = await generateAIResponse(prompt, []);
+      
+      return response || null;
+    } catch (error) {
+      console.error('AI検索エラー:', error);
+      return null;
+    }
   }
   
   // より柔軟な検索

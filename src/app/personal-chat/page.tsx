@@ -241,7 +241,7 @@ export default function PersonalChatPage() {
           try {
             const answerEngine = createAnswerEngine(processedTexts);
             const queryType = classifyQuery(inputText);
-            const response = answerEngine.generateAnswer(inputText);
+            const response = await answerEngine.generateAnswer(inputText);
             
             aiResponse = response.answer;
             
