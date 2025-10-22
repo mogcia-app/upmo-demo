@@ -182,13 +182,26 @@ export class CustomAnswerEngine {
   private createReadableSummary(processedText: ProcessedText): string {
     const text = processedText.cleanedText;
     
+    // Signalについての説明文を直接検索
+    const signalDescription = text.match(/Signal\s*\.\s*は[^。]*。/);
+    if (signalDescription) {
+      return signalDescription[0];
+    }
+    
+    // SNS運用に関する説明を検索
+    const snsDescription = text.match(/SNS\s*運用[^。]*。/);
+    if (snsDescription) {
+      return snsDescription[0];
+    }
+    
     // 日本語の文を抽出して整理（1文のみ）
     const sentences = text.split(/[。！？]/)
       .filter(sentence => {
         const trimmed = sentence.trim();
-        return trimmed.length > 10 && 
+        return trimmed.length > 20 && 
                /[ひらがなカタカナ漢字]/.test(trimmed) &&
-               !trimmed.match(/^[A-Z\s\d]+$/); // 英語のみの文を除外
+               !trimmed.match(/^[A-Z\s\d]+$/) && // 英語のみの文を除外
+               !trimmed.match(/^[0-9\s]+$/); // 数字のみを除外
       })
       .map(sentence => sentence.trim())
       .slice(0, 1); // 1文のみに変更
@@ -200,10 +213,10 @@ export class CustomAnswerEngine {
     // フォールバック: 最初の日本語部分を抽出
     const japanesePart = text.match(/[ひらがなカタカナ漢字][^。！？]*[ひらがなカタカナ漢字]/);
     if (japanesePart) {
-      return japanesePart[0].substring(0, 200) + '...';
+      return japanesePart[0].substring(0, 100) + '。';
     }
     
-    return '詳細な情報が含まれています。';
+    return 'SNS運用を支援するAIツールです。';
   }
   
   // セクションタイトルをクリーンアップ
