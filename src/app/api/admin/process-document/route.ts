@@ -7,9 +7,17 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const category = formData.get('category') as string;
     
     if (!file) {
       return NextResponse.json({ error: 'ファイルが選択されていません' }, { status: 400 });
+    }
+
+    // ファイルサイズチェック (10MB制限)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。' }, { status: 413 });
     }
 
     // 1. テキスト抽出
@@ -23,18 +31,23 @@ export async function POST(request: NextRequest) {
     
     // 4. Firestoreに保存
     const docRef = await addDoc(collection(db, 'structuredDocuments'), {
-      name: file.name,
+      name: title || file.name, // タイトルを優先、なければファイル名
+      originalFileName: file.name,
+      description: description || '',
+      category: category || 'other',
       type: documentType,
       sections: structuredSections,
       originalText: extractedText,
       createdAt: new Date(),
       lastUpdated: new Date(),
-      sectionCount: Object.keys(structuredSections).length
+      sectionCount: Object.keys(structuredSections).length,
+      fileSize: file.size
     });
 
     return NextResponse.json({ 
       success: true, 
       documentId: docRef.id,
+      name: title || file.name,
       type: documentType,
       sections: Object.keys(structuredSections)
     });

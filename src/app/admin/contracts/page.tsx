@@ -46,8 +46,14 @@ export default function ContractsPage() {
   };
 
   const handleUpload = async () => {
-    if (!newDocument.file || !user) {
-      alert('ファイルを選択してください。');
+    if (!newDocument.title || !newDocument.file || !user) {
+      alert('タイトルとファイルを選択してください。');
+      return;
+    }
+
+    // ファイルサイズチェック (10MB制限)
+    if (newDocument.file.size > 10 * 1024 * 1024) {
+      alert('ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。');
       return;
     }
 
@@ -57,6 +63,9 @@ export default function ContractsPage() {
       // 新しいAPIを使用してPDF処理
       const formData = new FormData();
       formData.append('file', newDocument.file);
+      formData.append('title', newDocument.title);
+      formData.append('description', newDocument.description);
+      formData.append('category', newDocument.category);
       
       const response = await fetch('/api/admin/process-document', {
         method: 'POST',
@@ -64,7 +73,10 @@ export default function ContractsPage() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        if (response.status === 413) {
+          throw new Error('ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。');
+        }
+        const errorData = await response.json().catch(() => ({ error: 'PDF処理に失敗しました' }));
         throw new Error(errorData.error || 'PDF処理に失敗しました');
       }
       
@@ -73,7 +85,7 @@ export default function ContractsPage() {
       console.log('Document processed successfully:', result);
       
       // 成功メッセージ
-      alert(`ファイルが正常に処理されました！\n文書タイプ: ${result.type}\nセクション数: ${result.sections.length}`);
+      alert(`ファイルが正常に処理されました！\n文書名: ${newDocument.title}\n文書タイプ: ${result.type}\nセクション数: ${result.sections.length}`);
       
       // フォームリセット
       setNewDocument({
@@ -208,14 +220,43 @@ export default function ContractsPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ファイル
+                      タイトル <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newDocument.title}
+                      onChange={(e) => setNewDocument(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="文書のタイトルを入力してください"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      説明
+                    </label>
+                    <textarea
+                      value={newDocument.description}
+                      onChange={(e) => setNewDocument(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="文書の説明を入力してください（任意）"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ファイル <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="file"
                       onChange={handleFileUpload}
                       accept=".pdf,.docx,.doc,.txt,.md"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      required
                     />
+                    <p className="text-xs text-gray-500 mt-1">対応形式: PDF, Word, テキスト, Markdown (最大10MB)</p>
                   </div>
                   
                   <div>
@@ -247,7 +288,7 @@ export default function ContractsPage() {
                   </button>
                   <button
                     onClick={handleUpload}
-                    disabled={!newDocument.file || isUploading}
+                    disabled={!newDocument.title || !newDocument.file || isUploading}
                     className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isUploading ? 'アップロード中...' : 'アップロード'}
