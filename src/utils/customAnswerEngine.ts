@@ -114,10 +114,16 @@ export class CustomAnswerEngine {
       `**${this.cleanSectionTitle(section.title)}**\n${this.cleanSectionContent(section.content)}`
     ).join('\n\n');
     
-    // 日本語キーワードを優先
+    // 日本語キーワードを優先（意味のある単語のみ）
     const japaneseKeywords = processedText.keywords
-      .filter(keyword => /[ひらがなカタカナ漢字]/.test(keyword))
-      .slice(0, 8);
+      .filter(keyword => {
+        const trimmed = keyword.trim();
+        return trimmed.length > 1 && 
+               /[ひらがなカタカナ漢字]/.test(trimmed) &&
+               !trimmed.match(/^[A-Z\s\d]+$/) && // 英語のみを除外
+               !trimmed.match(/^\d+$/); // 数字のみを除外
+      })
+      .slice(0, 6);
     
     const answer = `📄 **${documentName}について**\n\n` +
       `**概要**\n${summary}\n\n` +
@@ -134,18 +140,30 @@ export class CustomAnswerEngine {
   
   // 読みやすい概要を作成
   private createReadableSummary(processedText: ProcessedText): string {
-    let summary = processedText.summary || processedText.cleanedText.substring(0, 400);
+    const text = processedText.cleanedText;
     
-    // 日本語の文を抽出
-    const japaneseSentences = summary.split(/[。！？]/)
-      .filter(sentence => /[ひらがなカタカナ漢字]/.test(sentence))
+    // 日本語の文を抽出して整理
+    const sentences = text.split(/[。！？]/)
+      .filter(sentence => {
+        const trimmed = sentence.trim();
+        return trimmed.length > 10 && 
+               /[ひらがなカタカナ漢字]/.test(trimmed) &&
+               !trimmed.match(/^[A-Z\s\d]+$/); // 英語のみの文を除外
+      })
+      .map(sentence => sentence.trim())
       .slice(0, 3);
     
-    if (japaneseSentences.length > 0) {
-      summary = japaneseSentences.join('。') + '。';
+    if (sentences.length > 0) {
+      return sentences.join('。') + '。';
     }
     
-    return summary;
+    // フォールバック: 最初の日本語部分を抽出
+    const japanesePart = text.match(/[ひらがなカタカナ漢字][^。！？]*[ひらがなカタカナ漢字]/);
+    if (japanesePart) {
+      return japanesePart[0].substring(0, 200) + '...';
+    }
+    
+    return '詳細な情報が含まれています。';
   }
   
   // セクションタイトルをクリーンアップ
@@ -158,12 +176,27 @@ export class CustomAnswerEngine {
   
   // セクション内容をクリーンアップ
   private cleanSectionContent(content: string): string {
-    // 日本語の部分を抽出
+    // 日本語の文を抽出
+    const sentences = content.split(/[。！？]/)
+      .filter(sentence => {
+        const trimmed = sentence.trim();
+        return trimmed.length > 15 && 
+               /[ひらがなカタカナ漢字]/.test(trimmed) &&
+               !trimmed.match(/^[A-Z\s\d]+$/); // 英語のみの文を除外
+      })
+      .map(sentence => sentence.trim())
+      .slice(0, 2); // 最大2文
+    
+    if (sentences.length > 0) {
+      return sentences.join('。') + '。';
+    }
+    
+    // フォールバック: 日本語部分を抽出
     const japaneseParts = content.split(/\s+/)
       .filter(part => /[ひらがなカタカナ漢字]/.test(part))
       .join(' ');
     
-    return japaneseParts.substring(0, 200) + (japaneseParts.length > 200 ? '...' : '');
+    return japaneseParts.substring(0, 150) + (japaneseParts.length > 150 ? '...' : '');
   }
   
   // クエリから書類名を抽出
