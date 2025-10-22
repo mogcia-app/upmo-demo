@@ -89,10 +89,14 @@ export default function PersonalChatPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.answer && data.answer !== '該当する情報が見つかりませんでした。') {
+          console.log('手動入力データ取得成功:', data.answer);
           // AIプロンプトで会話風の補助を追加
           const naturalResponse = await generateNaturalResponse(query, data.answer);
+          console.log('AI自然回答生成結果:', naturalResponse);
           // です・ます調に変換
-          return convertToDesuMasu(naturalResponse);
+          const finalResponse = convertToDesuMasu(naturalResponse);
+          console.log('最終回答:', finalResponse);
+          return finalResponse;
         }
       }
       
@@ -106,6 +110,8 @@ export default function PersonalChatPage() {
   // AIプロンプトで自然な回答を生成する関数
   const generateNaturalResponse = async (query: string, manualData: string): Promise<string> => {
     try {
+      console.log('AI自然回答生成開始 - 質問:', query, '手動データ:', manualData);
+      
       // 手動入力データから不要な部分を削除
       const cleanData = manualData
         .replace(/他にも関連する情報があります。/g, '')
@@ -118,8 +124,11 @@ export default function PersonalChatPage() {
         .replace(/terms/g, '')
         .trim();
 
+      console.log('クリーニング後のデータ:', cleanData);
+
       // 質問からキーワードを抽出
       const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
+      console.log('抽出されたキーワード:', keyword);
 
       // 会話風の補助プロンプト
       const prompt = `以下の手動入力データを基に、自然で親しみやすい回答を作成してください。
@@ -136,6 +145,8 @@ export default function PersonalChatPage() {
 
 手動入力データの内容をそのまま使用し、自然な文章にまとめてください。`;
 
+      console.log('AI APIに送信するプロンプト:', prompt);
+
       const response = await fetch('/api/generate-natural-response', {
         method: 'POST',
         headers: {
@@ -144,15 +155,22 @@ export default function PersonalChatPage() {
         body: JSON.stringify({ prompt }),
       });
 
+      console.log('AI APIレスポンスステータス:', response.status);
+
       if (!response.ok) {
         throw new Error('AI回答生成に失敗しました');
       }
 
       const data = await response.json();
-      return data.response || cleanData;
+      console.log('AI APIレスポンスデータ:', data);
+      
+      const result = data.response || cleanData;
+      console.log('AI自然回答生成完了:', result);
+      return result;
     } catch (error) {
       console.error('AI回答生成エラー:', error);
       // エラー時は手動入力データをそのまま返す
+      console.log('エラー時のフォールバック:', manualData);
       return manualData;
     }
   };

@@ -1,36 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 手動で自然な回答を生成する関数
-function generateNaturalResponseManually(prompt: string): string {
-  try {
-    // プロンプトから質問と手動入力データを抽出
-    const lines = prompt.split('\n');
-    let query = '';
-    let manualData = '';
-    
-    for (const line of lines) {
-      if (line.startsWith('質問: ')) {
-        query = line.replace('質問: ', '').trim();
-      } else if (line.startsWith('手動入力データ: ')) {
-        manualData = line.replace('手動入力データ: ', '').trim();
-      }
-    }
-    
-    if (!query || !manualData) {
-      return prompt; // 抽出できない場合は元のプロンプトを返す
-    }
-    
-    // 質問からキーワードを抽出
-    const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
-    
-    // 自然な回答を生成
-    const naturalResponse = `${keyword}についてのご質問ですね！${keyword}には${manualData}という内容があります✨`;
-    
-    return naturalResponse;
-  } catch (error) {
-    console.error('手動回答生成エラー:', error);
-    return prompt;
-  }
+export async function GET() {
+  // 簡単なテスト用エンドポイント
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  
+  return NextResponse.json({
+    hasApiKey: !!openaiApiKey,
+    apiKeyLength: openaiApiKey ? openaiApiKey.length : 0,
+    message: openaiApiKey ? 'APIキーが設定されています' : 'APIキーが設定されていません'
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -109,5 +87,38 @@ export async function POST(request: NextRequest) {
         response: "申し訳ございません。エラーが発生しました。"
       });
     }
+  }
+}
+
+// 手動で自然な回答を生成する関数
+function generateNaturalResponseManually(prompt: string): string {
+  try {
+    // プロンプトから質問と手動入力データを抽出
+    const lines = prompt.split('\n');
+    let query = '';
+    let manualData = '';
+    
+    for (const line of lines) {
+      if (line.startsWith('質問: ')) {
+        query = line.replace('質問: ', '').trim();
+      } else if (line.startsWith('手動入力データ: ')) {
+        manualData = line.replace('手動入力データ: ', '').trim();
+      }
+    }
+    
+    if (!query || !manualData) {
+      return prompt; // 抽出できない場合は元のプロンプトを返す
+    }
+    
+    // 質問からキーワードを抽出
+    const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
+    
+    // 自然な回答を生成
+    const naturalResponse = `${keyword}についてのご質問ですね！${keyword}には${manualData}という内容があります✨`;
+    
+    return naturalResponse;
+  } catch (error) {
+    console.error('手動回答生成エラー:', error);
+    return prompt;
   }
 }
