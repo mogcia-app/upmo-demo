@@ -503,10 +503,10 @@ export default function PersonalChatPage() {
                 <p className="text-sm text-gray-600 mb-2">よくある質問:</p>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setInputText('Signalについて教えて')}
+                    onClick={() => setInputText('について教えて')}
                     className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
                   >
-                    Signalについて教えて
+                    について教えて
                   </button>
                   <button
                     onClick={() => setInputText('料金について教えて')}
@@ -521,10 +521,10 @@ export default function PersonalChatPage() {
                     機能について教えて
                   </button>
                   <button
-                    onClick={() => setInputText('導入までの流れを教えて')}
+                    onClick={() => setInputText('導入について教えて')}
                     className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
                   >
-                    導入までの流れを教えて
+                    導入について教えて
                   </button>
                   <button
                     onClick={() => setInputText('サポートについて教えて')}
