@@ -1,16 +1,9 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import Layout from "../../../components/Layout";
-import { ProtectedRoute } from "../../../components/ProtectedRoute";
-import { useAuth } from "../../../contexts/AuthContext";
-import { saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
-import { processPDFText } from "../../../utils/textProcessor";
-import { saveStructuredDocument } from "../../../utils/documentStructuring";
-import { extractTextFromFile, parseDocumentByType } from "../../../utils/fileExtractor";
-import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from "../../../lib/firebase";
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import Layout from '@/components/Layout';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 interface Document {
   id: string;
@@ -18,105 +11,16 @@ interface Document {
   fileName: string;
   fileUrl: string;
   uploadedAt: Date;
-  category: 'regulation' | 'policy' | 'manual' | 'other';
-  description?: string;
-  extractedText?: string; // PDFから抽出されたテキスト
+  category: 'regulation' | 'contract' | 'manual' | 'other';
+  description: string;
+  extractedText: string;
 }
 
 export default function ContractsPage() {
   const { user } = useAuth();
-  
-  // Firestoreからドキュメントを取得
-  const fetchDocumentsFromFirestore = async () => {
-    if (!user) return;
-    
-    try {
-      const q = query(
-        collection(db, 'documents'),
-        where('userId', '==', user.uid),
-        orderBy('uploadedAt', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const docs: Document[] = [];
-      
-      querySnapshot.forEach((docSnapshot) => {
-        const data = docSnapshot.data();
-        docs.push({
-          id: docSnapshot.id,
-          title: data.title,
-          fileName: data.fileName,
-          fileUrl: data.fileUrl,
-          uploadedAt: data.uploadedAt?.toDate() || new Date(),
-          category: data.category,
-          description: data.description,
-          extractedText: data.extractedText
-        });
-      });
-      
-      setDocuments(docs);
-    } catch (error) {
-      console.error('Error fetching documents:', error);
-    }
-  };
-
-  // ファイル名をサニタイズ
-  const sanitizeFileName = (fileName: string): string => {
-    return fileName
-      .replace(/[^a-zA-Z0-9.-]/g, '_') // 特殊文字をアンダースコアに置換
-      .replace(/_{2,}/g, '_') // 連続するアンダースコアを1つに
-      .replace(/^_|_$/g, ''); // 先頭と末尾のアンダースコアを削除
-  };
-
-  // Firebase Storageにファイルをアップロード
-  const uploadFileToStorage = async (file: File, userId: string): Promise<string> => {
-    try {
-      const sanitizedName = sanitizeFileName(file.name);
-      const fileName = `${userId}/${Date.now()}_${sanitizedName}`;
-      const storageRef = ref(storage, `documents/${fileName}`);
-      
-      console.log('Uploading file:', fileName);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      console.log('File uploaded successfully:', downloadURL);
-      return downloadURL;
-    } catch (error) {
-      console.error('Error uploading file to storage:', error);
-      throw error;
-    }
-  };
-
-  // Firestoreにドキュメントを保存
-  const saveDocumentToFirestore = async (document: Document): Promise<string> => {
-    try {
-      const docRef = await addDoc(collection(db, 'documents'), {
-        title: document.title,
-        fileName: document.fileName,
-        fileUrl: document.fileUrl,
-        uploadedAt: document.uploadedAt,
-        category: document.category,
-        description: document.description,
-        extractedText: document.extractedText,
-        userId: user?.uid
-      });
-      return docRef.id;
-    } catch (error) {
-      console.error('Error saving document:', error);
-      throw error;
-    }
-  };
-  
-
-  // ユーザー認証時にFirestoreからドキュメントを取得
-  useEffect(() => {
-    if (user) {
-      fetchDocumentsFromFirestore();
-    }
-  }, [user]);
-
   const [documents, setDocuments] = useState<Document[]>([]);
-
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [newDocument, setNewDocument] = useState({
     title: '',
     description: '',
@@ -128,386 +32,231 @@ export default function ContractsPage() {
     const file = event.target.files?.[0];
     const allowedTypes = [
       'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/msword', // .doc
-      'text/plain', // .txt
-      'text/markdown' // .md
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+      'text/markdown'
     ];
     
     if (file && allowedTypes.includes(file.type)) {
       setNewDocument(prev => ({ ...prev, file }));
     } else {
-      alert('対応ファイル形式: PDF, Word(.docx/.doc), テキスト(.txt), Markdown(.md)');
+      alert('PDF、Word、テキスト、Markdownファイルのみアップロード可能です。');
     }
   };
 
   const handleUpload = async () => {
-    if (!newDocument.title || !newDocument.file || !user) {
-      alert('タイトルとファイルを入力してください。');
+    if (!newDocument.file || !user) {
+      alert('ファイルを選択してください。');
       return;
     }
 
     try {
-      // ファイルからテキストを抽出（複数形式対応）
-      const extractedText = await extractTextFromFile(newDocument.file);
-      console.log('テキスト抽出完了:', extractedText.substring(0, 100) + '...');
+      setIsUploading(true);
       
-      // テキストを前処理
-      const processedText = processPDFText(extractedText);
-      console.log('テキスト前処理完了:', processedText.summary);
+      // 新しいAPIを使用してPDF処理
+      const formData = new FormData();
+      formData.append('file', newDocument.file);
       
-      // ファイル形式に応じた構造化解析
-      const structuredDoc = parseDocumentByType(extractedText, newDocument.file.name, newDocument.file.type);
-      console.log('構造化解析完了:', structuredDoc.sections.length, 'セクション');
+      const response = await fetch('/api/admin/process-document', {
+        method: 'POST',
+        body: formData
+      });
       
-      // Firebase Storageにファイルをアップロード
-      let fileUrl = '';
-      try {
-        fileUrl = await uploadFileToStorage(newDocument.file, user.uid);
-        console.log('ファイルアップロード完了:', fileUrl);
-      } catch (uploadError) {
-        console.error('ファイルアップロードエラー:', uploadError);
-        alert('ファイルのアップロードに失敗しました。Firebase Storageの設定を確認してください。');
-        return;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'PDF処理に失敗しました');
       }
       
-      // 構造化データを保存
-      try {
-        await saveStructuredDocument(structuredDoc, user.uid);
-        console.log('構造化データを保存しました');
-      } catch (structuredError) {
-        console.error('構造化データ保存エラー:', structuredError);
-      }
+      const result = await response.json();
       
-      // companyPoliciesコレクションに保存（AI検索用）
-      try {
-        await saveCompanyPolicyToFirestore({
-          title: newDocument.title,
-          category: newDocument.category,
-          content: processedText.cleanedText, // クリーンアップされたテキスト
-          userId: user.uid,
-          source: newDocument.file.name
-        });
-        console.log('PDF内容をAI検索システムに保存しました');
-      } catch (firestoreError) {
-        console.error('companyPolicies保存エラー:', firestoreError);
-      }
+      console.log('Document processed successfully:', result);
       
-      // documentsコレクションにも保存（ファイル管理用）
-      const document: Document = {
-        id: Date.now().toString(),
-        title: newDocument.title,
-        fileName: newDocument.file.name,
-        fileUrl: fileUrl,
-        uploadedAt: new Date(),
-        category: newDocument.category,
-        description: newDocument.description,
-        extractedText: processedText.cleanedText // クリーンアップされたテキスト
-      };
-
-      try {
-        const docId = await saveDocumentToFirestore(document);
-        document.id = docId;
-        setDocuments(prev => [document, ...prev]);
-        setNewDocument({ title: '', description: '', category: 'regulation', file: null });
-        setShowUploadModal(false);
-        
-        alert('書類のアップロードとテキスト抽出が完了しました！');
-      } catch (firestoreError) {
-        console.error('Firestore保存エラー:', firestoreError);
-        alert('ドキュメントの保存中にエラーが発生しました。');
-      }
+      // 成功メッセージ
+      alert(`ファイルが正常に処理されました！\n文書タイプ: ${result.type}\nセクション数: ${result.sections.length}`);
+      
+      // フォームリセット
+      setNewDocument({
+        title: '',
+        description: '',
+        category: 'regulation',
+        file: null
+      });
+      setShowUploadModal(false);
+      
+      // ドキュメントリストを更新
+      await fetchDocumentsFromFirestore();
+      
     } catch (error) {
-      console.error('PDF読み込みエラー:', error);
-      
-      // エラーメッセージを詳細化
-      let errorMessage = 'PDFの読み込みに失敗しました。';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('無効なPDF')) {
-          errorMessage = '無効なPDFファイルです。ファイルが破損している可能性があります。';
-        } else if (error.message.includes('パスワード')) {
-          errorMessage = 'パスワードで保護されたPDFファイルです。パスワードを解除してからアップロードしてください。';
-        } else if (error.message.includes('ネットワーク')) {
-          errorMessage = 'ネットワークエラーが発生しました。インターネット接続を確認してください。';
-        } else {
-          errorMessage = `PDF読み込みエラー: ${error.message}`;
-        }
-      }
-      
-      alert(errorMessage);
+      console.error('Upload error:', error);
+      alert(`アップロードに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    } finally {
+      setIsUploading(false);
     }
   };
+
+  // Firestoreからドキュメントを取得
+  const fetchDocumentsFromFirestore = async () => {
+    if (!user) return;
+    
+    try {
+      // 新しい構造化文書コレクションから取得
+      const response = await fetch('/api/search?q=*');
+      if (response.ok) {
+        const data = await response.json();
+        // 構造化データをDocument形式に変換
+        const formattedDocs = data.results?.map((doc: any) => ({
+          id: doc.id,
+          title: doc.name,
+          fileName: doc.name,
+          fileUrl: '', // 新しいAPIではファイルURLは不要
+          uploadedAt: new Date(doc.lastUpdated),
+          category: doc.type === 'meeting' ? 'regulation' : 'other',
+          description: `文書タイプ: ${doc.type}`,
+          extractedText: Object.values(doc.sections).join('\n')
+        })) || [];
+        
+        setDocuments(formattedDocs);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+
+  // ユーザー認証時にFirestoreからドキュメントを取得
+  useEffect(() => {
+    if (user) {
+      fetchDocumentsFromFirestore();
+    }
+  }, [user]);
 
   const getCategoryColor = (category: Document['category']) => {
     switch (category) {
       case 'regulation': return 'bg-blue-100 text-blue-800';
-      case 'policy': return 'bg-green-100 text-green-800';
-      case 'manual': return 'bg-purple-100 text-purple-800';
-      case 'other': return 'bg-gray-100 text-gray-800';
+      case 'contract': return 'bg-green-100 text-green-800';
+      case 'manual': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getCategoryText = (category: Document['category']) => {
+  const getCategoryLabel = (category: Document['category']) => {
     switch (category) {
-      case 'regulation': return '規定・規則';
-      case 'policy': return 'ポリシー';
+      case 'regulation': return '規則';
+      case 'contract': return '契約';
       case 'manual': return 'マニュアル';
-      case 'other': return 'その他';
-      default: return '不明';
-    }
-  };
-
-  // ドキュメントを削除
-  const handleDeleteDocument = async (documentId: string) => {
-    if (!confirm('このドキュメントを削除しますか？')) return;
-    
-    try {
-      // 削除するドキュメントの情報を取得
-      const documentToDelete = documents.find(doc => doc.id === documentId);
-      
-      // Firestoreから削除
-      await deleteDoc(doc(db, 'documents', documentId));
-      
-      // Firebase Storageからファイルを削除
-      if (documentToDelete?.fileUrl && documentToDelete.fileUrl.startsWith('https://firebasestorage.googleapis.com/')) {
-        try {
-          const fileRef = ref(storage, documentToDelete.fileUrl);
-          await deleteObject(fileRef);
-          console.log('Storage file deleted successfully');
-        } catch (storageError) {
-          console.warn('Storage file deletion failed:', storageError);
-          // Storageの削除に失敗してもFirestoreの削除は継続
-        }
-      }
-      
-      // ローカル状態から削除
-      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-      
-      alert('ドキュメントを削除しました。');
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('ドキュメントの削除中にエラーが発生しました。');
+      default: return 'その他';
     }
   };
 
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="space-y-6">
-          {/* ヘッダー */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  企業規定書類管理
-                </h1>
-                <p className="text-gray-600">
-                  企業の規定書類、ポリシー、マニュアルを管理します。
-                </p>
-              </div>
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors flex items-center space-x-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>書類をアップロード</span>
-              </button>
-            </div>
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">書類管理</h1>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
+            >
+              書類をアップロード
+            </button>
           </div>
 
-
-          {/* 書類一覧 - カード表示 */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">書類一覧</h2>
-              <div className="text-sm text-gray-500">
-                全 {documents.length} 件
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {documents.map((document) => (
-                <div key={document.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                  <div className="p-6">
-                    {/* ヘッダー */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                          {document.title}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {document.fileName}
-                        </p>
-                      </div>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(document.category)}`}>
-                        {getCategoryText(document.category)}
-                      </span>
-                    </div>
-
-                    {/* 説明 */}
-                    {document.description && (
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                        {document.description}
-                      </p>
-                    )}
-
-                    {/* アップロード日 */}
-                    <div className="text-xs text-gray-400 mb-4">
-                      アップロード日: {document.uploadedAt.toLocaleDateString('ja-JP')}
-                    </div>
-
-                    {/* 操作ボタン */}
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          if (document.fileUrl) {
-                            window.open(document.fileUrl, '_blank');
-                          } else {
-                            alert('ファイルURLが設定されていません。');
-                          }
-                        }}
-                        className="flex-1 px-3 py-2 bg-[#005eb2] text-white text-sm rounded-md hover:bg-[#004a96] transition-colors text-center"
-                      >
-                        表示
-                      </button>
-                      <button className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition-colors">
-                        ダウンロード
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteDocument(document.id)}
-                        className="px-3 py-2 border border-red-300 text-red-700 text-sm rounded-md hover:bg-red-50 transition-colors"
-                      >
-                        削除
-                      </button>
+          {/* ドキュメントリスト */}
+          <div className="grid gap-4">
+            {documents.map((doc) => (
+              <div key={doc.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
+                    <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
+                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <span>ファイル名: {doc.fileName}</span>
+                      <span>アップロード日: {doc.uploadedAt.toLocaleDateString('ja-JP')}</span>
                     </div>
                   </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(doc.category)}`}>
+                    {getCategoryLabel(doc.category)}
+                  </span>
                 </div>
-              ))}
-            </div>
-
-            {/* 空の状態 */}
+                
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">抽出されたテキスト:</h4>
+                  <div className="bg-gray-50 rounded-md p-3 max-h-32 overflow-y-auto">
+                    <p className="text-sm text-gray-600">
+                      {doc.extractedText.substring(0, 200)}
+                      {doc.extractedText.length > 200 && '...'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
             {documents.length === 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                <div className="text-gray-400 mb-4">
-                  <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  書類がありません
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  最初の書類をアップロードしてください。
-                </p>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
-                >
-                  書類をアップロード
-                </button>
+              <div className="text-center py-12">
+                <p className="text-gray-500">アップロードされた書類がありません。</p>
               </div>
             )}
           </div>
-        </div>
 
-        {/* アップロードモーダル */}
-        {showUploadModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4 text-gray-900">書類をアップロード</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    書類名
-                  </label>
-                  <input
-                    type="text"
-                    value={newDocument.title}
-                    onChange={(e) => setNewDocument(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
-                    placeholder="例: 就業規則"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    カテゴリ
-                  </label>
-                  <select
-                    value={newDocument.category}
-                    onChange={(e) => setNewDocument(prev => ({ ...prev, category: e.target.value as Document['category'] }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
-                  >
-                    <option value="regulation">規定・規則</option>
-                    <option value="policy">ポリシー</option>
-                    <option value="manual">マニュアル</option>
-                    <option value="other">その他</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    説明（任意）
-                  </label>
-                  <textarea
-                    value={newDocument.description}
-                    onChange={(e) => setNewDocument(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
-                    rows={3}
-                    placeholder="書類の詳細説明"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ファイル
-                  </label>
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.doc,.txt,.md"
-                    onChange={handleFileUpload}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    対応ファイル形式: PDF, Word(.docx/.doc), テキスト(.txt), Markdown(.md)（最大10MB）
-                  </p>
-                </div>
-
-                {newDocument.file && (
-                  <div className="p-3 bg-gray-50 rounded-md">
-                    <p className="text-sm text-gray-600">
-                      選択されたファイル: <span className="font-medium">{newDocument.file.name}</span>
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      サイズ: {(newDocument.file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+          {/* アップロードモーダル */}
+          {showUploadModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                <h2 className="text-xl font-semibold mb-4">書類をアップロード</h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ファイル
+                    </label>
+                    <input
+                      type="file"
+                      onChange={handleFileUpload}
+                      accept=".pdf,.docx,.doc,.txt,.md"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                    />
                   </div>
-                )}
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={handleUpload}
-                  disabled={!newDocument.title || !newDocument.file}
-                  className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  アップロード
-                </button>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      カテゴリ
+                    </label>
+                    <select
+                      value={newDocument.category}
+                      onChange={(e) => setNewDocument(prev => ({ 
+                        ...prev, 
+                        category: e.target.value as Document['category'] 
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                    >
+                      <option value="regulation">規則</option>
+                      <option value="contract">契約</option>
+                      <option value="manual">マニュアル</option>
+                      <option value="other">その他</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => setShowUploadModal(false)}
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleUpload}
+                    disabled={!newDocument.file || isUploading}
+                    className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isUploading ? 'アップロード中...' : 'アップロード'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </Layout>
     </ProtectedRoute>
   );

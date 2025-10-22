@@ -236,35 +236,52 @@ export default function PersonalChatPage() {
         
         let aiResponse = "";
         
-        if (processedTexts.length > 0) {
-          // 自社ロジックで回答生成（トークン費ゼロ）
-          try {
-            const answerEngine = createAnswerEngine(processedTexts);
-            const queryType = classifyQuery(inputText);
-            const response = await answerEngine.generateAnswer(inputText);
-            
-            aiResponse = response.answer;
-            
-            // 関連トピックがある場合は表示
-            if (response.relatedTopics && response.relatedTopics.length > 0) {
-              aiResponse += `\n\n関連トピック: ${response.relatedTopics.join(', ')}`;
+        // 新しい検索APIを使用
+        try {
+          const response = await fetch(`/api/search?q=${encodeURIComponent(inputText)}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.answer) {
+              aiResponse = data.answer;
+              console.log('構造化検索API回答生成完了:', data.documentType);
+            } else {
+              // APIが回答を生成できなかった場合のフォールバック
+              aiResponse = "申し訳ございませんが、該当する情報が見つかりませんでした。";
             }
-            
-            console.log('自社ロジック回答生成完了:', response.confidence);
-          } catch (error) {
-            console.error('自社ロジック回答生成エラー:', error);
-            aiResponse = "申し訳ございません。回答の生成中にエラーが発生しました。";
-          }
-        } else {
-          // PDFデータがない場合のデフォルト応答
-          if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
-            aiResponse = "こんにちは！自社ロジックアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
-          } else if (inputText.includes("ありがとう")) {
-            aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
-          } else if (inputText.includes("時間") || inputText.includes("時刻")) {
-            aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
           } else {
-            aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
+            throw new Error('検索APIエラー');
+          }
+        } catch (error) {
+          console.error('検索APIエラー:', error);
+          
+          // フォールバック: 既存の自社ロジック
+          if (processedTexts.length > 0) {
+            try {
+              const answerEngine = createAnswerEngine(processedTexts);
+              const response = await answerEngine.generateAnswer(inputText);
+              aiResponse = response.answer;
+              
+              if (response.relatedTopics && response.relatedTopics.length > 0) {
+                aiResponse += `\n\n関連トピック: ${response.relatedTopics.join(', ')}`;
+              }
+              
+              console.log('フォールバック自社ロジック回答生成完了:', response.confidence);
+            } catch (fallbackError) {
+              console.error('フォールバック自社ロジック回答生成エラー:', fallbackError);
+              aiResponse = "申し訳ございません。回答の生成中にエラーが発生しました。";
+            }
+          } else {
+            // PDFデータがない場合のデフォルト応答
+            if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
+              aiResponse = "こんにちは！自社ロジックアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
+            } else if (inputText.includes("ありがとう")) {
+              aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
+            } else if (inputText.includes("時間") || inputText.includes("時刻")) {
+              aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
+            } else {
+              aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
+            }
           }
         }
         
