@@ -18,7 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const commonMenuItems = [
     { name: "ダッシュボード", icon: "📄", href: "/" },
     { name: "個人チャット", icon: "💬", href: "/personal-chat" },
-    { name: "チームチャット", icon: "👥", href: "/team-chat" },
+    { name: "TODOリスト", icon: "✅", href: "/todo" },
   ];
 
   const adminMenuItems = [
