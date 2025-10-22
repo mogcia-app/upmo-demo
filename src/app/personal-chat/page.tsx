@@ -89,8 +89,10 @@ export default function PersonalChatPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.answer && data.answer !== '該当する情報が見つかりませんでした。') {
+          // AIプロンプトで会話風の補助を追加
+          const naturalResponse = await generateNaturalResponse(query, data.answer);
           // です・ます調に変換
-          return convertToDesuMasu(data.answer);
+          return convertToDesuMasu(naturalResponse);
         }
       }
       
@@ -98,6 +100,60 @@ export default function PersonalChatPage() {
     } catch (error) {
       console.error('手動文書検索エラー:', error);
       return "検索中にエラーが発生しました。";
+    }
+  };
+
+  // AIプロンプトで自然な回答を生成する関数
+  const generateNaturalResponse = async (query: string, manualData: string): Promise<string> => {
+    try {
+      // 手動入力データから不要な部分を削除
+      const cleanData = manualData
+        .replace(/他にも関連する情報があります。/g, '')
+        .replace(/features/g, '')
+        .replace(/overview/g, '')
+        .replace(/pricing/g, '')
+        .replace(/procedures/g, '')
+        .replace(/support/g, '')
+        .replace(/rules/g, '')
+        .replace(/terms/g, '')
+        .trim();
+
+      // 質問からキーワードを抽出
+      const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
+
+      // 会話風の補助プロンプト
+      const prompt = `以下の手動入力データを基に、自然で親しみやすい回答を作成してください。
+
+質問: ${query}
+手動入力データ: ${cleanData}
+
+回答形式:
+- 「${keyword}についてのご質問ですね！」で始める
+- 手動入力データの内容を自然な文章で説明
+- 絵文字（✨）を適切に使用
+- です・ます調で統一
+- 簡潔で分かりやすく
+
+手動入力データの内容をそのまま使用し、自然な文章にまとめてください。`;
+
+      const response = await fetch('/api/generate-natural-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI回答生成に失敗しました');
+      }
+
+      const data = await response.json();
+      return data.response || cleanData;
+    } catch (error) {
+      console.error('AI回答生成エラー:', error);
+      // エラー時は手動入力データをそのまま返す
+      return manualData;
     }
   };
 
