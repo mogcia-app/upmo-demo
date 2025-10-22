@@ -99,6 +99,7 @@ export class CustomAnswerEngine {
     }
     
     const aiResponse = await this.generateAIResponse(query, this.processedTexts);
+    console.log('🤖 AI回答:', aiResponse ? aiResponse.substring(0, 100) + '...' : 'null');
     if (aiResponse) {
       // 資料名を取得
       const documentNames = this.processedTexts.map(pt => pt.summary.split('\n')[0] || 'Signal資料').filter(name => name.trim());
@@ -288,19 +289,28 @@ export class CustomAnswerEngine {
       const fullText = processedText.cleanedText.toLowerCase();
       const originalText = processedText.originalText.toLowerCase();
       
+      // デバッグ: テキストのサンプルを表示
+      console.log('📄 検索対象テキスト（最初の200文字）:', fullText.substring(0, 200));
+      
       // 単語ごとの部分一致をチェック
       let matchCount = 0;
       const matchedWords: string[] = [];
       
       for (const word of queryWords) {
+        console.log(`🔍 「${word}」を検索中...`);
         if (fullText.includes(word) || originalText.includes(word)) {
           matchCount++;
           matchedWords.push(word);
+          console.log(`✅ 「${word}」マッチ！`);
+        } else {
+          console.log(`❌ 「${word}」マッチせず`);
         }
       }
       
-      // 50%以上の単語がマッチした場合
-      if (matchCount >= Math.ceil(queryWords.length * 0.5)) {
+      console.log(`📊 マッチ数: ${matchCount}/${queryWords.length}`);
+      
+      // 30%以上の単語がマッチした場合（閾値を下げる）
+      if (matchCount >= Math.ceil(queryWords.length * 0.3)) {
         console.log('✅ 部分マッチ発見:', matchedWords.join(', '));
         const relevantPart = this.extractRelevantPart(fullText, matchedWords.join(' '));
         matches.push({
