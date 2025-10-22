@@ -125,6 +125,7 @@ export default function PersonalChatPage() {
         .replace(/support/g, '')
         .replace(/rules/g, '')
         .replace(/terms/g, '')
+        .replace(/^.*について\s*$/gm, '') // 「Upmoについて」のような行を削除
         .trim();
 
       console.log('クリーニング後のデータ:', cleanData);
@@ -134,9 +135,9 @@ export default function PersonalChatPage() {
       console.log('抽出されたキーワード:', keyword);
 
       // 手動でサンドイッチ形式を組み立て
-      const greeting = `${keyword}についてのご質問ですね！`;
+      const greeting = `${keyword}についてのご質問ですね✨`;
       const itemCount = cleanData.split('\n').filter(line => line.trim()).length;
-      const closing = `が主な${keyword}です！`;
+      const closing = `が主な${keyword}です。`;
 
       const result = `${greeting}\n\n${cleanData}\n\n${closing}`;
       console.log('手動サンドイッチ回答生成完了:', result);
@@ -146,7 +147,7 @@ export default function PersonalChatPage() {
       // エラー時も手動で組み立て
       const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
       const itemCount = manualData.split('\n').filter(line => line.trim()).length;
-      return `${keyword}についてのご質問ですね！\n\n${manualData}\n\nが主な${keyword}です！`;
+      return `${keyword}についてのご質問ですね✨\n\n${manualData}\n\nが主な${keyword}です。`;
     }
   };
 
