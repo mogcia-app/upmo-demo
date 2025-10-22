@@ -5,6 +5,7 @@ import Layout from "../../../components/Layout";
 import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
 import { saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
+import { processPDFText } from "../../../utils/textProcessor";
 import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from "../../../lib/firebase";
@@ -128,29 +129,43 @@ export default function ContractsPage() {
       const { extractPDFText } = await import("../../../utils/pdfExtractor");
       const extractedText = await extractPDFText(newDocument.file);
       
-      // デバッグ: 抽出されたテキストを確認
-      console.log('抽出されたテキスト:', extractedText);
-      console.log('テキストの長さ:', extractedText.length);
+      // テキストを前処理
+      const processedText = processPDFText(extractedText);
+      console.log('テキスト前処理完了:', processedText.summary);
       
       // Firebase Storageにファイルをアップロード
       const fileUrl = await uploadFileToStorage(newDocument.file, user.uid);
       console.log('ファイルアップロード完了:', fileUrl);
       
+      // companyPoliciesコレクションに保存（AI検索用）
+      try {
+        await saveCompanyPolicyToFirestore({
+          title: newDocument.title,
+          category: newDocument.category,
+          content: processedText.cleanedText, // クリーンアップされたテキスト
+          userId: user.uid,
+          source: newDocument.file.name
+        });
+        console.log('PDF内容をAI検索システムに保存しました');
+      } catch (firestoreError) {
+        console.error('companyPolicies保存エラー:', firestoreError);
+      }
+      
+      // documentsコレクションにも保存（ファイル管理用）
       const document: Document = {
         id: Date.now().toString(),
         title: newDocument.title,
         fileName: newDocument.file.name,
-        fileUrl: fileUrl, // Firebase StorageのURL
+        fileUrl: fileUrl,
         uploadedAt: new Date(),
         category: newDocument.category,
         description: newDocument.description,
-        extractedText: extractedText
+        extractedText: processedText.cleanedText // クリーンアップされたテキスト
       };
 
-      // Firestoreにドキュメントを保存
       try {
         const docId = await saveDocumentToFirestore(document);
-        document.id = docId; // FirestoreのIDを設定
+        document.id = docId;
         setDocuments(prev => [document, ...prev]);
         setNewDocument({ title: '', description: '', category: 'regulation', file: null });
         setShowUploadModal(false);

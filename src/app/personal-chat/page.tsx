@@ -8,6 +8,8 @@ import { searchCompanyPolicies, generateAIResponse, fetchCompanyPoliciesFromFire
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from "../../lib/firebase";
 import { generateAIResponse as generateAdvancedAIResponse, checkOpenAISetup } from "../../utils/aiAssistant";
+import { processPDFText, ProcessedText } from "../../utils/textProcessor";
+import { createAnswerEngine, classifyQuery } from "../../utils/customAnswerEngine";
 
 interface Message {
   id: string;
@@ -36,37 +38,29 @@ export default function PersonalChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const { user } = useAuth();
 
-  // documentsコレクションからPDFデータを取得してCompanyPolicy形式に変換
-  const fetchDocumentsAsPolicies = async (userId: string): Promise<CompanyPolicy[]> => {
+  // companyPoliciesコレクションからPDFデータを取得してProcessedText形式に変換
+  const fetchPoliciesAsProcessedTexts = async (userId: string): Promise<ProcessedText[]> => {
     try {
       const q = query(
-        collection(db, 'documents'),
+        collection(db, 'companyPolicies'),
         where('userId', '==', userId),
-        orderBy('uploadedAt', 'desc')
+        orderBy('lastUpdated', 'desc')
       );
       const querySnapshot = await getDocs(q);
-      const policies: CompanyPolicy[] = [];
+      const processedTexts: ProcessedText[] = [];
       
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.extractedText) {
-          const chunks = data.extractedText.split(/\n\n+/).filter((chunk: string) => chunk.trim().length > 0);
-          policies.push({
-            id: doc.id,
-            title: data.title,
-            category: data.category || '一般',
-            content: data.extractedText,
-            chunks: chunks,
-            lastUpdated: data.uploadedAt?.toDate() || new Date(),
-            userId: data.userId,
-            source: data.fileName
-          });
+        if (data.content) {
+          // 既にクリーンアップされたテキストを再処理
+          const processedText = processPDFText(data.content);
+          processedTexts.push(processedText);
         }
       });
       
-      return policies;
+      return processedTexts;
     } catch (error) {
-      console.error('Error fetching documents as policies:', error);
+      console.error('Error fetching policies as processed texts:', error);
       return [];
     }
   };
@@ -76,9 +70,9 @@ export default function PersonalChatPage() {
     const loadPDFData = async () => {
       if (user) {
         try {
-          const policies = await fetchDocumentsAsPolicies(user.uid);
-          console.log('PDFデータをAI検索システムに読み込みました:', policies.length, '件のポリシー');
-          console.log('読み込まれたポリシー:', policies.map(p => p.title));
+          const processedTexts = await fetchPoliciesAsProcessedTexts(user.uid);
+          console.log('PDFデータを自社ロジックシステムに読み込みました:', processedTexts.length, '件のテキスト');
+          console.log('読み込まれたテキスト:', processedTexts.map(pt => pt.summary.substring(0, 50) + '...'));
         } catch (error) {
           console.error('PDFデータの読み込みエラー:', error);
         }
@@ -177,55 +171,50 @@ export default function PersonalChatPage() {
       // AIアシスタントの場合、社内規則検索を実行
       setTimeout(async () => {
         // 最新のPDFデータを再取得
-        let currentPolicies: CompanyPolicy[] = [];
+        let processedTexts: ProcessedText[] = [];
         if (user) {
           try {
-            currentPolicies = await fetchDocumentsAsPolicies(user.uid);
-            console.log('AI回答用に取得したポリシー数:', currentPolicies.length);
+            processedTexts = await fetchPoliciesAsProcessedTexts(user.uid);
+            console.log('自社ロジック回答用に取得したテキスト数:', processedTexts.length);
           } catch (error) {
             console.error('PDFデータの再取得エラー:', error);
           }
         }
         
-        // OpenAI APIの設定確認
-        const openaiStatus = checkOpenAISetup();
         let aiResponse = "";
         
-        if (openaiStatus.isConfigured && currentPolicies.length > 0) {
-          // 本格的なAI回答を生成
+        if (processedTexts.length > 0) {
+          // 自社ロジックで回答生成（トークン費ゼロ）
           try {
-            aiResponse = await generateAdvancedAIResponse(inputText, currentPolicies);
-          } catch (error) {
-            console.error('AI回答生成エラー:', error);
-            aiResponse = "申し訳ございません。AI回答の生成中にエラーが発生しました。";
-          }
-        } else {
-          // フォールバック: 従来の検索ロジック
-          const searchResults = searchCompanyPolicies(inputText, currentPolicies);
-          
-          if (searchResults.length > 0) {
-            aiResponse = generateAIResponse(inputText, searchResults);
-          } else {
-            // 社内規則が見つからない場合のデフォルト応答
-            if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
-              aiResponse = "こんにちは！AIアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
-            } else if (inputText.includes("ありがとう")) {
-              aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
-            } else if (inputText.includes("時間") || inputText.includes("時刻")) {
-              aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
-            } else if (inputText.includes("規則") || inputText.includes("ポリシー") || inputText.includes("マニュアル") || inputText.includes("PDF")) {
-              if (currentPolicies.length === 0) {
-                aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
-              } else {
-                aiResponse = `アップロードされたPDF文書（${currentPolicies.length}件）についてお聞きしたいことがございましたら、具体的な内容をお教えください。例えば「労働時間」「有給休暇」「セキュリティ」「契約書」などのキーワードでお尋ねいただけます。`;
-              }
-            } else {
-              if (currentPolicies.length === 0) {
-                aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
-              } else {
-                aiResponse = "申し訳ございませんが、アップロードされたPDF文書に関する質問以外はお答えできません。PDF文書について具体的なキーワードでお聞きください。";
+            const answerEngine = createAnswerEngine(processedTexts);
+            const queryType = classifyQuery(inputText);
+            const response = answerEngine.generateAnswer(inputText);
+            
+            aiResponse = response.answer;
+            
+            // 信頼度が低い場合は追加情報を提供
+            if (response.confidence < 0.5) {
+              aiResponse += `\n\n💡 **信頼度: ${Math.round(response.confidence * 100)}%**`;
+              if (response.relatedTopics.length > 0) {
+                aiResponse += `\n\n関連トピック: ${response.relatedTopics.join(', ')}`;
               }
             }
+            
+            console.log('自社ロジック回答生成完了:', response.confidence);
+          } catch (error) {
+            console.error('自社ロジック回答生成エラー:', error);
+            aiResponse = "申し訳ございません。回答の生成中にエラーが発生しました。";
+          }
+        } else {
+          // PDFデータがない場合のデフォルト応答
+          if (inputText.includes("こんにちは") || inputText.includes("はじめまして")) {
+            aiResponse = "こんにちは！自社ロジックアシスタントです。アップロードされたPDF文書の内容についてお答えできます。何かご質問がありますか？";
+          } else if (inputText.includes("ありがとう")) {
+            aiResponse = "どういたしまして！他にもPDF文書についてご質問があれば、お気軽にお聞きください。";
+          } else if (inputText.includes("時間") || inputText.includes("時刻")) {
+            aiResponse = `現在の時刻は ${new Date().toLocaleString('ja-JP')} です。`;
+          } else {
+            aiResponse = "現在、アップロードされたPDF文書がありません。まず管理者ページ（/admin/contracts）でPDF文書をアップロードしてください。";
           }
         }
         
