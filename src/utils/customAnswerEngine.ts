@@ -22,7 +22,16 @@ export class CustomAnswerEngine {
     // デバッグ情報を出力
     console.log('🔍 検索クエリ:', query);
     console.log('📚 利用可能なテキスト数:', this.processedTexts.length);
-    console.log('📄 テキストサマリー:', this.processedTexts.map(pt => pt.summary.substring(0, 100) + '...'));
+    
+    // 各テキストの詳細情報を出力
+    this.processedTexts.forEach((pt, index) => {
+      console.log(`📄 テキスト${index + 1}:`, {
+        summary: pt.summary.substring(0, 100) + '...',
+        keywords: pt.keywords.slice(0, 5),
+        sectionsCount: pt.sections.length,
+        originalTextLength: pt.originalText.length
+      });
+    });
     
     // 0. 書類名での検索（最優先）
     const documentMatches = this.findDocumentByName(queryLower);
@@ -222,13 +231,29 @@ export class CustomAnswerEngine {
   // 直接的なマッチを検索
   private findDirectMatches(query: string): TextSection[] {
     const matches: TextSection[] = [];
+    const queryWords = query.split(/\s+/).filter(word => word.length > 1);
+    
+    console.log('🔍 検索単語:', queryWords);
     
     for (const processedText of this.processedTexts) {
-      // 全体テキストでも検索
       const fullText = processedText.cleanedText.toLowerCase();
-      if (fullText.includes(query)) {
-        // 全体テキストから関連部分を抽出
-        const relevantPart = this.extractRelevantPart(fullText, query);
+      const originalText = processedText.originalText.toLowerCase();
+      
+      // 単語ごとの部分一致をチェック
+      let matchCount = 0;
+      const matchedWords: string[] = [];
+      
+      for (const word of queryWords) {
+        if (fullText.includes(word) || originalText.includes(word)) {
+          matchCount++;
+          matchedWords.push(word);
+        }
+      }
+      
+      // 50%以上の単語がマッチした場合
+      if (matchCount >= Math.ceil(queryWords.length * 0.5)) {
+        console.log('✅ 部分マッチ発見:', matchedWords.join(', '));
+        const relevantPart = this.extractRelevantPart(fullText, matchedWords.join(' '));
         matches.push({
           title: '資料内容',
           content: relevantPart,
@@ -236,13 +261,23 @@ export class CustomAnswerEngine {
         });
       }
       
+      // セクション単位でも検索
       for (const section of processedText.sections) {
         const sectionText = (section.title + ' ' + section.content).toLowerCase();
+        let sectionMatchCount = 0;
         
-        // 完全一致または部分一致
-        if (sectionText.includes(query) || 
-            section.keywords.some(keyword => keyword.toLowerCase().includes(query))) {
-          matches.push(section);
+        for (const word of queryWords) {
+          if (sectionText.includes(word)) {
+            sectionMatchCount++;
+          }
+        }
+        
+        if (sectionMatchCount >= Math.ceil(queryWords.length * 0.5)) {
+          matches.push({
+            title: section.title,
+            content: section.content,
+            keywords: processedText.keywords
+          });
         }
       }
     }
@@ -252,11 +287,31 @@ export class CustomAnswerEngine {
   
   // 関連部分を抽出
   private extractRelevantPart(text: string, query: string): string {
-    const queryIndex = text.indexOf(query);
-    if (queryIndex === -1) return text.substring(0, 300) + '...';
+    const queryWords = query.split(/\s+/);
+    let bestIndex = -1;
+    let bestScore = 0;
     
-    const start = Math.max(0, queryIndex - 150);
-    const end = Math.min(text.length, queryIndex + 300);
+    // 各単語の位置をチェックして最適な位置を見つける
+    for (let i = 0; i < text.length; i++) {
+      let score = 0;
+      for (const word of queryWords) {
+        if (text.substring(i, i + word.length) === word) {
+          score++;
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    
+    if (bestIndex === -1) {
+      // マッチしない場合は最初の部分を返す
+      return text.substring(0, 300) + '...';
+    }
+    
+    const start = Math.max(0, bestIndex - 150);
+    const end = Math.min(text.length, bestIndex + 300);
     return text.substring(start, end);
   }
   
