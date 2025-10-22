@@ -57,13 +57,26 @@ export default function ContractsPage() {
     }
   };
 
+  // ファイル名をサニタイズ
+  const sanitizeFileName = (fileName: string): string => {
+    return fileName
+      .replace(/[^a-zA-Z0-9.-]/g, '_') // 特殊文字をアンダースコアに置換
+      .replace(/_{2,}/g, '_') // 連続するアンダースコアを1つに
+      .replace(/^_|_$/g, ''); // 先頭と末尾のアンダースコアを削除
+  };
+
   // Firebase Storageにファイルをアップロード
   const uploadFileToStorage = async (file: File, userId: string): Promise<string> => {
     try {
-      const fileName = `${userId}/${Date.now()}_${file.name}`;
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${userId}/${Date.now()}_${sanitizedName}`;
       const storageRef = ref(storage, `documents/${fileName}`);
+      
+      console.log('Uploading file:', fileName);
       const snapshot = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(snapshot.ref);
+      
+      console.log('File uploaded successfully:', downloadURL);
       return downloadURL;
     } catch (error) {
       console.error('Error uploading file to storage:', error);
@@ -134,8 +147,15 @@ export default function ContractsPage() {
       console.log('テキスト前処理完了:', processedText.summary);
       
       // Firebase Storageにファイルをアップロード
-      const fileUrl = await uploadFileToStorage(newDocument.file, user.uid);
-      console.log('ファイルアップロード完了:', fileUrl);
+      let fileUrl = '';
+      try {
+        fileUrl = await uploadFileToStorage(newDocument.file, user.uid);
+        console.log('ファイルアップロード完了:', fileUrl);
+      } catch (uploadError) {
+        console.error('ファイルアップロードエラー:', uploadError);
+        alert('ファイルのアップロードに失敗しました。Firebase Storageの設定を確認してください。');
+        return;
+      }
       
       // companyPoliciesコレクションに保存（AI検索用）
       try {
@@ -320,14 +340,18 @@ export default function ContractsPage() {
 
                     {/* 操作ボタン */}
                     <div className="flex space-x-2">
-                      <a
-                        href={document.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => {
+                          if (document.fileUrl) {
+                            window.open(document.fileUrl, '_blank');
+                          } else {
+                            alert('ファイルURLが設定されていません。');
+                          }
+                        }}
                         className="flex-1 px-3 py-2 bg-[#005eb2] text-white text-sm rounded-md hover:bg-[#004a96] transition-colors text-center"
                       >
                         表示
-                      </a>
+                      </button>
                       <button className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition-colors">
                         ダウンロード
                       </button>
