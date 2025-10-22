@@ -28,6 +28,7 @@ interface ManualDocument {
 export default function ContractsPage() {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<ManualDocument[]>([]);
+  const [editingDocument, setEditingDocument] = useState<ManualDocument | null>(null);
   const [showInputModal, setShowInputModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [newDocument, setNewDocument] = useState<ManualDocument>({
@@ -46,7 +47,6 @@ export default function ContractsPage() {
     createdAt: new Date(),
     lastUpdated: new Date()
   });
-
   const [currentSection, setCurrentSection] = useState<'overview' | 'features' | 'pricing' | 'procedures' | 'support' | 'rules' | 'terms'>('overview');
   const [sectionInput, setSectionInput] = useState('');
 
@@ -165,6 +165,19 @@ export default function ContractsPage() {
     }));
   };
 
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!confirm('この文書を削除しますか？')) return;
+    
+    try {
+      // TODO: 削除APIを実装
+      console.log('Delete document:', documentId);
+      alert('削除機能は実装中です');
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('削除に失敗しました');
+    }
+  };
+
   // Firestoreからドキュメントを取得
   const fetchDocumentsFromFirestore = async () => {
     if (!user) return;
@@ -248,82 +261,130 @@ export default function ContractsPage() {
     <ProtectedRoute>
       <Layout>
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">文書管理（手動入力）</h1>
-            <button
-              onClick={() => setShowInputModal(true)}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
-            >
-              文書を追加
-            </button>
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">文書管理（手動入力）</h1>
+            
+            {/* 目立つ追加ボタン */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">新しい文書を追加</h2>
+                  <p className="text-gray-600 text-sm">構造化された手動入力で、高精度な検索・回答が可能な文書を作成できます</p>
+                </div>
+                <button
+                  onClick={() => setShowInputModal(true)}
+                  className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  <span className="flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    文書を追加
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* ドキュメントリスト */}
-          <div className="grid gap-4">
-            {documents.map((doc) => (
-              <div key={doc.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
-                    <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span>作成日: {doc.createdAt instanceof Date ? doc.createdAt.toLocaleDateString('ja-JP') : new Date(doc.createdAt).toLocaleDateString('ja-JP')}</span>
-                      <span>更新日: {doc.lastUpdated instanceof Date ? doc.lastUpdated.toLocaleDateString('ja-JP') : new Date(doc.lastUpdated).toLocaleDateString('ja-JP')}</span>
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeColor(doc.type)}`}>
-                      {getTypeLabel(doc.type)}
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(doc.priority)}`}>
-                      優先度: {getPriorityLabel(doc.priority)}
-                    </span>
-                  </div>
+          <div className="space-y-4">
+            {documents.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">文書がありません</h3>
+                <p className="mt-1 text-sm text-gray-500">最初の文書を追加して始めましょう</p>
+                <div className="mt-6">
+                  <button
+                    onClick={() => setShowInputModal(true)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#005eb2] hover:bg-[#004a96] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    文書を追加
+                  </button>
                 </div>
-                
-                {/* タグ */}
-                {doc.tags && doc.tags.length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex flex-wrap gap-2">
-                      {doc.tags.map((tag, index) => (
-                        <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* セクション内容 */}
-                <div className="mt-4">
-                  {Object.entries(doc.sections).map(([key, value]) => (
-                    <div key={key} className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
-                      <div className="bg-gray-50 rounded-md p-3">
-                        {Array.isArray(value) ? (
-                          <ul className="text-sm text-gray-600 space-y-1">
-                            {value.map((item, index) => (
-                              <li key={index} className="flex items-start">
-                                <span className="text-gray-400 mr-2">•</span>
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-gray-600">{value}</p>
-                        )}
+              </div>
+            ) : (
+              documents.map((doc) => (
+                <div key={doc.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
+                      <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <span>作成日: {doc.createdAt instanceof Date ? doc.createdAt.toLocaleDateString('ja-JP') : new Date(doc.createdAt).toLocaleDateString('ja-JP')}</span>
+                        <span>更新日: {doc.lastUpdated instanceof Date ? doc.lastUpdated.toLocaleDateString('ja-JP') : new Date(doc.lastUpdated).toLocaleDateString('ja-JP')}</span>
                       </div>
                     </div>
-                  ))}
+                    <div className="flex space-x-2">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeColor(doc.type)}`}>
+                        {getTypeLabel(doc.type)}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(doc.priority)}`}>
+                        優先度: {getPriorityLabel(doc.priority)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* タグ */}
+                  {doc.tags && doc.tags.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex flex-wrap gap-2">
+                        {doc.tags.map((tag, index) => (
+                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* セクション内容 */}
+                  <div className="mt-4">
+                    {Object.entries(doc.sections).map(([key, value]) => (
+                      <div key={key} className="mb-3">
+                        <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
+                        <div className="bg-gray-50 rounded-md p-3">
+                          {Array.isArray(value) ? (
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              {value.map((item, index) => (
+                                <li key={index} className="flex items-start">
+                                  <span className="text-gray-400 mr-2">•</span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-gray-600">{value}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* アクションボタン */}
+                  <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
+                    <button
+                      onClick={() => {
+                        setEditingDocument(doc);
+                        setShowInputModal(true);
+                      }}
+                      className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                    >
+                      編集
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDocument(doc.id)}
+                      className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                    >
+                      削除
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-            
-            {documents.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500">手動入力された文書がありません。</p>
-                <p className="text-gray-400 text-sm mt-2">「文書を追加」ボタンから文書を追加してください。</p>
-              </div>
+              ))
             )}
           </div>
 
