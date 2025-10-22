@@ -170,10 +170,16 @@ export default function ContractsPage() {
     if (!user) return;
     
     try {
-      const response = await fetch('/api/admin/get-manual-documents');
+      const response = await fetch(`/api/admin/get-manual-documents?userId=${user.uid}`);
       if (response.ok) {
         const data = await response.json();
-        setDocuments(data.documents || []);
+        // 日付を確実にDateオブジェクトに変換
+        const documents = (data.documents || []).map((doc: any) => ({
+          ...doc,
+          createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
+          lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
+        }));
+        setDocuments(documents);
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -261,8 +267,8 @@ export default function ContractsPage() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
                     <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span>作成日: {doc.createdAt.toLocaleDateString('ja-JP')}</span>
-                      <span>更新日: {doc.lastUpdated.toLocaleDateString('ja-JP')}</span>
+                      <span>作成日: {doc.createdAt instanceof Date ? doc.createdAt.toLocaleDateString('ja-JP') : new Date(doc.createdAt).toLocaleDateString('ja-JP')}</span>
+                      <span>更新日: {doc.lastUpdated instanceof Date ? doc.lastUpdated.toLocaleDateString('ja-JP') : new Date(doc.lastUpdated).toLocaleDateString('ja-JP')}</span>
                     </div>
                   </div>
                   <div className="flex space-x-2">

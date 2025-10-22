@@ -14,12 +14,15 @@ export async function GET(request: NextRequest) {
     }
     
     const querySnapshot = await getDocs(q);
-    const documents = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      lastUpdated: doc.data().lastUpdated?.toDate() || new Date()
-    }));
+    const documents = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
+        lastUpdated: data.lastUpdated?.toDate ? data.lastUpdated.toDate() : new Date(data.lastUpdated || Date.now())
+      };
+    });
 
     return NextResponse.json({ 
       success: true, 
