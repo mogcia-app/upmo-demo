@@ -6,7 +6,8 @@ import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
 import { saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
 import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
-import { db } from "../../../lib/firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from "../../../lib/firebase";
 
 interface Document {
   id: string;
@@ -52,6 +53,20 @@ export default function ContractsPage() {
       setDocuments(docs);
     } catch (error) {
       console.error('Error fetching documents:', error);
+    }
+  };
+
+  // Firebase Storageにファイルをアップロード
+  const uploadFileToStorage = async (file: File, userId: string): Promise<string> => {
+    try {
+      const fileName = `${userId}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, `documents/${fileName}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return downloadURL;
+    } catch (error) {
+      console.error('Error uploading file to storage:', error);
+      throw error;
     }
   };
 
@@ -103,7 +118,7 @@ export default function ContractsPage() {
   };
 
   const handleUpload = async () => {
-    if (!newDocument.title || !newDocument.file) {
+    if (!newDocument.title || !newDocument.file || !user) {
       alert('タイトルとファイルを入力してください。');
       return;
     }
@@ -117,19 +132,20 @@ export default function ContractsPage() {
       console.log('抽出されたテキスト:', extractedText);
       console.log('テキストの長さ:', extractedText.length);
       
+      // Firebase Storageにファイルをアップロード
+      const fileUrl = await uploadFileToStorage(newDocument.file, user.uid);
+      console.log('ファイルアップロード完了:', fileUrl);
+      
       const document: Document = {
         id: Date.now().toString(),
         title: newDocument.title,
         fileName: newDocument.file.name,
-        fileUrl: URL.createObjectURL(newDocument.file), // 一時的なURL
+        fileUrl: fileUrl, // Firebase StorageのURL
         uploadedAt: new Date(),
         category: newDocument.category,
         description: newDocument.description,
         extractedText: extractedText
       };
-
-      // AI検索用のデータもdocumentsコレクションに含める
-      document.extractedText = extractedText;
 
       // Firestoreにドキュメントを保存
       try {
@@ -191,8 +207,23 @@ export default function ContractsPage() {
     if (!confirm('このドキュメントを削除しますか？')) return;
     
     try {
+      // 削除するドキュメントの情報を取得
+      const documentToDelete = documents.find(doc => doc.id === documentId);
+      
       // Firestoreから削除
       await deleteDoc(doc(db, 'documents', documentId));
+      
+      // Firebase Storageからファイルを削除
+      if (documentToDelete?.fileUrl && documentToDelete.fileUrl.startsWith('https://firebasestorage.googleapis.com/')) {
+        try {
+          const fileRef = ref(storage, documentToDelete.fileUrl);
+          await deleteObject(fileRef);
+          console.log('Storage file deleted successfully');
+        } catch (storageError) {
+          console.warn('Storage file deletion failed:', storageError);
+          // Storageの削除に失敗してもFirestoreの削除は継続
+        }
+      }
       
       // ローカル状態から削除
       setDocuments(prev => prev.filter(doc => doc.id !== documentId));
