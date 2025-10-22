@@ -167,33 +167,14 @@ export class CustomAnswerEngine {
     // 書類の概要を生成（より読みやすく）
     const summary = this.createReadableSummary(processedText);
     
-    // 主要なセクションを抽出（日本語を優先）
-    const mainSections = processedText.sections.slice(0, 3);
-    const sectionContent = mainSections.map(section => 
-      `**${this.cleanSectionTitle(section.title)}**\n${this.cleanSectionContent(section.content)}`
-    ).join('\n\n');
-    
-    // 日本語キーワードを優先（意味のある単語のみ）
-    const japaneseKeywords = processedText.keywords
-      .filter(keyword => {
-        const trimmed = keyword.trim();
-        return trimmed.length > 1 && 
-               /[ひらがなカタカナ漢字]/.test(trimmed) &&
-               !trimmed.match(/^[A-Z\s\d]+$/) && // 英語のみを除外
-               !trimmed.match(/^\d+$/); // 数字のみを除外
-      })
-      .slice(0, 6);
-    
-    const answer = `${documentName}について\n\n` +
-      `概要\n${summary}\n\n` +
-      `主要な内容\n${sectionContent}\n\n` +
-      `関連キーワード: ${japaneseKeywords.join(', ')}`;
+    // 簡潔な回答（概要のみ）
+    const answer = `${documentName}について\n\n${summary}`;
     
     return {
       answer,
       confidence: 0.95,
       sources: [processedText.summary.split('\n')[0] || documentName],
-      relatedTopics: processedText.sections.slice(0, 5).map(s => s.title)
+      relatedTopics: []
     };
   }
   
@@ -201,7 +182,7 @@ export class CustomAnswerEngine {
   private createReadableSummary(processedText: ProcessedText): string {
     const text = processedText.cleanedText;
     
-    // 日本語の文を抽出して整理
+    // 日本語の文を抽出して整理（1文のみ）
     const sentences = text.split(/[。！？]/)
       .filter(sentence => {
         const trimmed = sentence.trim();
@@ -210,10 +191,10 @@ export class CustomAnswerEngine {
                !trimmed.match(/^[A-Z\s\d]+$/); // 英語のみの文を除外
       })
       .map(sentence => sentence.trim())
-      .slice(0, 3);
+      .slice(0, 1); // 1文のみに変更
     
     if (sentences.length > 0) {
-      return sentences.join('。') + '。';
+      return sentences[0] + '。';
     }
     
     // フォールバック: 最初の日本語部分を抽出
