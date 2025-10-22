@@ -78,7 +78,7 @@ export class CustomAnswerEngine {
     if (aiResponse) {
       return {
         answer: aiResponse,
-        confidence: 0.6,
+        confidence: 0.8, // AI検索の信頼度を上げる
         sources: ['AI検索'],
         relatedTopics: []
       };
@@ -513,20 +513,35 @@ export class CustomAnswerEngine {
   // AIを使った検索（フォールバック）
   private async generateAIResponse(query: string, processedTexts: ProcessedText[]): Promise<string | null> {
     try {
-      // テキストを結合してAIに送信
+      // テキストを結合してAIに送信（より読みやすく整理）
       const combinedText = processedTexts
-        .map(pt => `${pt.summary}\n${pt.cleanedText.substring(0, 1000)}`)
-        .join('\n\n');
+        .map(pt => {
+          // テキストを読みやすく整理
+          const cleanText = pt.cleanedText
+            .replace(/\s+/g, ' ') // 複数スペースを1つに
+            .replace(/([a-zA-Z])([ひらがなカタカナ漢字])/g, '$1 $2') // 英語と日本語の間にスペース
+            .replace(/([ひらがなカタカナ漢字])([a-zA-Z])/g, '$1 $2')
+            .trim();
+          
+          return `【${pt.summary}】\n${cleanText}`;
+        })
+        .join('\n\n---\n\n');
       
       if (combinedText.length === 0) {
         return null;
       }
       
-      // シンプルなAIプロンプト
-      const prompt = `以下の文書から「${query}」に関する情報を探してください。関連する情報があれば、簡潔に回答してください。
+      // より具体的なAIプロンプト
+      const prompt = `以下の文書から「${query}」に関する情報を探して、読みやすく整理して回答してください。
 
 文書内容:
 ${combinedText}
+
+回答の要件:
+- 日本語で回答してください
+- 読みやすく整理してください
+- 具体的な情報があれば詳細に説明してください
+- 情報が見つからない場合は「該当する情報が見つかりませんでした」と回答してください
 
 回答:`;
       
