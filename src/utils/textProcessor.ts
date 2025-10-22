@@ -36,6 +36,10 @@ export function cleanPDFText(rawText: string): string {
   // 単語間の不自然なスペースを削除
   cleaned = cleaned.replace(/([a-zA-Z])\s+([a-zA-Z])/g, '$1$2');
   
+  // デバッグ情報を出力
+  console.log('🧹 テキストクリーンアップ前:', rawText.substring(0, 200) + '...');
+  console.log('✨ テキストクリーンアップ後:', cleaned.substring(0, 200) + '...');
+  
   return cleaned.trim();
 }
 

@@ -19,20 +19,35 @@ export class CustomAnswerEngine {
   generateAnswer(query: string): SmartResponse {
     const queryLower = query.toLowerCase();
     
+    // デバッグ情報を出力
+    console.log('🔍 検索クエリ:', query);
+    console.log('📚 利用可能なテキスト数:', this.processedTexts.length);
+    console.log('📄 テキストサマリー:', this.processedTexts.map(pt => pt.summary.substring(0, 100) + '...'));
+    
+    // 0. 書類名での検索（最優先）
+    const documentMatches = this.findDocumentByName(queryLower);
+    console.log('📁 書類名マッチ数:', documentMatches.length);
+    if (documentMatches.length > 0) {
+      return this.createDocumentResponse(documentMatches[0], query);
+    }
+    
     // 1. 直接的なキーワードマッチング
     const directMatches = this.findDirectMatches(queryLower);
+    console.log('🎯 直接マッチ数:', directMatches.length);
     if (directMatches.length > 0) {
       return this.createResponseFromMatches(directMatches, query, 0.9);
     }
     
     // 2. 類似度ベースの検索
     const similarMatches = this.findSimilarMatches(queryLower);
+    console.log('🔗 類似マッチ数:', similarMatches.length);
     if (similarMatches.length > 0) {
       return this.createResponseFromMatches(similarMatches, query, 0.7);
     }
     
     // 3. 関連トピックの提案
     const relatedTopics = this.findRelatedTopics(queryLower);
+    console.log('📋 関連トピック数:', relatedTopics.length);
     if (relatedTopics.length > 0) {
       return this.createRelatedTopicsResponse(query, relatedTopics);
     }
@@ -41,11 +56,114 @@ export class CustomAnswerEngine {
     return this.createDefaultResponse(query);
   }
   
+  // 書類名での検索
+  private findDocumentByName(query: string): ProcessedText[] {
+    const matches: ProcessedText[] = [];
+    
+    // 書類名のパターンを検出
+    const documentPatterns = [
+      /(.+)について教えて/i,
+      /(.+)とは/i,
+      /(.+)の概要/i,
+      /(.+)の内容/i,
+      /(.+)について/i
+    ];
+    
+    let documentName = '';
+    for (const pattern of documentPatterns) {
+      const match = query.match(pattern);
+      if (match) {
+        documentName = match[1].trim().toLowerCase();
+        break;
+      }
+    }
+    
+    // パターンが見つからない場合は、クエリ全体を書類名として扱う
+    if (!documentName) {
+      documentName = query.toLowerCase();
+    }
+    
+    console.log('🔍 検索する書類名:', documentName);
+    
+    // 各テキストのタイトルやキーワードと照合
+    for (const processedText of this.processedTexts) {
+      const title = processedText.originalText.toLowerCase();
+      const keywords = processedText.keywords.map(k => k.toLowerCase());
+      
+      // タイトルに書類名が含まれているかチェック
+      if (title.includes(documentName) || 
+          keywords.some(keyword => keyword.includes(documentName))) {
+        matches.push(processedText);
+        console.log('✅ 書類名マッチ:', processedText.summary.substring(0, 50) + '...');
+      }
+    }
+    
+    return matches;
+  }
+  
+  // 書類の回答を作成
+  private createDocumentResponse(processedText: ProcessedText, query: string): SmartResponse {
+    const documentName = this.extractDocumentName(query);
+    
+    // 書類の概要を生成
+    const summary = processedText.summary || processedText.cleanedText.substring(0, 300) + '...';
+    
+    // 主要なセクションを抽出
+    const mainSections = processedText.sections.slice(0, 3);
+    const sectionContent = mainSections.map(section => 
+      `**${section.title}**\n${section.content.substring(0, 200)}...`
+    ).join('\n\n');
+    
+    const answer = `📄 **${documentName}について**\n\n` +
+      `**概要**\n${summary}\n\n` +
+      `**主要な内容**\n${sectionContent}\n\n` +
+      `**キーワード**: ${processedText.keywords.slice(0, 10).join(', ')}`;
+    
+    return {
+      answer,
+      confidence: 0.95,
+      sources: [documentName],
+      relatedTopics: processedText.sections.slice(0, 5).map(s => s.title)
+    };
+  }
+  
+  // クエリから書類名を抽出
+  private extractDocumentName(query: string): string {
+    const patterns = [
+      /(.+)について教えて/i,
+      /(.+)とは/i,
+      /(.+)の概要/i,
+      /(.+)の内容/i,
+      /(.+)について/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = query.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+    
+    return query.trim();
+  }
+  
   // 直接的なマッチを検索
   private findDirectMatches(query: string): TextSection[] {
     const matches: TextSection[] = [];
     
     for (const processedText of this.processedTexts) {
+      // 全体テキストでも検索
+      const fullText = processedText.cleanedText.toLowerCase();
+      if (fullText.includes(query)) {
+        // 全体テキストから関連部分を抽出
+        const relevantPart = this.extractRelevantPart(fullText, query);
+        matches.push({
+          title: '資料内容',
+          content: relevantPart,
+          keywords: processedText.keywords
+        });
+      }
+      
       for (const section of processedText.sections) {
         const sectionText = (section.title + ' ' + section.content).toLowerCase();
         
@@ -58,6 +176,16 @@ export class CustomAnswerEngine {
     }
     
     return matches;
+  }
+  
+  // 関連部分を抽出
+  private extractRelevantPart(text: string, query: string): string {
+    const queryIndex = text.indexOf(query);
+    if (queryIndex === -1) return text.substring(0, 300) + '...';
+    
+    const start = Math.max(0, queryIndex - 150);
+    const end = Math.min(text.length, queryIndex + 300);
+    return text.substring(start, end);
   }
   
   // 類似度ベースのマッチを検索
@@ -158,13 +286,27 @@ export class CustomAnswerEngine {
   
   // デフォルト回答を作成
   private createDefaultResponse(query: string): SmartResponse {
+    // より柔軟な検索を試行
+    const flexibleMatches = this.findFlexibleMatches(query);
+    
+    if (flexibleMatches.length > 0) {
+      return this.createResponseFromMatches(flexibleMatches, query, 0.3);
+    }
+    
     const availableTopics = this.processedTexts
       .flatMap(pt => pt.sections.map(s => s.title))
       .slice(0, 5);
     
+    // 利用可能なキーワードも表示
+    const availableKeywords = this.processedTexts
+      .flatMap(pt => pt.keywords)
+      .slice(0, 10);
+    
     const answer = `申し訳ございませんが、「${query}」に関する具体的な情報が見つかりませんでした。\n\n` +
       `以下のトピックについてお聞きいただけます：\n` +
       availableTopics.map(topic => `• ${topic}`).join('\n') +
+      `\n\n利用可能なキーワード：\n` +
+      availableKeywords.map(keyword => `• ${keyword}`).join('\n') +
       '\n\nまたは、より具体的なキーワードでお尋ねください。';
     
     return {
@@ -173,6 +315,31 @@ export class CustomAnswerEngine {
       sources: availableTopics,
       relatedTopics: []
     };
+  }
+  
+  // より柔軟な検索
+  private findFlexibleMatches(query: string): TextSection[] {
+    const matches: TextSection[] = [];
+    const queryWords = query.toLowerCase().split(/\s+/);
+    
+    for (const processedText of this.processedTexts) {
+      const fullText = processedText.cleanedText.toLowerCase();
+      
+      // 部分一致をチェック
+      for (const word of queryWords) {
+        if (word.length > 2 && fullText.includes(word)) {
+          const relevantPart = this.extractRelevantPart(fullText, word);
+          matches.push({
+            title: `「${word}」に関する情報`,
+            content: relevantPart,
+            keywords: processedText.keywords
+          });
+          break; // 最初のマッチで十分
+        }
+      }
+    }
+    
+    return matches;
   }
 }
 

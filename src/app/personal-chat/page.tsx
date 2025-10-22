@@ -54,7 +54,13 @@ export default function PersonalChatPage() {
         if (data.content) {
           // 既にクリーンアップされたテキストを再処理
           const processedText = processPDFText(data.content);
+          
+          // 書類名の情報を追加
+          processedText.originalText = `${data.title}\n\n${processedText.originalText}`;
+          processedText.keywords.push(data.title); // 書類名をキーワードに追加
+          
           processedTexts.push(processedText);
+          console.log('📄 書類を読み込み:', data.title);
         }
       });
       
