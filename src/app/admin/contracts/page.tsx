@@ -27,9 +27,11 @@ export default function ContractsPage() {
     category: 'regulation' as Document['category'],
     file: null as File | null
   });
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
+  const [isBatchMode, setIsBatchMode] = useState(false);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = event.target.files;
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -38,10 +40,25 @@ export default function ContractsPage() {
       'text/markdown'
     ];
     
-    if (file && allowedTypes.includes(file.type)) {
-      setNewDocument(prev => ({ ...prev, file }));
-    } else {
-      alert('PDF、Word、テキスト、Markdownファイルのみアップロード可能です。');
+    if (files && files.length > 0) {
+      // 複数ファイル対応
+      if (files.length === 1) {
+        const file = files[0];
+        if (allowedTypes.includes(file.type)) {
+          setNewDocument(prev => ({ ...prev, file }));
+        } else {
+          alert('PDF、Word、テキスト、Markdownファイルのみアップロード可能です。');
+        }
+      } else {
+        // 複数ファイルの場合は最初のファイルのみ
+        const file = files[0];
+        if (allowedTypes.includes(file.type)) {
+          setNewDocument(prev => ({ ...prev, file }));
+          alert(`${files.length}個のファイルが選択されましたが、1つずつアップロードしてください。最初のファイル「${file.name}」を選択しました。`);
+        } else {
+          alert('PDF、Word、テキスト、Markdownファイルのみアップロード可能です。');
+        }
+      }
     }
   };
 
@@ -51,9 +68,9 @@ export default function ContractsPage() {
       return;
     }
 
-    // ファイルサイズチェック (4MB制限 - Vercelの制限を考慮)
-    if (newDocument.file.size > 4 * 1024 * 1024) {
-      alert('ファイルサイズが大きすぎます。4MB以下のファイルを選択してください。');
+    // ファイルサイズチェック (2MB制限 - テスト用に緩和)
+    if (newDocument.file.size > 2 * 1024 * 1024) {
+      alert('ファイルサイズが大きすぎます。2MB以下のファイルを選択してください。');
       return;
     }
 
@@ -256,7 +273,7 @@ export default function ContractsPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
                       required
                     />
-                    <p className="text-xs text-gray-500 mt-1">対応形式: PDF, Word, テキスト, Markdown (最大4MB)</p>
+                    <p className="text-xs text-gray-500 mt-1">対応形式: PDF, Word, テキスト, Markdown (最大2MB)</p>
                   </div>
                   
                   <div>

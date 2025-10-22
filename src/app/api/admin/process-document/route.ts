@@ -15,9 +15,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ファイルが選択されていません' }, { status: 400 });
     }
 
-    // ファイルサイズチェック (4MB制限 - Vercelの制限を考慮)
-    if (file.size > 4 * 1024 * 1024) {
-      return NextResponse.json({ error: 'ファイルサイズが大きすぎます。4MB以下のファイルを選択してください。' }, { status: 413 });
+    // ファイルサイズチェック (2MB制限 - テスト用に緩和)
+    if (file.size > 2 * 1024 * 1024) {
+      return NextResponse.json({ error: 'ファイルサイズが大きすぎます。2MB以下のファイルを選択してください。' }, { status: 413 });
     }
 
     // 1. テキスト抽出
