@@ -15,34 +15,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ファイルが選択されていません' }, { status: 400 });
     }
 
-    // ファイルサイズチェック (10MB制限)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。' }, { status: 413 });
+    // ファイルサイズチェック (4MB制限 - Vercelの制限を考慮)
+    if (file.size > 4 * 1024 * 1024) {
+      return NextResponse.json({ error: 'ファイルサイズが大きすぎます。4MB以下のファイルを選択してください。' }, { status: 413 });
     }
 
     // 1. テキスト抽出
-    const extractedText = await extractTextFromFile(file);
+    let extractedText: string;
+    try {
+      extractedText = await extractTextFromFile(file);
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('テキストの抽出に失敗しました');
+      }
+    } catch (error) {
+      console.error('テキスト抽出エラー:', error);
+      return NextResponse.json({ error: 'ファイルからテキストを抽出できませんでした。ファイル形式を確認してください。' }, { status: 400 });
+    }
     
     // 2. 文書タイプ自動判定
     const documentType = detectDocumentType(extractedText, file.name);
     
     // 3. AIでセクション自動分割・命名
-    const structuredSections = await createStructuredSections(extractedText, documentType);
+    let structuredSections: Record<string, string | string[]>;
+    try {
+      structuredSections = await createStructuredSections(extractedText, documentType);
+    } catch (error) {
+      console.error('セクション分割エラー:', error);
+      // フォールバック: 基本的なセクション分割
+      structuredSections = createFallbackSections(extractedText, documentType);
+    }
     
     // 4. Firestoreに保存
-    const docRef = await addDoc(collection(db, 'structuredDocuments'), {
-      name: title || file.name, // タイトルを優先、なければファイル名
-      originalFileName: file.name,
-      description: description || '',
-      category: category || 'other',
-      type: documentType,
-      sections: structuredSections,
-      originalText: extractedText,
-      createdAt: new Date(),
-      lastUpdated: new Date(),
-      sectionCount: Object.keys(structuredSections).length,
-      fileSize: file.size
-    });
+    let docRef;
+    try {
+      docRef = await addDoc(collection(db, 'structuredDocuments'), {
+        name: title || file.name, // タイトルを優先、なければファイル名
+        originalFileName: file.name,
+        description: description || '',
+        category: category || 'other',
+        type: documentType,
+        sections: structuredSections,
+        originalText: extractedText.substring(0, 10000), // テキストを制限
+        createdAt: new Date(),
+        lastUpdated: new Date(),
+        sectionCount: Object.keys(structuredSections).length,
+        fileSize: file.size
+      });
+    } catch (error) {
+      console.error('Firestore保存エラー:', error);
+      return NextResponse.json({ error: 'データの保存に失敗しました。' }, { status: 500 });
+    }
 
     return NextResponse.json({ 
       success: true, 

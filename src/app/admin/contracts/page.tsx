@@ -51,9 +51,9 @@ export default function ContractsPage() {
       return;
     }
 
-    // ファイルサイズチェック (10MB制限)
-    if (newDocument.file.size > 10 * 1024 * 1024) {
-      alert('ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。');
+    // ファイルサイズチェック (4MB制限 - Vercelの制限を考慮)
+    if (newDocument.file.size > 4 * 1024 * 1024) {
+      alert('ファイルサイズが大きすぎます。4MB以下のファイルを選択してください。');
       return;
     }
 
@@ -256,7 +256,7 @@ export default function ContractsPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
                       required
                     />
-                    <p className="text-xs text-gray-500 mt-1">対応形式: PDF, Word, テキスト, Markdown (最大10MB)</p>
+                    <p className="text-xs text-gray-500 mt-1">対応形式: PDF, Word, テキスト, Markdown (最大4MB)</p>
                   </div>
                   
                   <div>
