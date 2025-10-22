@@ -292,7 +292,40 @@ export class CustomAnswerEngine {
       
       for (const word of queryWords) {
         console.log(`🔍 「${word}」を検索中...`);
+        
+        // より柔軟なマッチング
+        let isMatch = false;
+        
+        // 1. 完全一致
         if (fullText.includes(word) || originalText.includes(word)) {
+          isMatch = true;
+        }
+        
+        // 2. 部分一致（機能 → 主な機能、機能一覧など）
+        if (!isMatch && word.length > 1) {
+          const partialMatches = [
+            `主な${word}`,
+            `${word}一覧`,
+            `${word}について`,
+            `${word}の`,
+            `${word}を`,
+            `${word}が`
+          ];
+          
+          // 料金の特別処理
+          if (word === '料金') {
+            partialMatches.push('料金プラン', '価格', '費用', 'コスト', '月額', '万円');
+          }
+          
+          for (const partial of partialMatches) {
+            if (fullText.includes(partial) || originalText.includes(partial)) {
+              isMatch = true;
+              break;
+            }
+          }
+        }
+        
+        if (isMatch) {
           matchCount++;
           matchedWords.push(word);
           console.log(`✅ 「${word}」マッチ！`);
@@ -391,8 +424,25 @@ export class CustomAnswerEngine {
     for (let i = 0; i < text.length; i++) {
       let score = 0;
       for (const word of queryWords) {
+        // 完全一致
         if (text.substring(i, i + word.length) === word) {
-          score++;
+          score += 2;
+        }
+        // 部分一致（主な機能、機能一覧など）
+        else if (word.length > 1) {
+          const partialMatches = [`主な${word}`, `${word}一覧`, `${word}について`];
+          
+          // 料金の特別処理
+          if (word === '料金') {
+            partialMatches.push('料金プラン', '価格', '費用', 'コスト', '月額', '万円');
+          }
+          
+          for (const partial of partialMatches) {
+            if (text.substring(i, i + partial.length) === partial) {
+              score += 3; // 部分一致の方が高スコア
+              break;
+            }
+          }
         }
       }
       if (score > bestScore) {
