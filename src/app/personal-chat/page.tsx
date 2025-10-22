@@ -93,10 +93,8 @@ export default function PersonalChatPage() {
           // AIプロンプトで会話風の補助を追加
           const naturalResponse = await generateNaturalResponse(query, data.answer);
           console.log('AI自然回答生成結果:', naturalResponse);
-          // です・ます調に変換
-          const finalResponse = convertToDesuMasu(naturalResponse);
-          console.log('最終回答:', finalResponse);
-          return finalResponse;
+          console.log('最終回答:', naturalResponse);
+          return naturalResponse;
         }
       }
       
@@ -138,10 +136,16 @@ export default function PersonalChatPage() {
 
 回答形式:
 - 「${keyword}についてのご質問ですね！」で始める
-- 手動入力データの内容を自然な文章で説明
-- 絵文字（✨）を適切に使用
+- 改行してから手動入力データの内容を自然な文章で説明
+- 絵文字は使用しない
 - です・ます調で統一
+- 文末に「です。」を重複させない
 - 簡潔で分かりやすく
+
+例:
+「Upmoの料金についてのご質問ですね！
+
+Upmoは月額3万円で利用できるサービスで、申し込むと1年間は契約を解除できません。」
 
 手動入力データの内容をそのまま使用し、自然な文章にまとめてください。`;
 
@@ -175,32 +179,6 @@ export default function PersonalChatPage() {
     }
   };
 
-  // です・ます調に変換する関数
-  const convertToDesuMasu = (text: string): string => {
-    // 基本的なです・ます調への変換
-    let converted = text
-      .replace(/だ。/g, 'です。')
-      .replace(/である。/g, 'です。')
-      .replace(/だね。/g, 'ですね。')
-      .replace(/だよ。/g, 'ですよ。')
-      .replace(/だな。/g, 'ですね。')
-      .replace(/だ。/g, 'です。')
-      .replace(/する。/g, 'します。')
-      .replace(/できる。/g, 'できます。')
-      .replace(/ある。/g, 'あります。')
-      .replace(/いる。/g, 'います。')
-      .replace(/なる。/g, 'なります。')
-      .replace(/する。/g, 'します。')
-      .replace(/です。/g, 'です。')
-      .replace(/ます。/g, 'ます。');
-
-    // 文末が適切でない場合は調整
-    if (!converted.endsWith('です。') && !converted.endsWith('ます。') && !converted.endsWith('。')) {
-      converted += 'です。';
-    }
-
-    return converted;
-  };
 
   // メッセージ送信処理
   const handleSendMessage = async () => {

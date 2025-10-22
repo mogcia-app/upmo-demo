@@ -24,7 +24,7 @@ function generateNaturalResponseManually(prompt: string): string {
     const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
     
     // 自然な回答を生成
-    const naturalResponse = `${keyword}についてのご質問ですね！${keyword}には${manualData}という内容があります✨`;
+    const naturalResponse = `${keyword}についてのご質問ですね！\n\n${keyword}は${manualData}です。`;
     
     return naturalResponse;
   } catch (error) {
