@@ -6,6 +6,7 @@ import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
 import { saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
 import { processPDFText } from "../../../utils/textProcessor";
+import { parseStructuredDocument, saveStructuredDocument } from "../../../utils/documentStructuring";
 import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from "../../../lib/firebase";
@@ -146,6 +147,10 @@ export default function ContractsPage() {
       const processedText = processPDFText(extractedText);
       console.log('テキスト前処理完了:', processedText.summary);
       
+      // 構造化解析
+      const structuredDoc = parseStructuredDocument(extractedText, newDocument.file.name);
+      console.log('構造化解析完了:', structuredDoc.sections.length, 'セクション');
+      
       // Firebase Storageにファイルをアップロード
       let fileUrl = '';
       try {
@@ -155,6 +160,14 @@ export default function ContractsPage() {
         console.error('ファイルアップロードエラー:', uploadError);
         alert('ファイルのアップロードに失敗しました。Firebase Storageの設定を確認してください。');
         return;
+      }
+      
+      // 構造化データを保存
+      try {
+        await saveStructuredDocument(structuredDoc, user.uid);
+        console.log('構造化データを保存しました');
+      } catch (structuredError) {
+        console.error('構造化データ保存エラー:', structuredError);
       }
       
       // companyPoliciesコレクションに保存（AI検索用）
