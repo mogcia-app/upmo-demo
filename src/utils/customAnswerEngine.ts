@@ -549,16 +549,17 @@ export class CustomAnswerEngine {
   // AIを使った検索（フォールバック）
   private async generateAIResponse(query: string, processedTexts: ProcessedText[]): Promise<string | null> {
     try {
-      // テキストを結合してAIに送信（より読みやすく整理）
+      // テキストを結合してAIに送信（大幅に短縮）
       const combinedText = processedTexts
         .map(pt => {
-          // テキストを読みやすく整理
+          // テキストを読みやすく整理し、大幅に短縮
           const cleanText = pt.cleanedText
             .replace(/\s+/g, ' ') // 複数スペースを1つに
             .replace(/([a-zA-Z])([ひらがなカタカナ漢字])/g, '$1 $2') // 英語と日本語の間にスペース
             .replace(/([ひらがなカタカナ漢字])([a-zA-Z])/g, '$1 $2')
             .replace(/[。！？]/g, '$1\n') // 句読点の後に改行
             .replace(/\n\s*\n/g, '\n') // 複数改行を1つに
+            .substring(0, 800) // 大幅に短縮
             .trim();
           
           return `【${pt.summary}】\n${cleanText}`;
@@ -576,21 +577,15 @@ export class CustomAnswerEngine {
       const hasPriceInfo = combinedText.includes('万円') || combinedText.includes('円') || combinedText.includes('料金');
       console.log('💰 料金情報の有無:', hasPriceInfo ? 'あり' : 'なし');
       
-      // より具体的なAIプロンプト
-      const prompt = `以下の文書から「${query}」に関する情報を探して、簡潔に回答してください。
+      // より具体的なAIプロンプト（短縮版）
+      const prompt = `文書から「${query}」について簡潔に回答してください。
 
-文書内容:
-${combinedText}
+文書: ${combinedText.substring(0, 1000)}...
 
-回答の要件:
-- 簡潔で直接的な回答をしてください
-- 料金の質問なら「○万円/月」の形式で回答
-- 長い説明は不要、要点のみ
-- 情報が見つからない場合は「該当する情報が見つかりませんでした」
-
-回答例:
-質問: 「料金について教えて」
-回答: 「3万円〜/月、6万円/月、12万円/月です。」
+要件:
+- 1-2文で簡潔に
+- 料金なら「○万円/月」形式
+- 見つからない場合は「該当情報なし」
 
 回答:`;
       
