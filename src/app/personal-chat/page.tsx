@@ -90,11 +90,16 @@ export default function PersonalChatPage() {
         const data = await response.json();
         if (data.success && data.answer && data.answer !== '該当する情報が見つかりませんでした。') {
           console.log('手動入力データ取得成功:', data.answer);
+          console.log('検索クエリ:', query);
+          console.log('検索結果の詳細:', data);
           // AIプロンプトで会話風の補助を追加
           const naturalResponse = await generateNaturalResponse(query, data.answer);
           console.log('AI自然回答生成結果:', naturalResponse);
           console.log('最終回答:', naturalResponse);
           return naturalResponse;
+        } else {
+          console.log('手動入力データが見つかりませんでした');
+          console.log('検索結果:', data);
         }
       }
       
@@ -105,10 +110,10 @@ export default function PersonalChatPage() {
     }
   };
 
-  // AIプロンプトで自然な回答を生成する関数
+  // AIでサンドイッチ形式の回答を生成する関数
   const generateNaturalResponse = async (query: string, manualData: string): Promise<string> => {
     try {
-      console.log('AI自然回答生成開始 - 質問:', query, '手動データ:', manualData);
+      console.log('AIサンドイッチ回答生成開始 - 質問:', query, '手動データ:', manualData);
       
       // 手動入力データから不要な部分を削除
       const cleanData = manualData
@@ -128,54 +133,60 @@ export default function PersonalChatPage() {
       const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
       console.log('抽出されたキーワード:', keyword);
 
-      // 会話風の補助プロンプト
-      const prompt = `以下の手動入力データを基に、自然で親しみやすい回答を作成してください。
+      // AIで挨拶部分と締め部分を生成
+      const aiPrompt = `以下の質問に対して、親しみやすい挨拶文と締め文を作成してください。
 
 質問: ${query}
-手動入力データ: ${cleanData}
 
 回答形式:
-- 「${keyword}についてのご質問ですね！」で始める
-- 改行してから手動入力データの内容を自然な文章で説明
+- 挨拶: 「${keyword}についてのご質問ですね！」で始める
+- 締め: 「この○つが主な機能です！」のような親しみやすい締め文
 - 絵文字は使用しない
 - です・ます調で統一
-- 文末に「です。」を重複させない
-- 簡潔で分かりやすく
+- 簡潔で親しみやすく
 
 例:
-Upmoの料金についてのご質問ですね！
+挨拶: Upmoの機能についてのご質問ですね！
+締め: この3つが主な機能です！`;
 
-Upmoは月額3万円で利用できるサービスで、申し込むと1年間は契約を解除できません。
-
-手動入力データの内容をそのまま使用し、自然な文章にまとめてください。`;
-
-      console.log('AI APIに送信するプロンプト:', prompt);
+      console.log('AI挨拶・締め生成プロンプト:', aiPrompt);
 
       const response = await fetch('/api/generate-natural-response', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: aiPrompt }),
       });
 
       console.log('AI APIレスポンスステータス:', response.status);
 
       if (!response.ok) {
-        throw new Error('AI回答生成に失敗しました');
+        throw new Error('AI挨拶・締め生成に失敗しました');
       }
 
       const data = await response.json();
       console.log('AI APIレスポンスデータ:', data);
       
-      const result = data.response || cleanData;
-      console.log('AI自然回答生成完了:', result);
+      const aiResponse = data.response || `${keyword}についてのご質問ですね！`;
+      console.log('AI挨拶・締め生成完了:', aiResponse);
+
+      // AIの回答から挨拶と締めを抽出
+      const lines = aiResponse.split('\n');
+      const greeting = lines.find((line: string) => line.includes('ご質問ですね')) || `${keyword}についてのご質問ですね！`;
+      const closing = lines.find((line: string) => line.includes('主な') || line.includes('機能')) || `この${cleanData.split('\n').length}つが主な機能です！`;
+
+      // サンドイッチ形式で組み立て
+      const result = `${greeting}\n\n${cleanData}\n\n${closing}`;
+      console.log('AIサンドイッチ回答生成完了:', result);
       return result;
     } catch (error) {
       console.error('AI回答生成エラー:', error);
       // エラー時は手動入力データをそのまま返す
       console.log('エラー時のフォールバック:', manualData);
-      return manualData;
+      const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
+      const itemCount = manualData.split('\n').filter(line => line.trim()).length;
+      return `${keyword}についてのご質問ですね！\n\n${manualData}\n\nこの${itemCount}つが主な機能です！`;
     }
   };
 
