@@ -128,21 +128,8 @@ export default function ContractsPage() {
         extractedText: extractedText
       };
 
-      // Firestoreに保存（AI検索用）
-      try {
-        await saveCompanyPolicyToFirestore({
-          title: document.title,
-          category: document.category,
-          content: extractedText,
-          userId: user?.uid,
-          source: document.fileName
-        });
-        console.log('PDF内容をAI検索システムに保存しました');
-        console.log('保存したコンテンツ:', extractedText.substring(0, 200) + '...');
-      } catch (firestoreError) {
-        console.error('Firestore保存エラー:', firestoreError);
-        // Firestoreのエラーは警告として扱い、処理は継続
-      }
+      // AI検索用のデータもdocumentsコレクションに含める
+      document.extractedText = extractedText;
 
       // Firestoreにドキュメントを保存
       try {

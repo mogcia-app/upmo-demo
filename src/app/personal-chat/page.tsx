@@ -5,6 +5,8 @@ import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
 import { searchCompanyPolicies, generateAIResponse, fetchCompanyPoliciesFromFirestore, getCompanyPolicies, CompanyPolicy } from "../../utils/companyPolicySearch";
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from "../../lib/firebase";
 import { generateAIResponse as generateAdvancedAIResponse, checkOpenAISetup } from "../../utils/aiAssistant";
 
 interface Message {
@@ -34,12 +36,47 @@ export default function PersonalChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const { user } = useAuth();
 
+  // documentsコレクションからPDFデータを取得してCompanyPolicy形式に変換
+  const fetchDocumentsAsPolicies = async (userId: string): Promise<CompanyPolicy[]> => {
+    try {
+      const q = query(
+        collection(db, 'documents'),
+        where('userId', '==', userId),
+        orderBy('uploadedAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const policies: CompanyPolicy[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.extractedText) {
+          const chunks = data.extractedText.split(/\n\n+/).filter((chunk: string) => chunk.trim().length > 0);
+          policies.push({
+            id: doc.id,
+            title: data.title,
+            category: data.category || '一般',
+            content: data.extractedText,
+            chunks: chunks,
+            lastUpdated: data.uploadedAt?.toDate() || new Date(),
+            userId: data.userId,
+            source: data.fileName
+          });
+        }
+      });
+      
+      return policies;
+    } catch (error) {
+      console.error('Error fetching documents as policies:', error);
+      return [];
+    }
+  };
+
   // FirestoreからPDFデータを取得
   useEffect(() => {
     const loadPDFData = async () => {
       if (user) {
         try {
-          const policies = await fetchCompanyPoliciesFromFirestore(user.uid);
+          const policies = await fetchDocumentsAsPolicies(user.uid);
           console.log('PDFデータをAI検索システムに読み込みました:', policies.length, '件のポリシー');
           console.log('読み込まれたポリシー:', policies.map(p => p.title));
         } catch (error) {
@@ -143,7 +180,7 @@ export default function PersonalChatPage() {
         let currentPolicies: CompanyPolicy[] = [];
         if (user) {
           try {
-            currentPolicies = await fetchCompanyPoliciesFromFirestore(user.uid);
+            currentPolicies = await fetchDocumentsAsPolicies(user.uid);
             console.log('AI回答用に取得したポリシー数:', currentPolicies.length);
           } catch (error) {
             console.error('PDFデータの再取得エラー:', error);
