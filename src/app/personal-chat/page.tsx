@@ -53,7 +53,7 @@ export default function PersonalChatPage() {
           {
             id: "1",
             text: chatId === "ai-assistant" 
-              ? "こんにちは！手動入力された文書についてお答えできます。何かご質問がありますか？"
+              ? "こんにちは！お気軽にご質問ください！"
               : "こんにちは！何かお手伝いできることはありますか？",
             sender: "ai",
             timestamp: new Date()
@@ -88,7 +88,8 @@ export default function PersonalChatPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.answer && data.answer !== '該当する情報が見つかりませんでした。') {
-          return data.answer;
+          // です・ます調に変換
+          return convertToDesuMasu(data.answer);
         }
       }
       
@@ -97,6 +98,33 @@ export default function PersonalChatPage() {
       console.error('手動文書検索エラー:', error);
       return "検索中にエラーが発生しました。";
     }
+  };
+
+  // です・ます調に変換する関数
+  const convertToDesuMasu = (text: string): string => {
+    // 基本的なです・ます調への変換
+    let converted = text
+      .replace(/だ。/g, 'です。')
+      .replace(/である。/g, 'です。')
+      .replace(/だね。/g, 'ですね。')
+      .replace(/だよ。/g, 'ですよ。')
+      .replace(/だな。/g, 'ですね。')
+      .replace(/だ。/g, 'です。')
+      .replace(/する。/g, 'します。')
+      .replace(/できる。/g, 'できます。')
+      .replace(/ある。/g, 'あります。')
+      .replace(/いる。/g, 'います。')
+      .replace(/なる。/g, 'なります。')
+      .replace(/する。/g, 'します。')
+      .replace(/です。/g, 'です。')
+      .replace(/ます。/g, 'ます。');
+
+    // 文末が適切でない場合は調整
+    if (!converted.endsWith('です。') && !converted.endsWith('ます。') && !converted.endsWith('。')) {
+      converted += 'です。';
+    }
+
+    return converted;
   };
 
   // メッセージ送信処理
@@ -173,7 +201,7 @@ export default function PersonalChatPage() {
           id: "ai-assistant",
           name: "AI アシスタント",
           avatar: "🤖",
-          lastMessage: "手動入力された文書についてお答えできます",
+          lastMessage: "こんにちは！お気軽にご質問ください！",
           timestamp: new Date(),
           unreadCount: 0,
           isOnline: true
@@ -242,7 +270,7 @@ export default function PersonalChatPage() {
                 </div>
                 <div>
                   <h1 className="text-lg font-semibold text-gray-900">AI アシスタント</h1>
-                  <p className="text-sm text-gray-500">手動入力された文書についてお答えできます</p>
+                  <p className="text-sm text-gray-500">お気軽にご質問ください！</p>
                 </div>
               </div>
             </div>
@@ -296,7 +324,7 @@ export default function PersonalChatPage() {
                     onClick={() => handleTemplateClick("〇〇について教えて")}
                     className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
                   >
-                    〇〇について教えて
+                    について教えて
                   </button>
                   <button
                     onClick={() => handleTemplateClick("料金について教えて")}
