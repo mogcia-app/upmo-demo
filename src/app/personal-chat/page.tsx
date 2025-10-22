@@ -10,6 +10,15 @@ import { db } from "../../lib/firebase";
 import { generateAIResponse as generateAdvancedAIResponse, checkOpenAISetup } from "../../utils/aiAssistant";
 import { processPDFText, ProcessedText } from "../../utils/textProcessor";
 import { createAnswerEngine, classifyQuery } from "../../utils/customAnswerEngine";
+import { 
+  ChatMessage, 
+  ChatSession, 
+  saveChatSession, 
+  fetchChatSession, 
+  updateChatSession, 
+  generateChatTitle,
+  addMessageToSession 
+} from "../../utils/chatHistory";
 
 interface Message {
   id: string;
@@ -36,6 +45,7 @@ export default function PersonalChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeChat, setActiveChat] = useState<string>("ai-assistant");
   const [chats, setChats] = useState<Chat[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { user } = useAuth();
 
   // companyPoliciesコレクションからPDFデータを取得してProcessedText形式に変換
@@ -71,6 +81,48 @@ export default function PersonalChatPage() {
     }
   };
 
+  // チャット履歴を読み込み
+  const loadChatHistory = async (chatId: string) => {
+    if (!user) return;
+    
+    try {
+      const session = await fetchChatSession(user.uid, chatId);
+      if (session) {
+        setCurrentSessionId(session.id);
+        setMessages(session.messages);
+        console.log('チャット履歴を読み込みました:', session.messages.length, '件のメッセージ');
+      } else {
+        // 新しいセッションを作成
+        const initialMessages: Message[] = [
+          {
+            id: "1",
+            text: chatId === "ai-assistant" 
+              ? "こんにちは！何かお手伝いできることはありますか？"
+              : `こんにちは！${chats.find(c => c.id === chatId)?.name}さんとのチャットです。`,
+            sender: chatId === "ai-assistant" ? 'ai' : 'other',
+            senderName: chatId === "ai-assistant" ? 'AIアシスタント' : chats.find(c => c.id === chatId)?.name,
+            timestamp: new Date(Date.now() - 60000)
+          }
+        ];
+        
+        const newSession: Omit<ChatSession, 'id'> = {
+          userId: user.uid,
+          chatId: chatId,
+          messages: initialMessages,
+          lastUpdated: new Date(),
+          title: generateChatTitle(initialMessages)
+        };
+        
+        const sessionId = await saveChatSession(newSession);
+        setCurrentSessionId(sessionId);
+        setMessages(initialMessages);
+        console.log('新しいチャットセッションを作成しました');
+      }
+    } catch (error) {
+      console.error('チャット履歴の読み込みエラー:', error);
+    }
+  };
+
   // FirestoreからPDFデータを取得
   useEffect(() => {
     const loadPDFData = async () => {
@@ -87,7 +139,7 @@ export default function PersonalChatPage() {
     loadPDFData();
   }, [user]);
 
-  // サンプルチャットとメッセージを追加
+  // サンプルチャットを追加
   useEffect(() => {
     const sampleChats: Chat[] = [
       {
@@ -128,34 +180,19 @@ export default function PersonalChatPage() {
       }
     ];
     setChats(sampleChats);
-
-    const sampleMessages: Message[] = [
-      {
-        id: "1",
-        text: "こんにちは！個人チャットへようこそ。何かお手伝いできることはありますか？",
-        sender: 'ai',
-        senderName: 'AIアシスタント',
-        timestamp: new Date(Date.now() - 60000)
-      }
-    ];
-    setMessages(sampleMessages);
   }, []);
+
+  // 初期チャット履歴を読み込み
+  useEffect(() => {
+    if (user && activeChat) {
+      loadChatHistory(activeChat);
+    }
+  }, [user, activeChat]);
 
   const handleChatSelect = (chatId: string) => {
     setActiveChat(chatId);
-    // チャット切り替え時にメッセージをリセット（実際のアプリでは、チャットごとのメッセージを取得）
-    const chatMessages: Message[] = [
-      {
-        id: "1",
-        text: chatId === "ai-assistant" 
-          ? "こんにちは！何かお手伝いできることはありますか？"
-          : `こんにちは！${chats.find(c => c.id === chatId)?.name}さんとのチャットです。`,
-        sender: chatId === "ai-assistant" ? 'ai' : 'other',
-        senderName: chats.find(c => c.id === chatId)?.name,
-        timestamp: new Date(Date.now() - 60000)
-      }
-    ];
-    setMessages(chatMessages);
+    // チャット履歴を読み込み
+    loadChatHistory(chatId);
   };
 
   const handleSendMessage = async () => {
@@ -168,9 +205,19 @@ export default function PersonalChatPage() {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInputText("");
     setIsLoading(true);
+    
+    // チャット履歴を更新
+    if (currentSessionId) {
+      try {
+        await updateChatSession(currentSessionId, updatedMessages);
+      } catch (error) {
+        console.error('チャット履歴の更新エラー:', error);
+      }
+    }
 
     // AIまたは他のユーザーの返信をシミュレート
     if (activeChat === "ai-assistant") {
@@ -232,8 +279,18 @@ export default function PersonalChatPage() {
           timestamp: new Date()
         };
         
-        setMessages(prev => [...prev, replyMessage]);
+        const finalMessages = [...updatedMessages, replyMessage];
+        setMessages(finalMessages);
         setIsLoading(false);
+        
+        // AI回答もチャット履歴に保存
+        if (currentSessionId) {
+          try {
+            await updateChatSession(currentSessionId, finalMessages);
+          } catch (error) {
+            console.error('AI回答の保存エラー:', error);
+          }
+        }
       }, 1500);
     } else {
       // 他のユーザーの場合
@@ -246,8 +303,18 @@ export default function PersonalChatPage() {
           timestamp: new Date()
         };
         
-        setMessages(prev => [...prev, replyMessage]);
+        const finalMessages = [...updatedMessages, replyMessage];
+        setMessages(finalMessages);
         setIsLoading(false);
+        
+        // 他のユーザーとのチャットも履歴に保存
+        if (currentSessionId) {
+          try {
+            await updateChatSession(currentSessionId, finalMessages);
+          } catch (error) {
+            console.error('チャット履歴の保存エラー:', error);
+          }
+        }
       }, 1500);
     }
   };
