@@ -1,4 +1,5 @@
-// PDFの構造化解析と自動分類
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export interface DocumentSection {
   title: string;

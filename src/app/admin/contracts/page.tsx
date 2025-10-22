@@ -6,7 +6,8 @@ import { ProtectedRoute } from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../contexts/AuthContext";
 import { saveCompanyPolicyToFirestore } from "../../../utils/companyPolicySearch";
 import { processPDFText } from "../../../utils/textProcessor";
-import { parseStructuredDocument, saveStructuredDocument } from "../../../utils/documentStructuring";
+import { saveStructuredDocument } from "../../../utils/documentStructuring";
+import { extractTextFromFile, parseDocumentByType } from "../../../utils/fileExtractor";
 import { collection, addDoc, getDocs, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from "../../../lib/firebase";
@@ -125,10 +126,18 @@ export default function ContractsPage() {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword', // .doc
+      'text/plain', // .txt
+      'text/markdown' // .md
+    ];
+    
+    if (file && allowedTypes.includes(file.type)) {
       setNewDocument(prev => ({ ...prev, file }));
     } else {
-      alert('PDFファイルのみアップロード可能です。');
+      alert('対応ファイル形式: PDF, Word(.docx/.doc), テキスト(.txt), Markdown(.md)');
     }
   };
 
@@ -139,16 +148,16 @@ export default function ContractsPage() {
     }
 
     try {
-      // PDFからテキストを抽出（動的インポート）
-      const { extractPDFText } = await import("../../../utils/pdfExtractor");
-      const extractedText = await extractPDFText(newDocument.file);
+      // ファイルからテキストを抽出（複数形式対応）
+      const extractedText = await extractTextFromFile(newDocument.file);
+      console.log('テキスト抽出完了:', extractedText.substring(0, 100) + '...');
       
       // テキストを前処理
       const processedText = processPDFText(extractedText);
       console.log('テキスト前処理完了:', processedText.summary);
       
-      // 構造化解析
-      const structuredDoc = parseStructuredDocument(extractedText, newDocument.file.name);
+      // ファイル形式に応じた構造化解析
+      const structuredDoc = parseDocumentByType(extractedText, newDocument.file.name, newDocument.file.type);
       console.log('構造化解析完了:', structuredDoc.sections.length, 'セクション');
       
       // Firebase Storageにファイルをアップロード
@@ -456,16 +465,16 @@ export default function ContractsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    PDFファイル
+                    ファイル
                   </label>
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.docx,.doc,.txt,.md"
                     onChange={handleFileUpload}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    PDFファイルのみアップロード可能です（最大10MB）
+                    対応ファイル形式: PDF, Word(.docx/.doc), テキスト(.txt), Markdown(.md)（最大10MB）
                   </p>
                 </div>
 
