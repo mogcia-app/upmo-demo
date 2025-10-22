@@ -497,6 +497,45 @@ export default function PersonalChatPage() {
               )}
             </div>
 
+            {/* テンプレートボタン */}
+            <div className="border-t border-gray-200 p-4 bg-gray-50">
+              <div className="mb-3">
+                <p className="text-sm text-gray-600 mb-2">よくある質問:</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setInputText('Signalについて教えて')}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                  >
+                    Signalについて教えて
+                  </button>
+                  <button
+                    onClick={() => setInputText('料金について教えて')}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                  >
+                    料金について教えて
+                  </button>
+                  <button
+                    onClick={() => setInputText('機能について教えて')}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                  >
+                    機能について教えて
+                  </button>
+                  <button
+                    onClick={() => setInputText('導入までの流れを教えて')}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                  >
+                    導入までの流れを教えて
+                  </button>
+                  <button
+                    onClick={() => setInputText('サポートについて教えて')}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                  >
+                    サポートについて教えて
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* 入力エリア */}
             <div className="border-t border-gray-200 p-4">
               <div className="flex space-x-4">
