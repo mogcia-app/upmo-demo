@@ -80,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                     group
                   "
                 >
-                  <span className="text-lg mr-3 group-hover:scale-110 transition-transform duration-200">
+                  <span className="text-lg mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
                     {item.icon}
                   </span>
                   <span className="font-medium">{item.name}</span>
@@ -116,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                     href={tab.route}
                     className="flex-1 flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white transition-colors duration-200 ease-in-out text-sm"
                   >
-                    <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200">
+                    <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
                       {tab.icon}
                     </span>
                     <span className="font-medium">{tab.title}</span>
@@ -166,7 +166,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                         group text-sm
                       "
                     >
-                      <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200">
+                      <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
                         {item.icon}
                       </span>
                       <span className="font-medium">{item.name}</span>
