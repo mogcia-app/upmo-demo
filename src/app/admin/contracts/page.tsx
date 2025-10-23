@@ -392,13 +392,13 @@ export default function ContractsPage() {
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowAIModal(true)}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                   >
                     <span className="flex items-center">
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      AI解析
+                      AI文書解析
                     </span>
                   </button>
                   <button
@@ -725,8 +725,8 @@ export default function ContractsPage() {
               <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <svg className="w-6 h-6 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    <svg className="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     AI文書解析
                   </h3>
@@ -749,22 +749,24 @@ export default function ContractsPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        解析するテキスト（Instagramの投稿内容など）
+                        解析する文書（契約書・規約・マニュアルなど）
                       </label>
                       <textarea
                         value={aiInputText}
                         onChange={(e) => setAiInputText(e.target.value)}
-                        placeholder="Instagramの投稿内容や文書をコピペしてください。AIが自動で項目ごとに振り分けます。"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 h-32 resize-none"
+                        placeholder="契約書、規約、マニュアル、手順書などの文書をコピペしてください。AIが自動で項目ごとに振り分けます。"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32 resize-none"
                       />
                     </div>
                     
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-purple-800 mb-2">AI解析の機能</h4>
-                      <ul className="text-sm text-purple-700 space-y-1">
-                        <li>• 料金情報を自動で「料金」セクションに振り分け</li>
-                        <li>• 機能・特徴を「機能」セクションに分類</li>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">AI文書解析の機能</h4>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        <li>• 契約条件・料金情報を自動で「料金」セクションに振り分け</li>
+                        <li>• サービス内容・機能を「機能」セクションに分類</li>
                         <li>• 手順・プロセスを「手順」セクションに整理</li>
+                        <li>• サポート・問い合わせ情報を「サポート」セクションに分類</li>
+                        <li>• 規約・ルールを「規則」セクションに整理</li>
                         <li>• タイトルと概要を自動生成</li>
                         <li>• 関連タグを自動付与</li>
                       </ul>
@@ -783,7 +785,7 @@ export default function ContractsPage() {
                       <button
                         onClick={handleAIAnalysis}
                         disabled={!aiInputText.trim() || isAnalyzing}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-md hover:from-blue-600 hover:to-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isAnalyzing ? (
                           <span className="flex items-center">
@@ -868,7 +870,7 @@ export default function ContractsPage() {
                       <button
                         onClick={handleSaveAIDocument}
                         disabled={isSaving}
-                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-md hover:from-green-600 hover:to-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-md hover:from-blue-600 hover:to-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSaving ? '保存中...' : '文書を保存'}
                       </button>
