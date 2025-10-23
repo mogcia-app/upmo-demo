@@ -383,19 +383,19 @@ export default function ContractsPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-4">文書管理（手動入力）</h1>
             
             {/* 目立つ追加ボタン */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-2">新しい文書を追加</h2>
-                  <p className="text-gray-600 text-sm">構造化された手動入力で、高精度な検索・回答が可能な文書を作成できます</p>
-                </div>
-                <div className="flex space-x-3">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">新しい文書を追加</h2>
+                <p className="text-gray-600 text-sm">構造化された手動入力で、高精度な検索・回答が可能な文書を作成できます</p>
+              </div>
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
                   <button
                     onClick={() => setShowAIModal(true)}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-sm sm:text-base"
                   >
                     <span className="flex items-center">
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       AI文書解析
@@ -403,10 +403,10 @@ export default function ContractsPage() {
                   </button>
                   <button
                     onClick={() => setShowInputModal(true)}
-                    className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="px-4 sm:px-6 py-2 sm:py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-sm sm:text-base"
                   >
                     <span className="flex items-center">
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                       手動入力
@@ -440,12 +440,12 @@ export default function ContractsPage() {
               </div>
             ) : (
               documents.map((doc) => (
-                <div key={doc.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
+                <div key={doc.id} className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-4">
+                    <div className="flex-1">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
                       <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 text-sm text-gray-500">
                         <span>作成日: {doc.createdAt instanceof Date ? doc.createdAt.toLocaleDateString('ja-JP') : new Date(doc.createdAt).toLocaleDateString('ja-JP')}</span>
                         <span>更新日: {doc.lastUpdated instanceof Date ? doc.lastUpdated.toLocaleDateString('ja-JP') : new Date(doc.lastUpdated).toLocaleDateString('ja-JP')}</span>
                       </div>

@@ -317,23 +317,23 @@ export default function TodoPage() {
           </div>
 
           {/* カンバンボード */}
-          <div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               {/* 共有事項 */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <h2 className="font-semibold text-gray-900">共有事項 {getTodosByStatus('shared').length}</h2>
+                    <h2 className="text-sm sm:text-base font-semibold text-gray-900">共有事項 {getTodosByStatus('shared').length}</h2>
                   </div>
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+                    className="text-blue-600 hover:text-blue-700 font-medium text-xs sm:text-sm"
                   >
                     + タスクを追加
                   </button>
                 </div>
-                <div className="p-4 space-y-3 min-h-[400px]">
+                <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 min-h-[300px] sm:min-h-[400px]">
                   {getTodosByStatus('shared').map((todo, index) => (
                     <TaskCard key={todo.id} todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} />
                   ))}
@@ -348,19 +348,19 @@ export default function TodoPage() {
 
               {/* ToDoリスト */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <h2 className="font-semibold text-gray-900">ToDoリスト {getTodosByStatus('todo').length}</h2>
+                    <h2 className="text-sm sm:text-base font-semibold text-gray-900">ToDoリスト {getTodosByStatus('todo').length}</h2>
                   </div>
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className="text-green-600 hover:text-green-700 font-medium text-sm"
+                    className="text-green-600 hover:text-green-700 font-medium text-xs sm:text-sm"
                   >
                     + タスクを追加
                   </button>
                 </div>
-                <div className="p-4 space-y-3 min-h-[400px]">
+                <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 min-h-[300px] sm:min-h-[400px]">
                   {getTodosByStatus('todo').map((todo, index) => (
                     <TaskCard key={todo.id} todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} />
                   ))}
@@ -375,19 +375,19 @@ export default function TodoPage() {
 
               {/* 進行中 */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
-                    <h2 className="font-semibold text-gray-900">進行中 {getTodosByStatus('in-progress').length}</h2>
+                    <h2 className="text-sm sm:text-base font-semibold text-gray-900">進行中 {getTodosByStatus('in-progress').length}</h2>
                   </div>
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className="text-pink-600 hover:text-pink-700 font-medium text-sm"
+                    className="text-pink-600 hover:text-pink-700 font-medium text-xs sm:text-sm"
                   >
                     + タスクを追加
                   </button>
                 </div>
-                <div className="p-4 space-y-3 min-h-[400px]">
+                <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 min-h-[300px] sm:min-h-[400px]">
                   {getTodosByStatus('in-progress').map((todo, index) => (
                     <TaskCard key={todo.id} todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} />
                   ))}

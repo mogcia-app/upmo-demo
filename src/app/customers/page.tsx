@@ -193,17 +193,17 @@ export default function CustomersPage() {
       <Layout>
         <div className="space-y-6">
           {/* ヘッダー */}
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">顧客管理</h1>
-              <p className="text-gray-600">顧客情報の管理と追跡</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">顧客管理</h1>
+              <p className="text-sm sm:text-base text-gray-600">顧客情報の管理と追跡</p>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm sm:text-base"
             >
               <span className="flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 顧客を追加
@@ -212,8 +212,8 @@ export default function CustomersPage() {
           </div>
 
           {/* フィルター */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">検索</label>
                 <input
@@ -221,7 +221,7 @@ export default function CustomersPage() {
                   placeholder="名前、メール、会社名で検索..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                 />
               </div>
               <div>
@@ -229,7 +229,7 @@ export default function CustomersPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                 >
                   <option value="all">すべて</option>
                   <option value="active">アクティブ</option>
@@ -242,7 +242,7 @@ export default function CustomersPage() {
                 <select
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                 >
                   <option value="all">すべて</option>
                   <option value="high">高</option>
@@ -280,33 +280,33 @@ export default function CustomersPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">顧客情報</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">会社</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">優先度</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終連絡</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">顧客情報</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">会社</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">優先度</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">最終連絡</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">操作</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredCustomers.map((customer) => (
                       <tr key={customer.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="text-sm font-medium text-gray-900">{customer.name}</div>
                             <div className="text-sm text-gray-500">{customer.email}</div>
                             <div className="text-sm text-gray-500">{customer.phone}</div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{customer.company}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(customer.status)}`}>
                             {getStatusText(customer.status)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(customer.priority)}`}>
                             {getPriorityText(customer.priority)}
                           </span>
@@ -352,7 +352,7 @@ export default function CustomersPage() {
                       type="text"
                       value={newCustomer.name}
                       onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                     />
                   </div>
                   <div>
@@ -361,7 +361,7 @@ export default function CustomersPage() {
                       type="email"
                       value={newCustomer.email}
                       onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                     />
                   </div>
                   <div>
@@ -370,7 +370,7 @@ export default function CustomersPage() {
                       type="text"
                       value={newCustomer.company}
                       onChange={(e) => setNewCustomer({...newCustomer, company: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                     />
                   </div>
                   <div>
@@ -379,7 +379,7 @@ export default function CustomersPage() {
                       type="tel"
                       value={newCustomer.phone}
                       onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -388,7 +388,7 @@ export default function CustomersPage() {
                       <select
                         value={newCustomer.status}
                         onChange={(e) => setNewCustomer({...newCustomer, status: e.target.value as any})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                       >
                         <option value="prospect">見込み客</option>
                         <option value="active">アクティブ</option>
@@ -400,7 +400,7 @@ export default function CustomersPage() {
                       <select
                         value={newCustomer.priority}
                         onChange={(e) => setNewCustomer({...newCustomer, priority: e.target.value as any})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                       >
                         <option value="low">低</option>
                         <option value="medium">中</option>
@@ -414,7 +414,7 @@ export default function CustomersPage() {
                       value={newCustomer.notes}
                       onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                     />
                   </div>
                 </div>

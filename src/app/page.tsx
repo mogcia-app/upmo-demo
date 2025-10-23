@@ -320,14 +320,14 @@ export default function Home() {
 
                 {/* ステップ2: 業種選択 */}
                 {currentStep === 2 && (
-                  <div className="bg-white rounded-lg shadow-lg p-8">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">業種を選択</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">業種を選択</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                       {industryConfigs.map((industry) => (
                         <div
                           key={industry.id}
                           onClick={() => setSetupData(prev => ({ ...prev, industry: industry.id }))}
-                          className={`p-6 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg ${
+                          className={`p-4 sm:p-6 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg ${
                             setupData.industry === industry.id
                               ? 'border-[#005eb2] bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300'
@@ -368,9 +368,9 @@ export default function Home() {
 
                 {/* ステップ3: 機能選択 */}
                 {currentStep === 3 && (
-                  <div className="bg-white rounded-lg shadow-lg p-8">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">必要な機能を選択</h2>
-                    <p className="text-gray-600 mb-6">
+                  <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">必要な機能を選択</h2>
+                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
                       選択した業種に基づいて推奨機能を表示しています。追加で必要な機能があれば選択してください。
                     </p>
                     
@@ -380,7 +380,7 @@ export default function Home() {
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">
                             {industryConfigs.find(ind => ind.id === setupData.industry)?.name} 推奨機能
                           </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             {industryConfigs.find(ind => ind.id === setupData.industry)?.features.map((feature) => (
                               <label key={feature} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
                                 <input
@@ -397,7 +397,7 @@ export default function Home() {
 
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">その他の機能</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             {["AIチャット", "文書管理", "レポート作成", "通知機能", "データ分析", "API連携"].map((feature) => (
                               <label key={feature} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
                                 <input
@@ -447,19 +447,19 @@ export default function Home() {
       <Layout>
         <div className="space-y-6">
           {/* ウェルカムセクション */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                   {selectedIndustry ? `${selectedIndustry.icon} ${setupData.companyName}` : 'ようこそ、Upmo Demoへ！'}
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600">
                   {selectedIndustry ? `${selectedIndustry.name}向けに最適化されたダッシュボードです` : 'Next.js + Firebase + Vercelで構築されたモダンなダッシュボードです。'}
                 </p>
               </div>
               <button
                 onClick={() => setIsSetupMode(true)}
-                className="px-4 py-2 text-[#005eb2] border border-[#005eb2] rounded-lg hover:bg-[#005eb2] hover:text-white transition-colors"
+                className="px-4 py-2 text-[#005eb2] border border-[#005eb2] rounded-lg hover:bg-[#005eb2] hover:text-white transition-colors text-sm sm:text-base"
               >
                 設定を変更
               </button>
@@ -468,11 +468,11 @@ export default function Home() {
 
           {/* 業種別テンプレート */}
           {selectedIndustry && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 {selectedIndustry.name} 向けテンプレート
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {selectedIndustry.templates.map((template) => (
                   <Link
                     key={template.name}
@@ -493,8 +493,8 @@ export default function Home() {
           )}
 
           {/* 統計カード */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center">
                 <div className="p-2 bg-[#005eb2] rounded-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,7 +508,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center">
                 <div className="p-2 bg-green-500 rounded-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -551,9 +551,9 @@ export default function Home() {
           </div>
 
           {/* チーム予定とAI通知 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* チーム予定 */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">今日のチーム予定</h2>
                 <Link href="/todo" className="text-sm text-[#005eb2] hover:text-[#004a96]">
@@ -589,7 +589,7 @@ export default function Home() {
             </div>
 
             {/* AI通知 */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">AIからの通知</h2>
                 <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">3件</span>
@@ -624,17 +624,17 @@ export default function Home() {
           </div>
 
           {/* 自由タブ作成案内 */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">追加の機能が必要ですか？</h3>
-                <p className="text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600">
                   自由タブから独自のページを作成して、さらにカスタマイズできます
                 </p>
               </div>
               <Link
                 href="/custom/new-page"
-                className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium"
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium text-sm sm:text-base text-center"
               >
                 自由タブを作成
               </Link>

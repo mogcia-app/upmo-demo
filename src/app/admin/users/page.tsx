@@ -240,23 +240,23 @@ export default function UsersPage() {
       <Layout>
         <div className="min-h-screen bg-gray-50">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-200 px-6 py-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 sm:py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">ユーザー管理</h1>
-                <p className="text-gray-600 mt-2">システムユーザーの管理と権限設定</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">ユーザー管理</h1>
+                <p className="text-sm sm:text-base text-gray-600 mt-2">システムユーザーの管理と権限設定</p>
               </div>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4 sm:gap-6">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-gray-900">{users.length}</div>
                   <div className="text-sm text-gray-500">総ユーザー数</div>
                 </div>
                 <button 
                   onClick={() => setShowCreateModal(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base"
                 >
                   <span className="flex items-center gap-2 font-medium">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
                     ユーザーを追加
@@ -267,7 +267,7 @@ export default function UsersPage() {
           </div>
 
           {/* フィルターと検索 */}
-          <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
             <div className="flex flex-col lg:flex-row gap-4">
               {/* 検索バー */}
               <div className="flex-1">
@@ -280,7 +280,7 @@ export default function UsersPage() {
                     placeholder="名前、メールアドレス、部署で検索..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                   />
                 </div>
               </div>
@@ -313,7 +313,7 @@ export default function UsersPage() {
           </div>
 
           {/* ユーザー一覧 */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -326,11 +326,11 @@ export default function UsersPage() {
                 <p className="text-gray-500">検索条件を変更して再度お試しください</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
                     onClick={() => openUserDetail(user)}
                   >
                     {/* ヘッダー部分 */}

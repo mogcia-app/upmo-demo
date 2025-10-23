@@ -307,7 +307,7 @@ export default function PersonalChatPage() {
       <Layout>
         <div className="flex h-screen bg-gray-50">
           {/* サイドバー */}
-          <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          <div className="hidden lg:flex w-64 bg-white border-r border-gray-200 flex-col">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">チャット</h2>
             </div>
@@ -348,6 +348,7 @@ export default function PersonalChatPage() {
           <div className="flex-1 flex flex-col">
             {/* ヘッダー */}
             <div className="bg-white border-b border-gray-200 p-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
                   {(() => {
@@ -376,11 +377,19 @@ export default function PersonalChatPage() {
                       : "bg-gray-400"
                   }`}></div>
                 )}
+                </div>
+                
+                {/* モバイル用チャット切り替えボタン */}
+                <button className="lg:hidden p-2 rounded-md hover:bg-gray-100">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
               </div>
             </div>
 
             {/* メッセージエリア */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -389,7 +398,7 @@ export default function PersonalChatPage() {
                   }`}
                 >
                   <div
-                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    className={`max-w-xs sm:max-w-md lg:max-w-lg px-3 sm:px-4 py-2 sm:py-3 rounded-lg ${
                       message.sender === "user"
                         ? "bg-blue-500 text-white"
                         : "bg-white text-gray-900 border border-gray-200"
@@ -422,10 +431,10 @@ export default function PersonalChatPage() {
 
             {/* テンプレートボタン（AIアシスタントの場合のみ表示） */}
             {activeChat === "ai-assistant" && (
-              <div className="bg-white border-t border-gray-200 p-4">
+              <div className="bg-white border-t border-gray-200 p-2 sm:p-4">
                 <div className="mb-3">
-                  <p className="text-sm text-gray-600 mb-2">よくある質問:</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">よくある質問:</p>
+                  <div className="flex flex-wrap gap-1 sm:gap-2">
                     <button
                       onClick={() => handleTemplateClick("〇〇について教えて")}
                       className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
@@ -456,21 +465,21 @@ export default function PersonalChatPage() {
             )}
 
             {/* 入力エリア */}
-            <div className="bg-white border-t border-gray-200 p-4">
-              <div className="flex space-x-2">
+            <div className="bg-white border-t border-gray-200 p-2 sm:p-4">
+              <div className="flex space-x-2 sm:space-x-4">
                 <input
                   type="text"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyPress={handleKeyPress}
                   placeholder={activeChat === "ai-assistant" ? "メッセージを入力..." : "メッセージを入力..."}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                   disabled={isLoading}
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!inputText.trim() || isLoading}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 sm:px-4 py-2 sm:py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
                 >
                   送信
                 </button>
