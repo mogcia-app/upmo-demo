@@ -54,6 +54,7 @@ export default function ContractsPage() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiInputText, setAiInputText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiParsedDocument, setAiParsedDocument] = useState<ManualDocument | null>(null);
 
   const handleSaveDocument = async () => {
     if (!newDocument.title || !user) {
@@ -152,7 +153,7 @@ export default function ContractsPage() {
     }
   };
 
-  // AI解析関数
+  // AI解析関数（独立した機能）
   const handleAIAnalysis = async () => {
     if (!aiInputText.trim()) {
       alert('解析するテキストを入力してください。');
@@ -169,7 +170,7 @@ export default function ContractsPage() {
         },
         body: JSON.stringify({
           content: aiInputText,
-          documentType: newDocument.type
+          documentType: 'contract' // デフォルトタイプ
         })
       });
 
@@ -182,28 +183,30 @@ export default function ContractsPage() {
       if (result.success && result.parsedDocument) {
         const parsed = result.parsedDocument;
         
-        // AI解析結果をフォームに適用
-        setNewDocument(prev => ({
-          ...prev,
-          title: parsed.title || prev.title,
-          description: parsed.description || prev.description,
-          type: parsed.type || prev.type,
+        // AI解析結果を独立したドキュメントとして保存
+        const parsedDocument: ManualDocument = {
+          id: '',
+          title: parsed.title || 'AI解析された文書',
+          description: parsed.description || '',
+          type: parsed.type || 'contract',
           sections: {
-            overview: parsed.sections.overview || prev.sections.overview,
-            features: parsed.sections.features || prev.sections.features,
-            pricing: parsed.sections.pricing || prev.sections.pricing,
-            procedures: parsed.sections.procedures || prev.sections.procedures,
-            support: parsed.sections.support || prev.sections.support || [],
-            rules: parsed.sections.rules || prev.sections.rules || [],
-            terms: parsed.sections.terms || prev.sections.terms || []
+            overview: parsed.sections.overview || '',
+            features: parsed.sections.features || [],
+            pricing: parsed.sections.pricing || [],
+            procedures: parsed.sections.procedures || [],
+            support: parsed.sections.support || [],
+            rules: parsed.sections.rules || [],
+            terms: parsed.sections.terms || []
           },
-          tags: parsed.tags || prev.tags,
-          priority: parsed.priority || prev.priority
-        }));
+          tags: parsed.tags || [],
+          priority: parsed.priority || 'medium',
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        };
         
-        setShowAIModal(false);
+        setAiParsedDocument(parsedDocument);
         setAiInputText('');
-        alert('AI解析が完了しました！フォームに結果が反映されました。');
+        alert('AI解析が完了しました！結果を確認して保存してください。');
       } else {
         throw new Error('AI解析の結果が取得できませんでした');
       }
@@ -213,6 +216,52 @@ export default function ContractsPage() {
       alert(`AI解析に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // AI解析結果を保存
+  const handleSaveAIDocument = async () => {
+    if (!aiParsedDocument || !user) {
+      alert('保存する文書がありません。');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      const response = await fetch('/api/admin/save-manual-document', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...aiParsedDocument,
+          userId: user.uid
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('文書の保存に失敗しました');
+      }
+
+      const result = await response.json();
+      
+      console.log('AI Document saved successfully:', result);
+      
+      alert(`AI解析された文書が正常に保存されました！\n文書名: ${aiParsedDocument.title}`);
+      
+      // リセット
+      setAiParsedDocument(null);
+      setShowAIModal(false);
+      
+      // ドキュメントリストを更新
+      await fetchDocumentsFromFirestore();
+      
+    } catch (error) {
+      console.error('Save AI document error:', error);
+      alert(`保存に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -673,7 +722,7 @@ export default function ContractsPage() {
           {/* AI解析モーダル */}
           {showAIModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                     <svg className="w-6 h-6 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -682,7 +731,11 @@ export default function ContractsPage() {
                     AI文書解析
                   </h3>
                   <button
-                    onClick={() => setShowAIModal(false)}
+                    onClick={() => {
+                      setShowAIModal(false);
+                      setAiParsedDocument(null);
+                      setAiInputText('');
+                    }}
                     className="text-gray-400 hover:text-gray-600"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -691,56 +744,137 @@ export default function ContractsPage() {
                   </button>
                 </div>
                 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      解析するテキスト（Instagramの投稿内容など）
-                    </label>
-                    <textarea
-                      value={aiInputText}
-                      onChange={(e) => setAiInputText(e.target.value)}
-                      placeholder="Instagramの投稿内容や文書をコピペしてください。AIが自動で項目ごとに振り分けます。"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 h-32 resize-none"
-                    />
+                {!aiParsedDocument ? (
+                  // 入力画面
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        解析するテキスト（Instagramの投稿内容など）
+                      </label>
+                      <textarea
+                        value={aiInputText}
+                        onChange={(e) => setAiInputText(e.target.value)}
+                        placeholder="Instagramの投稿内容や文書をコピペしてください。AIが自動で項目ごとに振り分けます。"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 h-32 resize-none"
+                      />
+                    </div>
+                    
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-purple-800 mb-2">AI解析の機能</h4>
+                      <ul className="text-sm text-purple-700 space-y-1">
+                        <li>• 料金情報を自動で「料金」セクションに振り分け</li>
+                        <li>• 機能・特徴を「機能」セクションに分類</li>
+                        <li>• 手順・プロセスを「手順」セクションに整理</li>
+                        <li>• タイトルと概要を自動生成</li>
+                        <li>• 関連タグを自動付与</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => {
+                          setShowAIModal(false);
+                          setAiInputText('');
+                        }}
+                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        onClick={handleAIAnalysis}
+                        disabled={!aiInputText.trim() || isAnalyzing}
+                        className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isAnalyzing ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            解析中...
+                          </span>
+                        ) : (
+                          'AI解析を実行'
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-purple-800 mb-2">AI解析の機能</h4>
-                    <ul className="text-sm text-purple-700 space-y-1">
-                      <li>• 料金情報を自動で「料金」セクションに振り分け</li>
-                      <li>• 機能・特徴を「機能」セクションに分類</li>
-                      <li>• 手順・プロセスを「手順」セクションに整理</li>
-                      <li>• タイトルと概要を自動生成</li>
-                      <li>• 関連タグを自動付与</li>
-                    </ul>
+                ) : (
+                  // 結果表示画面
+                  <div className="space-y-6">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-green-800 mb-2">✅ AI解析完了</h4>
+                      <p className="text-sm text-green-700">文書が正常に解析されました。内容を確認して保存してください。</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">文書情報</h4>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-xs text-gray-500">タイトル</label>
+                            <p className="text-sm font-medium">{aiParsedDocument.title}</p>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500">概要</label>
+                            <p className="text-sm">{aiParsedDocument.description}</p>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500">タグ</label>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {aiParsedDocument.tags.map((tag, index) => (
+                                <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">解析結果</h4>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="text-gray-500">料金情報:</span>
+                            <span className="ml-2">{aiParsedDocument.sections.pricing.length}件</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">機能:</span>
+                            <span className="ml-2">{aiParsedDocument.sections.features.length}件</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">手順:</span>
+                            <span className="ml-2">{aiParsedDocument.sections.procedures.length}件</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">サポート:</span>
+                            <span className="ml-2">{aiParsedDocument.sections.support?.length || 0}件</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => {
+                          setAiParsedDocument(null);
+                          setAiInputText('');
+                        }}
+                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        再解析
+                      </button>
+                      <button
+                        onClick={handleSaveAIDocument}
+                        disabled={isSaving}
+                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-md hover:from-green-600 hover:to-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSaving ? '保存中...' : '文書を保存'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => setShowAIModal(false)}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    onClick={handleAIAnalysis}
-                    disabled={!aiInputText.trim() || isAnalyzing}
-                    className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isAnalyzing ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        解析中...
-                      </span>
-                    ) : (
-                      'AI解析を実行'
-                    )}
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           )}
