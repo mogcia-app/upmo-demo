@@ -5,22 +5,33 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 // Firebase Admin SDK の初期化
 if (!getApps().length) {
-  const serviceAccount = {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  };
+  // 環境変数が設定されていない場合はスキップ
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
 
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
+    initializeApp({
+      credential: cert(serviceAccount),
+    });
+  }
 }
 
-const auth = getAuth();
-const db = getFirestore();
+// Firebase Admin SDK が初期化されていない場合は null を返す
+const auth = getApps().length > 0 ? getAuth() : null;
+const db = getApps().length > 0 ? getFirestore() : null;
 
 export async function POST(request: NextRequest) {
   try {
+    // Firebase Admin SDK が初期化されていない場合はエラーを返す
+    if (!auth || !db) {
+      return NextResponse.json({ 
+        error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
+      }, { status: 500 });
+    }
+
     const { email, password, displayName, role = 'user', department, position } = await request.json();
 
     // バリデーション
@@ -105,6 +116,13 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Firebase Admin SDK が初期化されていない場合はエラーを返す
+    if (!auth || !db) {
+      return NextResponse.json({ 
+        error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
+      }, { status: 500 });
+    }
+
     // Firestore からユーザー一覧を取得
     const usersSnapshot = await db.collection('users').get();
     const users = usersSnapshot.docs.map(doc => {
@@ -130,6 +148,13 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Firebase Admin SDK が初期化されていない場合はエラーを返す
+    if (!auth || !db) {
+      return NextResponse.json({ 
+        error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
+      }, { status: 500 });
+    }
+
     const { uid, role, status, department, position } = await request.json();
 
     if (!uid) {
@@ -162,6 +187,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Firebase Admin SDK が初期化されていない場合はエラーを返す
+    if (!auth || !db) {
+      return NextResponse.json({ 
+        error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
+      }, { status: 500 });
+    }
+
     const { uid } = await request.json();
 
     if (!uid) {

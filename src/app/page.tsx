@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import Layout from "../components/Layout";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useAuth } from "../contexts/AuthContext";
@@ -472,7 +473,7 @@ export default function Home() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {selectedIndustry.templates.map((template) => (
-                  <a
+                  <Link
                     key={template.name}
                     href={template.href}
                     className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -484,7 +485,7 @@ export default function Home() {
                         <p className="text-sm text-gray-600">{template.description}</p>
                       </div>
                     </div>
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -580,12 +581,12 @@ export default function Home() {
                   自由タブから独自のページを作成して、さらにカスタマイズできます
                 </p>
               </div>
-              <a
+              <Link
                 href="/custom/new-page"
                 className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium"
               >
                 自由タブを作成
-              </a>
+              </Link>
             </div>
           </div>
         </div>
