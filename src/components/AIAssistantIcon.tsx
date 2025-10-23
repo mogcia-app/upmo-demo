@@ -32,8 +32,6 @@ const AIAssistantIcon: React.FC<AIAssistantIconProps> = ({
       <path d="M20 14h2"/>
       <path d="M15 13v2"/>
       <path d="M9 13v2"/>
-      {/* Debug: Add a red circle to make it obvious */}
-      <circle cx="12" cy="12" r="3" fill="red" opacity="0.3"/>
     </svg>
   );
 };
