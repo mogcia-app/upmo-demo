@@ -24,7 +24,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const adminMenuItems = [
     { name: "契約書", icon: "📋", href: "/admin/contracts" },
     { name: "ユーザー管理", icon: "👤", href: "/admin/users" },
-    { name: "ナレッジ管理", icon: "🤖", href: "/admin/ai-settings" },
   ];
 
   // 管理者のみに表示するメニューアイテム
