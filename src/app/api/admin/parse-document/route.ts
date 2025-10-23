@@ -1,0 +1,185 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+interface AIParseRequest {
+  content: string;
+  documentType: string;
+}
+
+interface ParsedDocument {
+  title: string;
+  type: 'meeting' | 'policy' | 'contract' | 'manual' | 'other';
+  description: string;
+  sections: {
+    overview: string;
+    features: string[];
+    pricing: string[];
+    procedures: string[];
+    support?: string[];
+    rules?: string[];
+    terms?: string[];
+  };
+  tags: string[];
+  priority: 'high' | 'medium' | 'low';
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { content, documentType }: AIParseRequest = await request.json();
+
+    if (!content || !documentType) {
+      return NextResponse.json({ 
+        error: 'コンテンツとドキュメントタイプが必要です' 
+      }, { status: 400 });
+    }
+
+    // AI解析のプロンプトを作成
+    const prompt = `
+以下のテキストを解析して、構造化された文書データに変換してください。
+
+テキスト:
+${content}
+
+ドキュメントタイプ: ${documentType}
+
+以下のJSON形式で回答してください:
+{
+  "title": "文書のタイトル（簡潔に）",
+  "type": "meeting|policy|contract|manual|other",
+  "description": "文書の概要説明",
+  "sections": {
+    "overview": "概要・説明",
+    "features": ["機能1", "機能2", "機能3"],
+    "pricing": ["料金情報1", "料金情報2"],
+    "procedures": ["手順1", "手順2", "手順3"],
+    "support": ["サポート情報1", "サポート情報2"],
+    "rules": ["ルール1", "ルール2"],
+    "terms": ["条件1", "条件2"]
+  },
+  "tags": ["タグ1", "タグ2", "タグ3"],
+  "priority": "high|medium|low"
+}
+
+注意事項:
+- 料金情報は必ずpricingセクションに含めてください
+- 機能や特徴はfeaturesセクションに含めてください
+- 手順やプロセスはproceduresセクションに含めてください
+- 空の配列は[]としてください
+- 日本語で回答してください
+`;
+
+    // OpenAI APIを使用してAI解析を実行
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    
+    if (!openaiApiKey) {
+      // OpenAI APIキーがない場合は手動解析を実行
+      return NextResponse.json({
+        success: true,
+        parsedDocument: await parseDocumentManually(content, documentType)
+      });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'あなたは文書解析の専門家です。与えられたテキストを構造化されたJSON形式で解析してください。'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content;
+
+    try {
+      // AIの回答をJSONとして解析
+      const parsedDocument = JSON.parse(aiResponse);
+      
+      return NextResponse.json({
+        success: true,
+        parsedDocument: parsedDocument
+      });
+    } catch (parseError) {
+      console.error('AI response parse error:', parseError);
+      // JSON解析に失敗した場合は手動解析を使用
+      return NextResponse.json({
+        success: true,
+        parsedDocument: await parseDocumentManually(content, documentType)
+      });
+    }
+
+  } catch (error) {
+    console.error('AI document parsing error:', error);
+    return NextResponse.json({ 
+      error: '文書の解析に失敗しました',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}
+
+// 手動解析のフォールバック関数
+async function parseDocumentManually(content: string, documentType: string): Promise<ParsedDocument> {
+  const lines = content.split('\n').filter(line => line.trim());
+  
+  // 基本的な解析ロジック
+  const title = lines[0] || '解析された文書';
+  const description = lines.slice(0, 3).join(' ').substring(0, 100) + '...';
+  
+  // 料金情報を抽出
+  const pricingKeywords = ['料金', '価格', '費用', '月額', '年額', '円', '万円', 'ドル', 'USD', '¥', '$'];
+  const pricing = lines.filter(line => 
+    pricingKeywords.some(keyword => line.includes(keyword))
+  );
+  
+  // 機能・特徴を抽出
+  const featureKeywords = ['機能', '特徴', 'できる', '可能', '提供', 'サービス'];
+  const features = lines.filter(line => 
+    featureKeywords.some(keyword => line.includes(keyword))
+  );
+  
+  // 手順・プロセスを抽出
+  const procedureKeywords = ['手順', '方法', 'やり方', 'ステップ', 'プロセス', '流れ'];
+  const procedures = lines.filter(line => 
+    procedureKeywords.some(keyword => line.includes(keyword))
+  );
+  
+  // タグを生成
+  const tags = [documentType, 'AI解析'];
+  if (pricing.length > 0) tags.push('料金情報');
+  if (features.length > 0) tags.push('機能説明');
+  if (procedures.length > 0) tags.push('手順');
+  
+  return {
+    title,
+    type: documentType as any,
+    description,
+    sections: {
+      overview: description,
+      features: features.slice(0, 5),
+      pricing: pricing.slice(0, 5),
+      procedures: procedures.slice(0, 5),
+      support: [],
+      rules: [],
+      terms: []
+    },
+    tags,
+    priority: 'medium'
+  };
+}
