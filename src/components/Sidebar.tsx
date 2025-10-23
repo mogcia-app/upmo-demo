@@ -13,7 +13,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const { customTabs, addCustomTab, deleteCustomTab } = useCustomTabs();
-  const { user, logout } = useAuth();
+  const { user, userRole, logout } = useAuth();
 
   const commonMenuItems = [
     { name: "ダッシュボード", icon: "📄", href: "/" },
@@ -26,6 +26,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     { name: "ユーザー管理", icon: "👤", href: "/admin/users" },
     { name: "ナレッジ管理", icon: "🤖", href: "/admin/ai-settings" },
   ];
+
+  // 管理者のみに表示するメニューアイテム
+  const isAdmin = userRole?.role === 'admin';
 
 
   return (
@@ -142,33 +145,37 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           {/* セパレーター */}
           <div className="mx-4 my-4 border-t border-gray-200"></div>
 
-          {/* Admin セクション */}
-          <div className="px-4 mb-2">
-            <div className="flex items-center px-4 py-2 text-gray-500 text-sm font-semibold">
-              <span className="text-lg mr-3">⚙️</span>
-              Admin
-            </div>
-          </div>
-          
-          <ul className="space-y-1 px-4 mb-4">
-            {adminMenuItems.map((item, index) => (
-              <li key={index}>
-                <a
-                  href={item.href}
-                  className="
-                    flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white
-                    transition-colors duration-200 ease-in-out
-                    group text-sm
-                  "
-                >
-                  <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200">
-                    {item.icon}
-                  </span>
-                  <span className="font-medium">{item.name}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          {/* Admin セクション - 管理者のみ表示 */}
+          {isAdmin && (
+            <>
+              <div className="px-4 mb-2">
+                <div className="flex items-center px-4 py-2 text-gray-500 text-sm font-semibold">
+                  <span className="text-lg mr-3">⚙️</span>
+                  Admin
+                </div>
+              </div>
+              
+              <ul className="space-y-1 px-4 mb-4">
+                {adminMenuItems.map((item, index) => (
+                  <li key={index}>
+                    <a
+                      href={item.href}
+                      className="
+                        flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white
+                        transition-colors duration-200 ease-in-out
+                        group text-sm
+                      "
+                    >
+                      <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200">
+                        {item.icon}
+                      </span>
+                      <span className="font-medium">{item.name}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
         </nav>
 

@@ -24,8 +24,24 @@ export default function LoginPage() {
         await signInWithEmailAndPassword(auth, email, password);
         router.push("/");
       } else {
-        // 新規登録
-        await createUserWithEmailAndPassword(auth, email, password);
+        // 新規登録（管理者のみ）
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Firestore に管理者として登録
+        const { doc, setDoc } = await import('firebase/firestore');
+        const { db } = await import('../../lib/firebase');
+        
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          email: email,
+          displayName: email.split('@')[0],
+          role: 'admin',
+          status: 'active',
+          department: '',
+          position: '',
+          createdAt: new Date(),
+          createdBy: 'self-registration'
+        });
+        
         router.push("/");
       }
     } catch (error: unknown) {

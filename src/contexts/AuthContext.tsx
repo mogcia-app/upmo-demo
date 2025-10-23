@@ -2,16 +2,26 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+
+interface UserRole {
+  role: 'admin' | 'user' | 'viewer';
+  status: 'active' | 'inactive' | 'pending';
+  department?: string;
+  position?: string;
+}
 
 interface AuthContextType {
   user: User | null;
+  userRole: UserRole | null;
   loading: boolean;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  userRole: null,
   loading: true,
   logout: async () => {},
 });
@@ -26,11 +36,43 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      
+      if (user) {
+        // Firestore からユーザーロール情報を取得
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserRole({
+              role: userData.role || 'user',
+              status: userData.status || 'active',
+              department: userData.department,
+              position: userData.position
+            });
+          } else {
+            // ユーザーデータが存在しない場合はデフォルト値を設定
+            setUserRole({
+              role: 'user',
+              status: 'active'
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching user role:', error);
+          setUserRole({
+            role: 'user',
+            status: 'active'
+          });
+        }
+      } else {
+        setUserRole(null);
+      }
+      
       setLoading(false);
     });
 
@@ -47,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     user,
+    userRole,
     loading,
     logout,
   };

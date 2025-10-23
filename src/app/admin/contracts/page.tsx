@@ -258,7 +258,7 @@ export default function ContractsPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute adminOnly={true}>
       <Layout>
         <div className="p-6">
           <div className="mb-6">
