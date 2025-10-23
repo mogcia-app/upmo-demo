@@ -12,7 +12,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [companyName, setCompanyName] = useState("ダッシュボード");
+  const [companyName, setCompanyName] = useState("");
   const { user } = useAuth();
 
   // 会社名を取得
@@ -61,7 +61,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </svg>
               </button>
               
-              <h2 className="text-lg font-semibold text-gray-900">{companyName}</h2>
+              {companyName && (
+                <h2 className="text-lg font-semibold text-gray-900">{companyName}</h2>
+              )}
             </div>
 
             {/* ヘッダー右側のアクション */}
