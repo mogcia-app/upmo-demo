@@ -523,6 +523,33 @@ export default function Home() {
             </div>
           </div>
 
+          {/* 最近のアクティビティ */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">最近のアクティビティ</h2>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-[#005eb2] rounded-full"></div>
+                <p className="text-gray-600">新しい契約書「ABC株式会社とのサービス契約」が追加されました</p>
+                <span className="text-sm text-gray-400 ml-auto">1時間前</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <p className="text-gray-600">タスク「顧客データ整理」が完了されました</p>
+                <span className="text-sm text-gray-400 ml-auto">3時間前</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <p className="text-gray-600">新しいチームメンバー「田中さん」が追加されました</p>
+                <span className="text-sm text-gray-400 ml-auto">5時間前</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <p className="text-gray-600">AIが「契約書の更新期限」について通知しました</p>
+                <span className="text-sm text-gray-400 ml-auto">1日前</span>
+              </div>
+            </div>
+          </div>
+
           {/* チーム予定とAI通知 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* チーム予定 */}
@@ -592,33 +619,6 @@ export default function Home() {
                     <span className="text-xs text-gray-500">6時間前</span>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 最近のアクティビティ */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">最近のアクティビティ</h2>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-[#005eb2] rounded-full"></div>
-                <p className="text-gray-600">新しい契約書「ABC株式会社とのサービス契約」が追加されました</p>
-                <span className="text-sm text-gray-400 ml-auto">1時間前</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <p className="text-gray-600">タスク「顧客データ整理」が完了されました</p>
-                <span className="text-sm text-gray-400 ml-auto">3時間前</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <p className="text-gray-600">新しいチームメンバー「田中さん」が追加されました</p>
-                <span className="text-sm text-gray-400 ml-auto">5時間前</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <p className="text-gray-600">AIが「契約書の更新期限」について通知しました</p>
-                <span className="text-sm text-gray-400 ml-auto">1日前</span>
               </div>
             </div>
           </div>
