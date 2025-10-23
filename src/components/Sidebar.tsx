@@ -16,15 +16,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const { user, userRole, logout } = useAuth();
 
   const commonMenuItems = [
-    { name: "ダッシュボード", icon: "📄", href: "/" },
-    { name: "個人チャット", icon: "💬", href: "/personal-chat" },
-    { name: "TODOリスト", icon: "✅", href: "/todo" },
-    { name: "顧客管理", icon: "👥", href: "/customers" },
+    { name: "ダッシュボード", icon: "🔵", href: "/" },
+    { name: "個人チャット", icon: "🔵", href: "/personal-chat" },
+    { name: "TODOリスト", icon: "🔵", href: "/todo" },
+    { name: "顧客管理", icon: "🔵", href: "/customers" },
   ];
 
   const adminMenuItems = [
-    { name: "契約書", icon: "📋", href: "/admin/contracts" },
-    { name: "ユーザー管理", icon: "👤", href: "/admin/users" },
+    { name: "契約書", icon: "🔵", href: "/admin/contracts" },
+    { name: "ユーザー管理", icon: "🔵", href: "/admin/users" },
   ];
 
   // 管理者のみに表示するメニューアイテム
@@ -93,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           <div className="px-4 mb-2">
             <div className="flex items-center justify-between px-4 py-2">
               <div className="flex items-center text-gray-500 text-sm font-semibold">
-                <span className="text-lg mr-3">📂</span>
+                <span className="text-lg mr-3">🔵</span>
                 自由タブ
               </div>
               <button
@@ -150,7 +150,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
             <>
               <div className="px-4 mb-2">
                 <div className="flex items-center px-4 py-2 text-gray-500 text-sm font-semibold">
-                  <span className="text-lg mr-3">⚙️</span>
+                  <span className="text-lg mr-3">🔵</span>
                   Admin
                 </div>
               </div>
