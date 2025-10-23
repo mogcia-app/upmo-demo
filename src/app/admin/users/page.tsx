@@ -48,7 +48,13 @@ export default function UsersPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setUsers(data.users);
+        // Firestoreから取得した日付をDateオブジェクトに変換
+        const usersWithDates = data.users.map((user: any) => ({
+          ...user,
+          createdAt: user.createdAt?.toDate ? user.createdAt.toDate() : new Date(user.createdAt || Date.now()),
+          lastLoginAt: user.lastLoginAt?.toDate ? user.lastLoginAt.toDate() : (user.lastLoginAt ? new Date(user.lastLoginAt) : undefined)
+        }));
+        setUsers(usersWithDates);
       } else {
         console.error('ユーザー取得エラー:', data.error);
         // エラーの場合はモックデータを表示
@@ -363,7 +369,7 @@ export default function UsersPage() {
                         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span>登録: {user.createdAt.toLocaleDateString('ja-JP')}</span>
+                        <span>登録: {user.createdAt instanceof Date ? user.createdAt.toLocaleDateString('ja-JP') : new Date(user.createdAt).toLocaleDateString('ja-JP')}</span>
                       </div>
 
                       {user.lastLoginAt && (
@@ -371,7 +377,7 @@ export default function UsersPage() {
                           <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <span>最終ログイン: {user.lastLoginAt.toLocaleDateString('ja-JP')}</span>
+                          <span>最終ログイン: {user.lastLoginAt instanceof Date ? user.lastLoginAt.toLocaleDateString('ja-JP') : new Date(user.lastLoginAt).toLocaleDateString('ja-JP')}</span>
                         </div>
                       )}
                     </div>

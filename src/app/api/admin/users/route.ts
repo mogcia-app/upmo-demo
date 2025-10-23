@@ -107,12 +107,15 @@ export async function GET(request: NextRequest) {
   try {
     // Firestore からユーザー一覧を取得
     const usersSnapshot = await db.collection('users').get();
-    const users = usersSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      lastLoginAt: doc.data().lastLoginAt?.toDate(),
-    }));
+    const users = usersSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
+        lastLoginAt: data.lastLoginAt?.toDate ? data.lastLoginAt.toDate() : (data.lastLoginAt ? new Date(data.lastLoginAt) : undefined)
+      };
+    });
 
     return NextResponse.json({ users });
 
