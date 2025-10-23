@@ -168,52 +168,59 @@ export default function PersonalChatPage() {
     setInputText("");
     setIsLoading(true);
 
-    // ローディングメッセージを追加
-    const loadingMessage: Message = {
-      id: "loading",
-      text: "考え中...",
-      sender: "ai",
-      timestamp: new Date(),
-      isTyping: true
-    };
-
-    const messagesWithLoading = [...newMessages, loadingMessage];
-    setMessages(messagesWithLoading);
-
-    try {
-      // 少し待機してから検索（考えている演出）
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-      
-      // 手動入力データを検索
-      const aiResponse = await searchManualDocuments(inputText.trim());
-      
-      // ローディングメッセージを削除してAI回答を追加
-      const finalMessages = newMessages.concat({
-        id: (Date.now() + 1).toString(),
-        text: aiResponse,
+    // AIアシスタントの場合のみAI機能を使用
+    if (activeChat === "ai-assistant") {
+      // ローディングメッセージを追加
+      const loadingMessage: Message = {
+        id: "loading",
+        text: "考え中...",
         sender: "ai",
-        timestamp: new Date()
-      });
-      
-      setMessages(finalMessages);
-      
-      // チャット履歴を保存
-      await saveChatHistory(activeChat, finalMessages);
-      
-    } catch (error) {
-      console.error('メッセージ送信エラー:', error);
-      
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "申し訳ございません。エラーが発生しました。",
-        sender: "ai",
-        timestamp: new Date()
+        timestamp: new Date(),
+        isTyping: true
       };
 
-      const finalMessages = newMessages.concat(errorMessage);
-      setMessages(finalMessages);
-      await saveChatHistory(activeChat, finalMessages);
-    } finally {
+      const messagesWithLoading = [...newMessages, loadingMessage];
+      setMessages(messagesWithLoading);
+
+      try {
+        // 少し待機してから検索（考えている演出）
+        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+        
+        // 手動入力データを検索
+        const aiResponse = await searchManualDocuments(inputText.trim());
+        
+        // ローディングメッセージを削除してAI回答を追加
+        const finalMessages = newMessages.concat({
+          id: (Date.now() + 1).toString(),
+          text: aiResponse,
+          sender: "ai",
+          timestamp: new Date()
+        });
+        
+        setMessages(finalMessages);
+        
+        // チャット履歴を保存
+        await saveChatHistory(activeChat, finalMessages);
+        
+      } catch (error) {
+        console.error('メッセージ送信エラー:', error);
+        
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: "申し訳ございません。エラーが発生しました。",
+          sender: "ai",
+          timestamp: new Date()
+        };
+
+        const finalMessages = newMessages.concat(errorMessage);
+        setMessages(finalMessages);
+        await saveChatHistory(activeChat, finalMessages);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // チームメンバーとのチャットの場合、メッセージのみ保存
+      await saveChatHistory(activeChat, newMessages);
       setIsLoading(false);
     }
   };
@@ -235,7 +242,7 @@ export default function PersonalChatPage() {
       // デフォルトチャットを読み込み
       loadChatHistory(activeChat);
       
-      // チャットリストを初期化
+      // チャットリストを初期化（AIアシスタント + チームメンバー）
       setChats([
         {
           id: "ai-assistant",
@@ -245,6 +252,42 @@ export default function PersonalChatPage() {
           timestamp: new Date(),
           unreadCount: 0,
           isOnline: true
+        },
+        {
+          id: "team-member-1",
+          name: "田中 太郎",
+          avatar: "👨‍💼",
+          lastMessage: "お疲れ様です！プロジェクトの進捗はいかがですか？",
+          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2時間前
+          unreadCount: 2,
+          isOnline: true
+        },
+        {
+          id: "team-member-2",
+          name: "佐藤 花子",
+          avatar: "👩‍💻",
+          lastMessage: "資料の確認お願いします！",
+          timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4時間前
+          unreadCount: 1,
+          isOnline: false
+        },
+        {
+          id: "team-member-3",
+          name: "鈴木 一郎",
+          avatar: "👨‍🔧",
+          lastMessage: "会議の時間変更になりました",
+          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6時間前
+          unreadCount: 0,
+          isOnline: true
+        },
+        {
+          id: "team-member-4",
+          name: "高橋 美咲",
+          avatar: "👩‍🎨",
+          lastMessage: "デザイン案を送りました！",
+          timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8時間前
+          unreadCount: 0,
+          isOnline: false
         }
       ]);
     }
@@ -306,12 +349,28 @@ export default function PersonalChatPage() {
             <div className="bg-white border-b border-gray-200 p-4">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
-                  🤖
+                  {chats.find(chat => chat.id === activeChat)?.avatar || "🤖"}
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold text-gray-900">AI アシスタント</h1>
-                  <p className="text-sm text-gray-500">お気軽にご質問ください！</p>
+                  <h1 className="text-lg font-semibold text-gray-900">
+                    {chats.find(chat => chat.id === activeChat)?.name || "AI アシスタント"}
+                  </h1>
+                  <p className="text-sm text-gray-500">
+                    {activeChat === "ai-assistant" 
+                      ? "お気軽にご質問ください！" 
+                      : chats.find(chat => chat.id === activeChat)?.isOnline 
+                        ? "オンライン" 
+                        : "オフライン"
+                    }
+                  </p>
                 </div>
+                {activeChat !== "ai-assistant" && (
+                  <div className={`w-3 h-3 rounded-full ${
+                    chats.find(chat => chat.id === activeChat)?.isOnline 
+                      ? "bg-green-500" 
+                      : "bg-gray-400"
+                  }`}></div>
+                )}
               </div>
             </div>
 
@@ -356,46 +415,50 @@ export default function PersonalChatPage() {
               ))}
             </div>
 
-            {/* テンプレートボタン */}
-            <div className="bg-white border-t border-gray-200 p-4">
-              <div className="mb-3">
-                <p className="text-sm text-gray-600 mb-2">よくある質問:</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleTemplateClick("〇〇について教えて")}
-                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-                  >
-                    について教えて
-                  </button>
-                  <button
-                    onClick={() => handleTemplateClick("料金について教えて")}
-                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-                  >
-                    料金について教えて
-                  </button>
-                  <button
-                    onClick={() => handleTemplateClick("機能について教えて")}
-                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-                  >
-                    機能について教えて
-                  </button>
-                  <button
-                    onClick={() => handleTemplateClick("手順について教えて")}
-                    className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-                  >
-                    手順について教えて
-                  </button>
+            {/* テンプレートボタン（AIアシスタントの場合のみ表示） */}
+            {activeChat === "ai-assistant" && (
+              <div className="bg-white border-t border-gray-200 p-4">
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600 mb-2">よくある質問:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleTemplateClick("〇〇について教えて")}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+                    >
+                      について教えて
+                    </button>
+                    <button
+                      onClick={() => handleTemplateClick("料金について教えて")}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+                    >
+                      料金について教えて
+                    </button>
+                    <button
+                      onClick={() => handleTemplateClick("機能について教えて")}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+                    >
+                      機能について教えて
+                    </button>
+                    <button
+                      onClick={() => handleTemplateClick("手順について教えて")}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+                    >
+                      手順について教えて
+                    </button>
+                  </div>
                 </div>
               </div>
+            )}
               
-              {/* 入力エリア */}
+            {/* 入力エリア */}
+            <div className="bg-white border-t border-gray-200 p-4">
               <div className="flex space-x-2">
                 <input
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="メッセージを入力..."
+                  placeholder={activeChat === "ai-assistant" ? "メッセージを入力..." : "メッセージを入力..."}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isLoading}
                 />
