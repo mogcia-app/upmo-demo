@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
+import { useAuth } from "../contexts/AuthContext";
+import { db } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +12,29 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [companyName, setCompanyName] = useState("ダッシュボード");
+  const { user } = useAuth();
+
+  // 会社名を取得
+  useEffect(() => {
+    const fetchCompanyName = async () => {
+      if (!user) return;
+      
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.companyName) {
+            setCompanyName(userData.companyName);
+          }
+        }
+      } catch (error) {
+        console.error('会社名の取得エラー:', error);
+      }
+    };
+
+    fetchCompanyName();
+  }, [user]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -35,7 +61,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </svg>
               </button>
               
-              <h2 className="text-lg font-semibold text-gray-900">ダッシュボード</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{companyName}</h2>
             </div>
 
             {/* ヘッダー右側のアクション */}

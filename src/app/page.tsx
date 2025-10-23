@@ -167,7 +167,8 @@ export default function Home() {
       };
 
       await updateDoc(doc(db, 'users', user.uid), {
-        companySetup: updatedSetupData
+        companySetup: updatedSetupData,
+        companyName: setupData.companyName
       });
 
       setSetupData(updatedSetupData);
