@@ -100,13 +100,13 @@ export default function UsersPage() {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-50 text-red-700 border-red-200';
       case 'user':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'viewer':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-green-50 text-green-700 border-green-200';
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
@@ -240,22 +240,23 @@ export default function UsersPage() {
       <Layout>
         <div className="min-h-screen bg-gray-50">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="bg-white border-b border-gray-200 px-6 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">ユーザー管理</h1>
-                <p className="text-gray-600 mt-1">システムユーザーの管理と権限設定</p>
+                <h1 className="text-3xl font-bold text-gray-900">ユーザー管理</h1>
+                <p className="text-gray-600 mt-2">システムユーザーの管理と権限設定</p>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-sm text-gray-500">
-                  総ユーザー数: <span className="font-semibold text-gray-900">{users.length}</span>
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900">{users.length}</div>
+                  <div className="text-sm text-gray-500">総ユーザー数</div>
                 </div>
                 <button 
                   onClick={() => setShowCreateModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 >
-                  <span className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="flex items-center gap-2 font-medium">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
                     ユーザーを追加
@@ -325,81 +326,103 @@ export default function UsersPage() {
                 <p className="text-gray-500">検索条件を変更して再度お試しください</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
                     onClick={() => openUserDetail(user)}
                   >
+                    {/* ヘッダー部分 */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=3b82f6&color=fff`}
-                          alt={user.displayName}
-                          className="w-12 h-12 rounded-full border-2 border-gray-200"
-                        />
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{user.displayName}</h3>
-                          <p className="text-sm text-gray-500">{user.email}</p>
+                        <div className="relative">
+                          <img
+                            src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName)}&background=3b82f6&color=fff&size=48`}
+                            alt={user.displayName}
+                            className="w-12 h-12 rounded-full border-2 border-white shadow-md"
+                          />
+                          {/* ステータスインジケーター */}
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                            user.status === 'active' ? 'bg-green-500' : 
+                            user.status === 'inactive' ? 'bg-gray-400' : 'bg-yellow-500'
+                          }`}></div>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(user.role)}`}>
-                          {user.role === 'admin' ? '管理者' : user.role === 'user' ? '利用者' : '閲覧者'}
-                        </span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
-                          {user.status === 'active' ? 'アクティブ' : user.status === 'inactive' ? '非アクティブ' : '承認待ち'}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate">{user.displayName}</h3>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="space-y-2 text-sm text-gray-600">
-                      {user.department && (
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {/* ロールバッジ */}
+                    <div className="mb-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                        <span className="w-2 h-2 rounded-full mr-1.5 bg-current opacity-60"></span>
+                        {user.role === 'admin' ? '管理者' : user.role === 'user' ? '利用者' : '閲覧者'}
+                      </span>
+                    </div>
+
+                    {/* 組織情報 */}
+                    {(user.department || user.position) && (
+                      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                          <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                           </svg>
-                          <span>{user.department}</span>
-                          {user.position && <span>・{user.position}</span>}
+                          <div className="min-w-0 flex-1">
+                            {user.department && <div className="font-medium truncate">{user.department}</div>}
+                            {user.position && <div className="text-xs text-gray-500 truncate">{user.position}</div>}
+                          </div>
                         </div>
-                      )}
-                      
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      </div>
+                    )}
+
+                    {/* 日付情報 */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <span>登録: {user.createdAt instanceof Date ? user.createdAt.toLocaleDateString('ja-JP') : new Date(user.createdAt).toLocaleDateString('ja-JP')}</span>
                       </div>
 
                       {user.lastLoginAt && (
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <span>最終ログイン: {user.lastLoginAt instanceof Date ? user.lastLoginAt.toLocaleDateString('ja-JP') : new Date(user.lastLoginAt).toLocaleDateString('ja-JP')}</span>
+                          <span>最終: {user.lastLoginAt instanceof Date ? user.lastLoginAt.toLocaleDateString('ja-JP') : new Date(user.lastLoginAt).toLocaleDateString('ja-JP')}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+                    {/* アクションボタン */}
+                    <div className="flex gap-2 pt-3 border-t border-gray-100">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           openUserDetail(user);
                         }}
-                        className="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                        className="flex-1 px-3 py-2 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium"
                       >
-                        詳細
+                        <span className="flex items-center justify-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          編集
+                        </span>
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteUser(user.id);
                         }}
-                        className="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                        className="px-3 py-2 text-xs bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium"
                       >
-                        削除
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                       </button>
                     </div>
                   </div>
