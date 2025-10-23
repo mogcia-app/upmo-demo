@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
+import AIAssistantIcon from "../../components/AIAssistantIcon";
 
 interface Message {
   id: string;
@@ -16,7 +17,7 @@ interface Message {
 interface Chat {
   id: string;
   name: string;
-  avatar: string;
+  avatar: string | React.ReactNode;
   lastMessage: string;
   timestamp: Date;
   unreadCount: number;
@@ -211,7 +212,7 @@ export default function PersonalChatPage() {
           sender: "ai",
           timestamp: new Date()
         };
-
+        
         const finalMessages = newMessages.concat(errorMessage);
         setMessages(finalMessages);
         await saveChatHistory(activeChat, finalMessages);
@@ -247,7 +248,7 @@ export default function PersonalChatPage() {
         {
           id: "ai-assistant",
           name: "AI アシスタント",
-          avatar: "🤖",
+          avatar: <AIAssistantIcon size="md" className="text-blue-600" />,
           lastMessage: "こんにちは！お気軽にご質問ください！",
           timestamp: new Date(),
           unreadCount: 0,
@@ -310,7 +311,7 @@ export default function PersonalChatPage() {
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">チャット</h2>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto">
               {chats.map((chat) => (
                 <div
@@ -322,12 +323,12 @@ export default function PersonalChatPage() {
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
-                      {chat.avatar}
+                      {typeof chat.avatar === 'string' ? chat.avatar : chat.avatar}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {chat.name}
-                      </p>
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {chat.name}
+                        </p>
                       <p className="text-xs text-gray-500 truncate">
                         {chat.lastMessage}
                       </p>
@@ -347,15 +348,19 @@ export default function PersonalChatPage() {
           <div className="flex-1 flex flex-col">
             {/* ヘッダー */}
             <div className="bg-white border-b border-gray-200 p-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
-                  {chats.find(chat => chat.id === activeChat)?.avatar || "🤖"}
-                </div>
-                <div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg">
+                  {(() => {
+                    const activeChatData = chats.find(chat => chat.id === activeChat);
+                    if (!activeChatData) return "🤖";
+                    return typeof activeChatData.avatar === 'string' ? activeChatData.avatar : activeChatData.avatar;
+                  })()}
+                  </div>
+                  <div>
                   <h1 className="text-lg font-semibold text-gray-900">
                     {chats.find(chat => chat.id === activeChat)?.name || "AI アシスタント"}
                   </h1>
-                  <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500">
                     {activeChat === "ai-assistant" 
                       ? "お気軽にご質問ください！" 
                       : chats.find(chat => chat.id === activeChat)?.isOnline 
@@ -449,15 +454,15 @@ export default function PersonalChatPage() {
                 </div>
               </div>
             )}
-              
+
             {/* 入力エリア */}
             <div className="bg-white border-t border-gray-200 p-4">
               <div className="flex space-x-2">
                 <input
                   type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyPress={handleKeyPress}
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyPress={handleKeyPress}
                   placeholder={activeChat === "ai-assistant" ? "メッセージを入力..." : "メッセージを入力..."}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isLoading}
