@@ -340,7 +340,7 @@ export default function UsersPage() {
                       </div>
                       <div className="flex gap-2">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(user.role)}`}>
-                          {user.role === 'admin' ? '管理者' : user.role === 'user' ? 'ユーザー' : '閲覧者'}
+                          {user.role === 'admin' ? '管理者' : user.role === 'user' ? '利用者' : '閲覧者'}
                         </span>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
                           {user.status === 'active' ? 'アクティブ' : user.status === 'inactive' ? '非アクティブ' : '承認待ち'}
@@ -456,15 +456,10 @@ export default function UsersPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">ロール</label>
-                    <select
-                      value={newUser.role}
-                      onChange={(e) => setNewUser({...newUser, role: e.target.value as any})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="user">ユーザー</option>
-                      <option value="admin">管理者</option>
-                      <option value="viewer">閲覧者</option>
-                    </select>
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                      利用者
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">新規ユーザーは利用者ロールで作成されます。管理者・閲覧者ロールは既存ユーザーの編集で変更してください</p>
                   </div>
 
                   <div>
@@ -547,7 +542,7 @@ export default function UsersPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="admin">管理者</option>
-                        <option value="user">ユーザー</option>
+                        <option value="user">利用者</option>
                         <option value="viewer">閲覧者</option>
                       </select>
                     </div>
