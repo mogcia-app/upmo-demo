@@ -622,7 +622,7 @@ export default function Home() {
                         <label
                           key={industry.id}
                           className={`p-4 sm:p-6 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg ${
-                            setupData.industries.includes(industry.id)
+                            (setupData.industries || []).includes(industry.id)
                               ? 'border-[#005eb2] bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
@@ -630,22 +630,28 @@ export default function Home() {
                           <div className="flex items-start space-x-3">
                             <input
                               type="checkbox"
-                              checked={setupData.industries.includes(industry.id)}
+                              checked={(setupData.industries || []).includes(industry.id)}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSetupData(prev => ({ 
-                                    ...prev, 
-                                    industries: [...prev.industries, industry.id],
-                                    industry: prev.industries.length === 0 ? industry.id : prev.industry // 最初の選択をメインに
-                                  }));
+                                  setSetupData(prev => {
+                                    const currentIndustries = prev.industries || [];
+                                    return {
+                                      ...prev, 
+                                      industries: [...currentIndustries, industry.id],
+                                      industry: currentIndustries.length === 0 ? industry.id : prev.industry // 最初の選択をメインに
+                                    };
+                                  });
                                 } else {
-                                  setSetupData(prev => ({ 
-                                    ...prev, 
-                                    industries: prev.industries.filter(id => id !== industry.id),
-                                    industry: prev.industry === industry.id && prev.industries.length > 1 
-                                      ? prev.industries.find(id => id !== industry.id) || '' 
-                                      : prev.industry
-                                  }));
+                                  setSetupData(prev => {
+                                    const currentIndustries = prev.industries || [];
+                                    return {
+                                      ...prev, 
+                                      industries: currentIndustries.filter(id => id !== industry.id),
+                                      industry: prev.industry === industry.id && currentIndustries.length > 1 
+                                        ? currentIndustries.find(id => id !== industry.id) || '' 
+                                        : prev.industry
+                                    };
+                                  });
                                 }
                               }}
                               className="mt-1 w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
