@@ -16,7 +16,6 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
 
   const componentTypes = [
     { type: ComponentType.DATA_TABLE, name: "データテーブル", icon: "📊", description: "表形式でデータを表示・編集" },
-    { type: ComponentType.CHART, name: "チャート", icon: "📈", description: "グラフでデータを可視化" },
     { type: ComponentType.FORM, name: "フォーム", icon: "📝", description: "入力フォームを作成" },
     { type: ComponentType.TEXT, name: "テキスト", icon: "📄", description: "テキストブロックを追加" },
     { type: ComponentType.CALENDAR, name: "カレンダー", icon: "📅", description: "イベント管理カレンダー" },
@@ -95,47 +94,6 @@ const ComponentEditor: React.FC<ComponentEditorProps> = ({ isOpen, onClose, onAd
               >
                 + 列を追加
               </button>
-            </div>
-          </div>
-        );
-
-      case ComponentType.CHART:
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                チャートタイプ
-              </label>
-              <select
-                value={(config.chartType as string) || "bar"}
-                onChange={(e) => setConfig({ ...config, chartType: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              >
-                <option value="bar">棒グラフ</option>
-                <option value="line">折れ線グラフ</option>
-                <option value="pie">円グラフ</option>
-                <option value="area">エリアグラフ</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                サンプルデータ（JSON形式）
-              </label>
-              <textarea
-                placeholder='[{"label": "項目1", "value": 100}, {"label": "項目2", "value": 200}]'
-                value={JSON.stringify((config.data as any) || [], null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    setConfig({ ...config, data: parsed });
-                  } catch {
-                    // 無効なJSONの場合はそのまま保存
-                    setConfig({ ...config, data: e.target.value });
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                rows={4}
-              />
             </div>
           </div>
         );

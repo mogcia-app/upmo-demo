@@ -24,6 +24,7 @@ interface IndustryConfig {
 interface CompanySetup {
   companyName: string;
   industry: string;
+  industries: string[]; // 複数選択対応
   selectedFeatures: string[];
   teamSize: string;
   isSetupComplete: boolean;
@@ -35,6 +36,7 @@ export default function Home() {
   const [setupData, setSetupData] = useState<CompanySetup>({
     companyName: "",
     industry: "",
+    industries: [], // 複数選択対応
     selectedFeatures: [],
     teamSize: "",
     isSetupComplete: false
@@ -154,7 +156,7 @@ export default function Home() {
   }, [user]);
 
   const handleSetupComplete = async () => {
-    if (!user || !setupData.companyName || !setupData.industry) return;
+    if (!user || !setupData.companyName || setupData.industries.length === 0) return;
 
     try {
       const { doc, updateDoc } = await import('firebase/firestore');
@@ -182,41 +184,331 @@ export default function Home() {
     }
   };
 
+  // テンプレートごとのデフォルトコンポーネント
+  const getDefaultComponents = (templateName: string, baseTimestamp: number = Date.now()) => {
+    const componentMap: Record<string, any[]> = {
+      "生産計画": [
+        {
+          id: `component_${baseTimestamp}_1`,
+          type: 'data_table',
+          title: '生産スケジュール',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '製品名', type: 'text' },
+              { id: 'col2', name: '生産数量', type: 'number' },
+              { id: 'col3', name: '納期', type: 'date' },
+              { id: 'col4', name: '状況', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "品質管理": [
+        {
+          id: `component_${baseTimestamp}_2`,
+          type: 'data_table',
+          title: '検査記録',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '検査項目', type: 'text' },
+              { id: 'col2', name: '検査結果', type: 'select' },
+              { id: 'col3', name: '検査日', type: 'date' },
+              { id: 'col4', name: '担当者', type: 'text' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "在庫管理": [
+        {
+          id: `component_${baseTimestamp}_3`,
+          type: 'data_table',
+          title: '在庫一覧',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '品目名', type: 'text' },
+              { id: 'col2', name: '在庫数量', type: 'number' },
+              { id: 'col3', name: '最低在庫数', type: 'number' },
+              { id: 'col4', name: '状態', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "売上分析": [
+        {
+          id: `component_${baseTimestamp}_4`,
+          type: 'data_table',
+          title: '売上データ',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '日付', type: 'date' },
+              { id: 'col2', name: '売上額', type: 'number' },
+              { id: 'col3', name: '商品名', type: 'text' },
+              { id: 'col4', name: '数量', type: 'number' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "顧客管理": [
+        {
+          id: `component_${baseTimestamp}_5`,
+          type: 'data_table',
+          title: '顧客一覧',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '顧客名', type: 'text' },
+              { id: 'col2', name: 'メール', type: 'text' },
+              { id: 'col3', name: '登録日', type: 'date' },
+              { id: 'col4', name: 'ステータス', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "商品管理": [
+        {
+          id: `component_${baseTimestamp}_6`,
+          type: 'data_table',
+          title: '商品カタログ',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '商品名', type: 'text' },
+              { id: 'col2', name: '価格', type: 'number' },
+              { id: 'col3', name: 'カテゴリ', type: 'text' },
+              { id: 'col4', name: '在庫', type: 'number' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "予約管理": [
+        {
+          id: `component_${baseTimestamp}_7`,
+          type: 'calendar',
+          title: '予約カレンダー',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 500 },
+          config: {
+            events: [],
+            view: 'month',
+            showWeekends: true
+          }
+        }
+      ],
+      "スタッフ管理": [
+        {
+          id: `component_${baseTimestamp}_8`,
+          type: 'data_table',
+          title: 'スタッフ一覧',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '氏名', type: 'text' },
+              { id: 'col2', name: '役職', type: 'text' },
+              { id: 'col3', name: 'スキル', type: 'text' },
+              { id: 'col4', name: '状況', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "顧客満足度": [
+        {
+          id: `component_${baseTimestamp}_9`,
+          type: 'data_table',
+          title: 'フィードバック',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '評価', type: 'number' },
+              { id: 'col2', name: 'コメント', type: 'text' },
+              { id: 'col3', name: '日付', type: 'date' },
+              { id: 'col4', name: '担当者', type: 'text' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "プロジェクト管理": [
+        {
+          id: `component_${baseTimestamp}_10`,
+          type: 'data_table',
+          title: 'プロジェクト一覧',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: 'プロジェクト名', type: 'text' },
+              { id: 'col2', name: '進捗率', type: 'number' },
+              { id: 'col3', name: '期限', type: 'date' },
+              { id: 'col4', name: 'ステータス', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "資材管理": [
+        {
+          id: `component_${baseTimestamp}_11`,
+          type: 'data_table',
+          title: '資材一覧',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '資材名', type: 'text' },
+              { id: 'col2', name: '数量', type: 'number' },
+              { id: 'col3', name: '単価', type: 'number' },
+              { id: 'col4', name: '仕入先', type: 'text' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "安全管理": [
+        {
+          id: `component_${baseTimestamp}_12`,
+          type: 'data_table',
+          title: '安全記録',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '日付', type: 'date' },
+              { id: 'col2', name: '内容', type: 'text' },
+              { id: 'col3', name: '担当者', type: 'text' },
+              { id: 'col4', name: '状態', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "患者管理": [
+        {
+          id: `component_${baseTimestamp}_13`,
+          type: 'data_table',
+          title: '患者リスト',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '患者ID', type: 'text' },
+              { id: 'col2', name: '氏名', type: 'text' },
+              { id: 'col3', name: '生年月日', type: 'date' },
+              { id: 'col4', name: '状態', type: 'select' }
+            ],
+            data: []
+          }
+        }
+      ],
+      "診療予約": [
+        {
+          id: `component_${baseTimestamp}_14`,
+          type: 'calendar',
+          title: '診療予約カレンダー',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 500 },
+          config: {
+            events: [],
+            view: 'week',
+            showWeekends: false
+          }
+        }
+      ],
+      "医療機器": [
+        {
+          id: `component_${baseTimestamp}_15`,
+          type: 'data_table',
+          title: '医療機器一覧',
+          position: { x: 0, y: 0 },
+          size: { width: 800, height: 400 },
+          config: {
+            columns: [
+              { id: 'col1', name: '機器名', type: 'text' },
+              { id: 'col2', name: '状態', type: 'select' },
+              { id: 'col3', name: '最終メンテナンス', type: 'date' },
+              { id: 'col4', name: '次回メンテ', type: 'date' }
+            ],
+            data: []
+          }
+        }
+      ]
+    };
+
+    return componentMap[templateName] || [];
+  };
+
   const applyAutoCustomization = async (setup: CompanySetup) => {
-    const selectedIndustry = industryConfigs.find(ind => ind.id === setup.industry);
-    if (!selectedIndustry) return;
+    if (setup.industries.length === 0) return;
 
     try {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
-      // ユーザーのカスタムタブに業種別テンプレートを追加
-      const customTabs = selectedIndustry.templates.map(template => ({
-        id: `template_${template.name}_${Date.now()}`,
-        title: template.name,
-        description: template.description,
-        icon: template.icon,
-        route: template.href,
-        components: [],
-        createdAt: new Date(),
-        isTemplate: true
-      }));
+      // 複数業種のテンプレートをマージ
+      const allTemplates: Array<{name: string; description: string; icon: string; href: string}> = [];
+      const mainIndustry = industryConfigs.find(ind => ind.id === setup.industry);
+      
+      setup.industries.forEach(industryId => {
+        const industry = industryConfigs.find(ind => ind.id === industryId);
+        if (industry) {
+          allTemplates.push(...industry.templates);
+        }
+      });
+      
+      // 重複を除去
+      const uniqueTemplates = allTemplates.filter((template, index, self) => 
+        index === self.findIndex(t => t.name === template.name)
+      );
+      
+      const baseTimestamp = Date.now();
+      const customTabs = uniqueTemplates.map((template, index) => {
+        const components = getDefaultComponents(template.name, baseTimestamp + index);
+        return {
+          id: `template_${template.name}_${baseTimestamp + index}`,
+          title: template.name,
+          description: template.description,
+          icon: template.icon,
+          route: template.href,
+          components: components,
+          createdAt: new Date(),
+          isTemplate: true
+        };
+      });
 
       await updateDoc(doc(db, 'users', user!.uid), {
         customTabs: customTabs,
-        industryTheme: {
-          industry: selectedIndustry.name,
-          color: selectedIndustry.color,
-          icon: selectedIndustry.icon
-        }
+        industryTheme: mainIndustry ? {
+          industry: mainIndustry.name,
+          color: mainIndustry.color,
+          icon: mainIndustry.icon,
+          industries: setup.industries.map(id => industryConfigs.find(ind => ind.id === id)?.name || id)
+        } : {}
       });
 
       // ローカルストレージにも保存
       localStorage.setItem('customTabs', JSON.stringify(customTabs));
       localStorage.setItem('industryTheme', JSON.stringify({
-        industry: selectedIndustry.name,
-        color: selectedIndustry.color,
-        icon: selectedIndustry.icon
+        industry: mainIndustry?.name,
+        color: mainIndustry?.color,
+        icon: mainIndustry?.icon,
+        industries: setup.industries.map(id => industryConfigs.find(ind => ind.id === id)?.name || id)
       }));
 
     } catch (error) {
@@ -321,31 +613,57 @@ export default function Home() {
                 {/* ステップ2: 業種選択 */}
                 {currentStep === 2 && (
                   <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">業種を選択</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">業種を選択</h2>
+                    <p className="text-sm text-gray-600 mb-4 sm:mb-6">
+                      複数の業種を選択できます。該当する業種をすべて選択してください。
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                       {industryConfigs.map((industry) => (
-                        <div
+                        <label
                           key={industry.id}
-                          onClick={() => setSetupData(prev => ({ ...prev, industry: industry.id }))}
                           className={`p-4 sm:p-6 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg ${
-                            setupData.industry === industry.id
+                            setupData.industries.includes(industry.id)
                               ? 'border-[#005eb2] bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
-                          <div className="text-center">
-                            <div className="text-4xl mb-3">{industry.icon}</div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">{industry.name}</h3>
-                            <p className="text-sm text-gray-600 mb-4">{industry.description}</p>
-                            <div className="flex flex-wrap gap-2 justify-center">
-                              {industry.features.slice(0, 3).map((feature) => (
-                                <span key={feature} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                                  {feature}
-                                </span>
-                              ))}
+                          <div className="flex items-start space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={setupData.industries.includes(industry.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSetupData(prev => ({ 
+                                    ...prev, 
+                                    industries: [...prev.industries, industry.id],
+                                    industry: prev.industries.length === 0 ? industry.id : prev.industry // 最初の選択をメインに
+                                  }));
+                                } else {
+                                  setSetupData(prev => ({ 
+                                    ...prev, 
+                                    industries: prev.industries.filter(id => id !== industry.id),
+                                    industry: prev.industry === industry.id && prev.industries.length > 1 
+                                      ? prev.industries.find(id => id !== industry.id) || '' 
+                                      : prev.industry
+                                  }));
+                                }
+                              }}
+                              className="mt-1 w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
+                            />
+                            <div className="flex-1 text-center">
+                              <div className="text-4xl mb-3">{industry.icon}</div>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">{industry.name}</h3>
+                              <p className="text-sm text-gray-600 mb-4">{industry.description}</p>
+                              <div className="flex flex-wrap gap-2 justify-center">
+                                {industry.features.slice(0, 3).map((feature) => (
+                                  <span key={feature} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                    {feature}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </label>
                       ))}
                     </div>
                     <div className="flex justify-between mt-8">
@@ -357,10 +675,10 @@ export default function Home() {
                       </button>
                       <button
                         onClick={() => setCurrentStep(3)}
-                        disabled={!setupData.industry}
+                        disabled={setupData.industries.length === 0}
                         className="px-8 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
                       >
-                        次へ
+                        次へ ({setupData.industries.length}件選択中)
                       </button>
                     </div>
                   </div>
@@ -374,26 +692,34 @@ export default function Home() {
                       選択した業種に基づいて推奨機能を表示しています。追加で必要な機能があれば選択してください。
                     </p>
                     
-                    {setupData.industry && (
+                    {setupData.industries.length > 0 && (
                       <div className="space-y-6">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                            {industryConfigs.find(ind => ind.id === setupData.industry)?.name} 推奨機能
-                          </h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                            {industryConfigs.find(ind => ind.id === setupData.industry)?.features.map((feature) => (
-                              <label key={feature} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={setupData.selectedFeatures.includes(feature)}
-                                  onChange={() => handleFeatureToggle(feature)}
-                                  className="w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
-                                />
-                                <span className="ml-3 text-gray-900 font-medium">{feature}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
+                        {/* 選択した業種の推奨機能をすべて表示 */}
+                        {setupData.industries.map((industryId) => {
+                          const industry = industryConfigs.find(ind => ind.id === industryId);
+                          if (!industry) return null;
+                          
+                          return (
+                            <div key={industryId}>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                {industry.icon} {industry.name} 推奨機能
+                              </h3>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                {industry.features.map((feature) => (
+                                  <label key={feature} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={setupData.selectedFeatures.includes(feature)}
+                                      onChange={() => handleFeatureToggle(feature)}
+                                      className="w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
+                                    />
+                                    <span className="ml-3 text-gray-900 font-medium">{feature}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
 
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">その他の機能</h3>
@@ -440,7 +766,14 @@ export default function Home() {
   }
 
   // 通常のダッシュボード表示
-  const selectedIndustry = industryConfigs.find(ind => ind.id === setupData.industry);
+  const selectedIndustries = setupData.industries.map(id => industryConfigs.find(ind => ind.id === id)).filter(Boolean);
+  const mainIndustry = industryConfigs.find(ind => ind.id === setupData.industry);
+  
+  // すべてのテンプレートをマージ
+  const allTemplates: Array<{name: string; description: string; icon: string; href: string}> = selectedIndustries.flatMap(industry => industry?.templates || []);
+  const uniqueTemplates = allTemplates.filter((template, index, self) => 
+    index === self.findIndex(t => t.name === template.name)
+  );
   
   return (
     <ProtectedRoute>
@@ -451,11 +784,27 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
-                  {selectedIndustry ? `${selectedIndustry.icon} ${setupData.companyName}` : 'ようこそ、Upmo Demoへ！'}
+                  {mainIndustry ? `${mainIndustry.icon} ${setupData.companyName}` : 'ようこそ、Upmo Demoへ！'}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-600">
-                  {selectedIndustry ? `${selectedIndustry.name}向けに最適化されたダッシュボードです` : 'Next.js + Firebase + Vercelで構築されたモダンなダッシュボードです。'}
+                  {mainIndustry 
+                    ? `${mainIndustry.name}${selectedIndustries.length > 1 ? ` ほか ${selectedIndustries.length - 1}業種` : ''}向けに最適化されたダッシュボードです` 
+                    : 'Next.js + Firebase + Vercelで構築されたモダンなダッシュボードです。'}
                 </p>
+                {selectedIndustries.length > 1 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedIndustries.slice(0, 3).map(industry => (
+                      <span key={industry?.id} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                        {industry?.icon} {industry?.name}
+                      </span>
+                    ))}
+                    {selectedIndustries.length > 3 && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                        +{selectedIndustries.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setIsSetupMode(true)}
@@ -467,13 +816,15 @@ export default function Home() {
           </div>
 
           {/* 業種別テンプレート */}
-          {selectedIndustry && (
+          {uniqueTemplates.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                {selectedIndustry.name} 向けテンプレート
+                {selectedIndustries.length === 1 
+                  ? `${mainIndustry?.name} 向けテンプレート`
+                  : `${selectedIndustries.length}業種向けテンプレート`}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {selectedIndustry.templates.map((template) => (
+                {uniqueTemplates.map((template) => (
                   <Link
                     key={template.name}
                     href={template.href}
@@ -624,7 +975,7 @@ export default function Home() {
           </div>
 
           {/* 自由タブ作成案内 */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6">
+          {/* <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">追加の機能が必要ですか？</h3>
@@ -639,7 +990,7 @@ export default function Home() {
                 自由タブを作成
               </Link>
             </div>
-          </div>
+          </div> */}
         </div>
       </Layout>
     </ProtectedRoute>

@@ -9,7 +9,6 @@ export interface BaseComponent {
 
 export enum ComponentType {
   DATA_TABLE = 'data_table',
-  CHART = 'chart',
   FORM = 'form',
   TEXT = 'text',
   IMAGE = 'image',
@@ -26,21 +25,6 @@ export interface DataTableComponent extends BaseComponent {
       options?: string[];
     }>;
     data: Record<string, string | number | Date>[];
-  };
-}
-
-export interface ChartComponent extends BaseComponent {
-  type: ComponentType.CHART;
-  config: {
-    chartType: 'bar' | 'line' | 'pie' | 'area';
-    data: Array<{
-      label: string;
-      value: number;
-      color?: string;
-    }>;
-    title: string;
-    xAxisLabel?: string;
-    yAxisLabel?: string;
   };
 }
 
@@ -87,7 +71,6 @@ export interface CalendarComponent extends BaseComponent {
 
 export type CustomComponent = 
   | DataTableComponent 
-  | ChartComponent 
   | FormComponent 
   | TextComponent
   | CalendarComponent;

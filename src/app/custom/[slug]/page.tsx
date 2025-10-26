@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Layout from "../../../components/Layout";
 import ComponentEditor from "../../../components/ComponentEditor";
 import DataTableComponent from "../../../components/DataTableComponent";
-import ChartComponent from "../../../components/ChartComponent";
 import FormComponent from "../../../components/FormComponent";
 import CalendarComponent from "../../../components/CalendarComponent";
 import { CustomComponent, ComponentType } from "../../../types/components";
@@ -156,13 +155,6 @@ export default function CustomTabPage() {
             key={component.id}
             component={component as any}
             onUpdate={handleUpdateComponent}
-          />
-        );
-      case ComponentType.CHART:
-        return (
-          <ChartComponent
-            key={component.id}
-            component={component as any}
           />
         );
       case ComponentType.FORM:
