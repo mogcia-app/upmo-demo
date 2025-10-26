@@ -766,7 +766,7 @@ export default function Home() {
   }
 
   // 通常のダッシュボード表示
-  const selectedIndustries = setupData.industries.map(id => industryConfigs.find(ind => ind.id === id)).filter(Boolean);
+  const selectedIndustries = (setupData.industries || []).map(id => industryConfigs.find(ind => ind.id === id)).filter(Boolean);
   const mainIndustry = industryConfigs.find(ind => ind.id === setupData.industry);
   
   // すべてのテンプレートをマージ
