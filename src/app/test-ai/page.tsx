@@ -54,7 +54,7 @@ export default function TestAIPage() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8">
       <h1 className="text-2xl font-bold mb-6">AI API テストページ</h1>
       
       <div className="space-y-4">

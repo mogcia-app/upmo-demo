@@ -159,7 +159,7 @@ export default function Home() {
     if (!user || !setupData.companyName || setupData.industries.length === 0) return;
 
     try {
-      const { doc, updateDoc } = await import('firebase/firestore');
+      const { doc, setDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
       const updatedSetupData = {
@@ -168,10 +168,10 @@ export default function Home() {
         completedAt: new Date()
       };
 
-      await updateDoc(doc(db, 'users', user.uid), {
+      await setDoc(doc(db, 'users', user.uid), {
         companySetup: updatedSetupData,
         companyName: setupData.companyName
-      });
+      }, { merge: true });
 
       setSetupData(updatedSetupData);
       setIsSetupMode(false);
@@ -458,7 +458,7 @@ export default function Home() {
     if (setup.industries.length === 0) return;
 
     try {
-      const { doc, updateDoc } = await import('firebase/firestore');
+      const { doc, setDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
       // 複数業種のテンプレートをマージ
@@ -492,7 +492,7 @@ export default function Home() {
         };
       });
 
-      await updateDoc(doc(db, 'users', user!.uid), {
+      await setDoc(doc(db, 'users', user!.uid), {
         customTabs: customTabs,
         industryTheme: mainIndustry ? {
           industry: mainIndustry.name,
@@ -500,7 +500,7 @@ export default function Home() {
           icon: mainIndustry.icon,
           industries: setup.industries.map(id => industryConfigs.find(ind => ind.id === id)?.name || id)
         } : {}
-      });
+      }, { merge: true });
 
       // ローカルストレージにも保存
       localStorage.setItem('customTabs', JSON.stringify(customTabs));
@@ -530,8 +530,8 @@ export default function Home() {
       <ProtectedRoute>
         <Layout>
           <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-            <div className="container mx-auto px-4 py-8">
-              <div className="max-w-4xl mx-auto">
+            <div className="px-4 py-8">
+              <div>
                 {/* ヘッダー */}
                 <div className="text-center mb-8">
                   <h1 className="text-4xl font-bold text-gray-900 mb-4">

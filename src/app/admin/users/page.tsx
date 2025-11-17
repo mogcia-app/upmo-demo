@@ -48,11 +48,11 @@ export default function UsersPage() {
       const data = await response.json();
       
       if (response.ok) {
-        // Firestoreから取得した日付をDateオブジェクトに変換
+        // APIから取得した日付文字列をDateオブジェクトに変換
         const usersWithDates = data.users.map((user: any) => ({
           ...user,
-          createdAt: user.createdAt?.toDate ? user.createdAt.toDate() : new Date(user.createdAt || Date.now()),
-          lastLoginAt: user.lastLoginAt?.toDate ? user.lastLoginAt.toDate() : (user.lastLoginAt ? new Date(user.lastLoginAt) : undefined)
+          createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+          lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt) : undefined
         }));
         setUsers(usersWithDates);
       } else {

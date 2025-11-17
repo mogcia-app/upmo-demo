@@ -27,6 +27,7 @@ export default function TodoPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [viewMode, setViewMode] = useState<'board' | 'gantt'>('board');
 
   // ローカルストレージからTODOを読み込み
   useEffect(() => {
@@ -159,6 +160,218 @@ export default function TodoPage() {
     }
   };
 
+  // ガントチャート用のデモデータを生成
+  const getGanttData = () => {
+    const now = new Date();
+    const ganttTodos = todos.length > 0 ? todos : [
+      {
+        id: '1',
+        text: 'プロジェクト企画',
+        createdAt: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000),
+        dueDate: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        status: 'shared' as const,
+        priority: 'high' as const,
+        assignee: '田中',
+        description: '新規プロジェクトの企画と要件定義'
+      },
+      {
+        id: '2',
+        text: 'デザイン作成',
+        createdAt: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
+        dueDate: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+        status: 'in-progress' as const,
+        priority: 'high' as const,
+        assignee: '佐藤',
+        description: 'UI/UXデザインの作成'
+      },
+      {
+        id: '3',
+        text: '開発実装',
+        createdAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        status: 'in-progress' as const,
+        priority: 'medium' as const,
+        assignee: '山田',
+        description: 'フロントエンド・バックエンドの実装'
+      },
+      {
+        id: '4',
+        text: 'テスト実施',
+        createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+        dueDate: new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000),
+        status: 'todo' as const,
+        priority: 'medium' as const,
+        assignee: '鈴木',
+        description: '単体テスト・結合テストの実施'
+      },
+      {
+        id: '5',
+        text: 'リリース準備',
+        createdAt: new Date(now.getTime()),
+        dueDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+        status: 'todo' as const,
+        priority: 'low' as const,
+        assignee: '高橋',
+        description: 'リリースノート作成とデプロイ準備'
+      }
+    ];
+
+    return ganttTodos.map(todo => ({
+      ...todo,
+      startDate: todo.createdAt,
+      endDate: todo.dueDate || new Date(todo.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000),
+      progress: todo.status === 'shared' ? 0 : todo.status === 'todo' ? 0 : todo.status === 'in-progress' ? 50 : 100
+    }));
+  };
+
+  // ガントチャートコンポーネント
+  const GanttChart = () => {
+    const ganttData = getGanttData();
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 14);
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 21);
+    
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const dayWidth = 40; // 1日の幅（px）
+
+    const getDatePosition = (date: Date) => {
+      const diffDays = Math.ceil((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays * dayWidth;
+    };
+
+    const getTaskWidth = (task: any) => {
+      const duration = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
+      return Math.max(duration * dayWidth, 100);
+    };
+
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'shared': return 'bg-blue-500';
+        case 'todo': return 'bg-green-500';
+        case 'in-progress': return 'bg-pink-500';
+        default: return 'bg-gray-500';
+      }
+    };
+
+    const getPriorityColor = (priority: string) => {
+      switch (priority) {
+        case 'high': return 'border-l-4 border-red-500';
+        case 'medium': return 'border-l-4 border-yellow-500';
+        case 'low': return 'border-l-4 border-green-500';
+        default: return 'border-l-4 border-gray-500';
+      }
+    };
+
+    // 日付ラベルの生成
+    const dateLabels = [];
+    for (let i = 0; i <= days; i += 7) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      dateLabels.push(date);
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">ガントチャート</h2>
+          <div className="flex gap-4 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-blue-500 rounded"></div>
+              <span>共有事項</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded"></div>
+              <span>ToDo</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-pink-500 rounded"></div>
+              <span>進行中</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative overflow-x-auto">
+          {/* 日付ヘッダー */}
+          <div className="flex border-b border-gray-200 mb-4 sticky top-0 bg-white z-20" style={{ minWidth: `${days * dayWidth}px` }}>
+            {dateLabels.map((date, index) => (
+              <div
+                key={index}
+                className="flex-shrink-0 text-xs text-gray-600 border-r border-gray-200 px-2 py-2"
+                style={{ width: `${7 * dayWidth}px` }}
+              >
+                <div className="font-medium">{date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}</div>
+                <div className="text-gray-400">{date.toLocaleDateString('ja-JP', { weekday: 'short' })}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* タスクバー */}
+          <div className="relative space-y-4" style={{ minWidth: `${days * dayWidth}px` }}>
+            {/* 今日のマーカー */}
+            <div
+              className="absolute w-0.5 bg-red-500 z-10 pointer-events-none"
+              style={{
+                left: `${getDatePosition(today)}px`,
+                top: '0',
+                height: `${ganttData.length * 100 + 40}px`
+              }}
+            >
+              <div className="absolute -top-6 -left-8 bg-red-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                今日
+              </div>
+            </div>
+
+            {ganttData.map((task, index) => {
+              const left = getDatePosition(task.startDate);
+              const width = getTaskWidth(task);
+              const isPast = task.endDate < today;
+              const isCurrent = task.startDate <= today && task.endDate >= today;
+
+              return (
+                <div key={task.id} className={`relative ${getPriorityColor(task.priority)} bg-white border border-gray-200 rounded p-3 hover:shadow-md transition-shadow mb-4`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${getStatusColor(task.status)}`}></div>
+                      <h3 className="font-medium text-gray-900">{task.text}</h3>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{task.assignee}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {task.startDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })} - {task.endDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                    </div>
+                  </div>
+                  
+                  <div className="relative" style={{ height: '40px', background: '#f3f4f6', borderRadius: '4px', overflow: 'visible' }}>
+                    {/* タスクバー */}
+                    <div
+                      className={`absolute top-0 h-full ${getStatusColor(task.status)} rounded flex items-center justify-center text-white text-xs font-medium shadow-sm`}
+                      style={{
+                        left: `${left}px`,
+                        width: `${width}px`,
+                        opacity: isPast ? 0.6 : isCurrent ? 1 : 0.8,
+                        minWidth: '80px'
+                      }}
+                    >
+                      {task.progress > 0 && (
+                        <div className="absolute inset-0 bg-black bg-opacity-20 rounded" style={{ width: `${task.progress}%` }}></div>
+                      )}
+                      <span className="relative z-10 px-2 truncate font-medium">{task.text}</span>
+                    </div>
+                  </div>
+                  
+                  {task.description && (
+                    <p className="text-xs text-gray-600 mt-3">{task.description}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // TaskCardコンポーネント
   const TaskCard = ({ todo, index, onEdit, onDelete, onStatusChange }: {
     todo: TodoItem;
@@ -282,10 +495,24 @@ export default function TodoPage() {
               <div className="flex items-center gap-4">
                 <h1 className="text-2xl font-bold text-gray-900">Upmo</h1>
                 <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
+                  <button
+                    onClick={() => setViewMode('board')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      viewMode === 'board'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
                     ボード
                   </button>
-                  <button className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium">
+                  <button
+                    onClick={() => setViewMode('gantt')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      viewMode === 'gantt'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
                     ガントチャート
                   </button>
                 </div>
@@ -316,8 +543,11 @@ export default function TodoPage() {
             </div>
           </div>
 
-          {/* カンバンボード */}
+          {/* カンバンボードまたはガントチャート */}
           <div className="p-4 sm:p-6">
+            {viewMode === 'gantt' ? (
+              <GanttChart />
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               {/* 共有事項 */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -400,6 +630,7 @@ export default function TodoPage() {
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           {/* タスク追加フォーム */}

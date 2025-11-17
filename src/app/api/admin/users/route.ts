@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Firebase Admin SDK の初期化
 if (!getApps().length) {
@@ -127,11 +127,41 @@ export async function GET(request: NextRequest) {
     const usersSnapshot = await db.collection('users').get();
     const users = usersSnapshot.docs.map(doc => {
       const data = doc.data();
+      
+      // TimestampオブジェクトをDateオブジェクトに変換
+      let createdAt: Date;
+      if (data.createdAt instanceof Timestamp) {
+        createdAt = data.createdAt.toDate();
+      } else if (data.createdAt?.toDate && typeof data.createdAt.toDate === 'function') {
+        createdAt = data.createdAt.toDate();
+      } else if (data.createdAt) {
+        createdAt = new Date(data.createdAt);
+      } else {
+        createdAt = new Date();
+      }
+      
+      let lastLoginAt: Date | undefined;
+      if (data.lastLoginAt) {
+        if (data.lastLoginAt instanceof Timestamp) {
+          lastLoginAt = data.lastLoginAt.toDate();
+        } else if (data.lastLoginAt?.toDate && typeof data.lastLoginAt.toDate === 'function') {
+          lastLoginAt = data.lastLoginAt.toDate();
+        } else {
+          lastLoginAt = new Date(data.lastLoginAt);
+        }
+      }
+      
       return {
         id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
-        lastLoginAt: data.lastLoginAt?.toDate ? data.lastLoginAt.toDate() : (data.lastLoginAt ? new Date(data.lastLoginAt) : undefined)
+        email: data.email || '',
+        displayName: data.displayName || '',
+        photoURL: data.photoURL || undefined,
+        role: data.role || 'user',
+        status: data.status || 'active',
+        department: data.department || '',
+        position: data.position || '',
+        createdAt: createdAt.toISOString(),
+        lastLoginAt: lastLoginAt?.toISOString()
       };
     });
 
