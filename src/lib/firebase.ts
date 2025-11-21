@@ -40,12 +40,14 @@ const validateConfig = () => {
   );
 
   if (missingVars.length > 0) {
-    // 開発環境では警告のみ表示し、エラーをスローしない
+    // 開発環境・本番環境ともに警告のみ表示し、エラーをスローしない
+    // （本番環境でも環境変数が設定されていない場合、アプリがクラッシュしないようにする）
+    console.warn(
+      '⚠️ Missing Firebase environment variables:',
+      missingVars.join(', ')
+    );
+    
     if (process.env.NODE_ENV === 'development') {
-      console.warn(
-        '⚠️ Missing Firebase environment variables:',
-        missingVars.join(', ')
-      );
       console.warn(
         'Please create a .env.local file in the project root with the following variables:'
       );
@@ -55,18 +57,19 @@ const validateConfig = () => {
       console.warn(
         'Note: After updating .env.local, you need to restart the Next.js development server.'
       );
-      console.warn(
-        'The app will continue to run, but Firebase features will not work until these are set.'
-      );
-      return false;
     } else {
-      // 本番環境ではエラーをスロー
-      console.error(
-        'Missing Firebase environment variables:',
-        missingVars.join(', ')
+      console.warn(
+        'Please set the following environment variables in your deployment platform (Vercel, etc.):'
       );
-      throw new Error('Firebase configuration is incomplete. Please check your environment variables.');
+      console.warn(
+        requiredEnvVars.map(v => `${v}=your_value_here`).join('\n')
+      );
     }
+    
+    console.warn(
+      'The app will continue to run, but Firebase features will not work until these are set.'
+    );
+    return false;
   }
 
   return true;
@@ -91,26 +94,30 @@ if (getApps().length === 0) {
   const isValid = validateConfig();
   
   // 環境変数が設定されている場合、または設定されていなくても初期化を試みる
-  // （以前の動作を維持するため）
   try {
     // 環境変数がすべて設定されている場合のみ初期化
     if (isValid) {
       app = initializeApp(firebaseConfig);
     } else {
-      // 開発環境で環境変数が設定されていない場合でも、設定値があれば初期化を試みる
-      // （一部の環境変数が設定されている可能性があるため）
+      // 環境変数が一部でも設定されている場合、初期化を試みる
+      // （本番環境でも環境変数が正しく設定されていない場合に備える）
       const hasAnyConfig = Object.values(firebaseConfig).some(val => val && val !== '');
-      if (hasAnyConfig && process.env.NODE_ENV === 'development') {
+      if (hasAnyConfig) {
         console.warn('⚠️ Some Firebase environment variables are missing, but attempting initialization with available values.');
-        app = initializeApp(firebaseConfig);
+        try {
+          app = initializeApp(firebaseConfig);
+        } catch (initError) {
+          console.error('Firebase initialization failed with partial config:', initError);
+          // 初期化に失敗した場合はnullのまま（アプリはクラッシュしない）
+        }
+      } else {
+        console.warn('⚠️ No Firebase environment variables found. Firebase features will not be available.');
       }
     }
   } catch (error) {
     console.error('Firebase initialization error:', error);
-    // 開発環境ではエラーをスローせず、nullのままにする
-    if (process.env.NODE_ENV !== 'development') {
-      throw error;
-    }
+    // エラーをスローせず、nullのままにする（アプリはクラッシュしない）
+    app = null;
   }
 } else {
   app = getApps()[0];
