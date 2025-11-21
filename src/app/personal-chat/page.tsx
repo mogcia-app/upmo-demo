@@ -5,6 +5,7 @@ import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
 import AIAssistantIcon from "../../components/AIAssistantIcon";
+import { fetchChatSession, updateChatSession, saveChatSession, ChatMessage } from "../../utils/chatHistory";
 
 interface Message {
   id: string;
@@ -12,6 +13,12 @@ interface Message {
   sender: 'user' | 'ai';
   timestamp: Date;
   isTyping?: boolean;
+}
+
+interface TeamMember {
+  id: string;
+  displayName: string;
+  email: string;
 }
 
 interface Chat {
@@ -30,125 +37,239 @@ export default function PersonalChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeChat, setActiveChat] = useState<string>("ai-assistant");
   const [chats, setChats] = useState<Chat[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { user } = useAuth();
 
-  // チャット履歴を読み込み
+  // チームメンバーを取得
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (!user) return;
+      
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const members = data.users
+            .filter((u: any) => u.id !== user.uid && u.role === 'user')
+            .map((u: any) => ({
+              id: u.id,
+              displayName: u.displayName,
+              email: u.email
+            }));
+          setTeamMembers(members);
+        }
+      } catch (error) {
+        console.error('チームメンバーの読み込みエラー:', error);
+      }
+    };
+
+    loadTeamMembers();
+  }, [user]);
+
+  // チャット履歴を読み込み（Firestoreから）
   const loadChatHistory = async (chatId: string) => {
     if (!user) return;
     
     try {
-      // ローカルストレージから履歴を読み込み
-      const historyKey = `chat_history_${user.uid}_${chatId}`;
-      const savedHistory = localStorage.getItem(historyKey);
-      
-      if (savedHistory) {
-        const parsedHistory = JSON.parse(savedHistory);
-        const messagesWithDates = parsedHistory.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }));
-        setMessages(messagesWithDates);
-        console.log('チャット履歴を読み込みました:', messagesWithDates.length, '件のメッセージ');
+      if (chatId === "ai-assistant") {
+        // AIアシスタントの場合
+        const session = await fetchChatSession(user.uid, chatId);
+        
+        if (session && session.messages.length > 0) {
+          const loadedMessages: Message[] = session.messages
+            .filter((msg: ChatMessage) => msg.sender === 'user' || msg.sender === 'ai')
+            .map((msg: ChatMessage) => ({
+              id: msg.id,
+              text: msg.text,
+              sender: msg.sender === 'ai' ? 'ai' : 'user',
+              timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp),
+              isTyping: msg.isTyping
+            }));
+          setMessages(loadedMessages);
+          setCurrentSessionId(session.id);
+        } else {
+          const initialMessages: Message[] = [
+            {
+              id: "1",
+              text: "こんにちは！お気軽にご質問ください！",
+              sender: "ai",
+              timestamp: new Date()
+            }
+          ];
+          setMessages(initialMessages);
+          setCurrentSessionId(null);
+        }
       } else {
-        // 新しいセッション
-        const initialMessages: Message[] = [
-          {
-            id: "1",
-            text: chatId === "ai-assistant" 
-              ? "こんにちは！お気軽にご質問ください！"
-              : "こんにちは！何かお手伝いできることはありますか？",
-            sender: "ai",
-            timestamp: new Date()
-          }
-        ];
-        setMessages(initialMessages);
+        // チームメンバーとのチャットの場合
+        // 自分のセッションと相手のセッションの両方を確認
+        const mySession = await fetchChatSession(user.uid, chatId);
+        const otherUserSession = await fetchChatSession(chatId, user.uid);
+        
+        // 両方のセッションのメッセージをマージ
+        const allMessages: ChatMessage[] = [];
+        if (mySession) {
+          allMessages.push(...mySession.messages);
+        }
+        if (otherUserSession) {
+          // 相手のセッションのメッセージを追加（senderを'user'に変換）
+          allMessages.push(...otherUserSession.messages.map(msg => ({
+            ...msg,
+            sender: msg.sender === 'other' ? 'user' : msg.sender
+          })));
+        }
+        
+        // タイムスタンプでソート
+        allMessages.sort((a, b) => {
+          const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+          const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+          return timeA - timeB;
+        });
+        
+        if (allMessages.length > 0) {
+          const loadedMessages: Message[] = allMessages.map((msg: ChatMessage) => ({
+            id: msg.id,
+            text: msg.text,
+            sender: msg.sender === 'ai' ? 'ai' : (msg.sender === 'other' ? 'user' : 'user'),
+            timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp),
+            isTyping: msg.isTyping
+          }));
+          setMessages(loadedMessages);
+          setCurrentSessionId(mySession?.id || null);
+        } else {
+          // 新しいチャット
+          setMessages([]);
+          setCurrentSessionId(null);
+        }
       }
     } catch (error) {
       console.error('チャット履歴の読み込みエラー:', error);
+      const initialMessages: Message[] = chatId === "ai-assistant" 
+        ? [{
+            id: "1",
+            text: "こんにちは！お気軽にご質問ください！",
+            sender: "ai" as const,
+            timestamp: new Date()
+          }]
+        : [];
+      setMessages(initialMessages);
+      setCurrentSessionId(null);
     }
   };
 
-  // チャット履歴を保存
+  // チャット履歴を保存（Firestoreに）
   const saveChatHistory = async (chatId: string, messages: Message[]) => {
     if (!user) return;
     
     try {
-      const historyKey = `chat_history_${user.uid}_${chatId}`;
-      localStorage.setItem(historyKey, JSON.stringify(messages));
+      const chatMessages: ChatMessage[] = messages
+        .filter(msg => !msg.isTyping) // タイピング中のメッセージは除外
+        .map(msg => ({
+          id: msg.id,
+          text: msg.text,
+          sender: msg.sender === 'ai' ? 'ai' : 'user',
+          senderName: msg.sender === 'user' ? (user.displayName || user.email || 'Unknown') : undefined,
+          timestamp: msg.timestamp,
+          isTyping: false
+        }));
+
+      if (activeChat === "ai-assistant") {
+        // AIアシスタントの場合は自分のセッションのみ保存
+        if (currentSessionId) {
+          await updateChatSession(currentSessionId, chatMessages);
+        } else {
+          const sessionId = await saveChatSession({
+            userId: user.uid,
+            chatId: chatId,
+            messages: chatMessages,
+            lastUpdated: new Date()
+          });
+          setCurrentSessionId(sessionId);
+        }
+      } else {
+        // チームメンバーとのチャットの場合、両方のユーザーのセッションに保存
+        const otherUserId = chatId;
+        const participants = [user.uid, otherUserId].sort(); // ソートして一意のチャットルームIDを作成
+        
+        // 自分のセッションを保存/更新
+        if (currentSessionId) {
+          await updateChatSession(currentSessionId, chatMessages);
+        } else {
+          const sessionId = await saveChatSession({
+            userId: user.uid,
+            chatId: chatId,
+            messages: chatMessages,
+            lastUpdated: new Date()
+          });
+          setCurrentSessionId(sessionId);
+        }
+        
+        // 相手のセッションも保存/更新
+        try {
+          const otherUserSession = await fetchChatSession(otherUserId, user.uid);
+          if (otherUserSession) {
+            // 相手のセッションに自分のメッセージを追加
+            const otherUserMessages: ChatMessage[] = [
+              ...otherUserSession.messages,
+              ...chatMessages.filter(msg => msg.sender === 'user')
+            ];
+            await updateChatSession(otherUserSession.id, otherUserMessages);
+          } else {
+            // 相手のセッションが存在しない場合は作成
+            const otherUserChatMessages: ChatMessage[] = chatMessages
+              .filter(msg => msg.sender === 'user')
+              .map(msg => ({
+                ...msg,
+                sender: 'other' as const,
+                senderName: user.displayName || user.email || 'Unknown'
+              }));
+            await saveChatSession({
+              userId: otherUserId,
+              chatId: user.uid,
+              messages: otherUserChatMessages,
+              lastUpdated: new Date()
+            });
+          }
+        } catch (error) {
+          console.error('相手のセッション保存エラー:', error);
+        }
+      }
     } catch (error) {
       console.error('チャット履歴の保存エラー:', error);
     }
   };
 
-  // 手動入力データを検索
-  const searchManualDocuments = async (query: string): Promise<string> => {
+  // AIチャットで回答を生成（LLM使用）
+  const generateAIResponse = async (query: string): Promise<string> => {
     if (!user) return "ユーザーが認証されていません。";
 
     try {
-      const response = await fetch(`/api/search-manual?q=${encodeURIComponent(query)}&userId=${user.uid}`);
-      
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: query,
+          userId: user.uid
+        }),
+      });
+
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.answer && data.answer !== '該当する情報が見つかりませんでした。') {
-          console.log('手動入力データ取得成功:', data.answer);
-          console.log('検索クエリ:', query);
-          console.log('検索結果の詳細:', data);
-          // 手動サンドイッチ形式で回答を生成
-          const sandwichResponse = await generateManualSandwichResponse(query, data.answer);
-          console.log('手動サンドイッチ回答生成結果:', sandwichResponse);
-          console.log('最終回答:', sandwichResponse);
-          return sandwichResponse;
-        } else {
-          console.log('手動入力データが見つかりませんでした');
-          console.log('検索結果:', data);
-        }
+        return data.response || '申し訳ございません。回答を生成できませんでした。';
+      } else {
+        const errorData = await response.json();
+        return errorData.response || 'エラーが発生しました。もう一度お試しください。';
       }
-      
-      return "申し訳ございません！該当する情報が見つかりませんでした。";
     } catch (error) {
-      console.error('手動文書検索エラー:', error);
-      return "検索中にエラーが発生しました。";
-    }
-  };
-
-  // 手動ロジックでサンドイッチ形式の回答を生成する関数
-  const generateManualSandwichResponse = async (query: string, manualData: string): Promise<string> => {
-    try {
-      console.log('手動サンドイッチ回答生成開始 - 質問:', query, '手動データ:', manualData);
-      
-      // 手動入力データから不要な部分を削除
-      const cleanData = manualData
-        .replace(/他にも関連する情報があります。/g, '')
-        .replace(/features/g, '')
-        .replace(/overview/g, '')
-        .replace(/pricing/g, '')
-        .replace(/procedures/g, '')
-        .replace(/support/g, '')
-        .replace(/rules/g, '')
-        .replace(/terms/g, '')
-        .replace(/^.*について\s*$/gm, '') // 「Upmoについて」のような行を削除
-        .trim();
-
-      console.log('クリーニング後のデータ:', cleanData);
-
-      // 質問からキーワードを抽出
-      const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
-      console.log('抽出されたキーワード:', keyword);
-
-      // 手動でサンドイッチ形式を組み立て
-      const greeting = `${keyword}についてのご質問ですね✨`;
-      const itemCount = cleanData.split('\n').filter(line => line.trim()).length;
-      const closing = `が主な${keyword}です。`;
-
-      const result = `${greeting}\n\n${cleanData}\n\n${closing}`;
-      console.log('手動サンドイッチ回答生成完了:', result);
-      return result;
-    } catch (error) {
-      console.error('手動回答生成エラー:', error);
-      // エラー時も手動で組み立て
-      const keyword = query.replace(/について教えて/g, '').replace(/について/g, '').trim();
-      const itemCount = manualData.split('\n').filter(line => line.trim()).length;
-      return `${keyword}についてのご質問ですね✨\n\n${manualData}\n\nが主な${keyword}です。`;
+      console.error('AI回答生成エラー:', error);
+      return 'エラーが発生しました。もう一度お試しください。';
     }
   };
 
@@ -187,8 +308,8 @@ export default function PersonalChatPage() {
         // 少し待機してから検索（考えている演出）
         await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
         
-        // 手動入力データを検索
-        const aiResponse = await searchManualDocuments(inputText.trim());
+        // AIで回答を生成（LLM使用、文書管理の内容があればそれも参照）
+        const aiResponse = await generateAIResponse(inputText.trim());
         
         // ローディングメッセージを削除してAI回答を追加
         const finalMessages = newMessages.concat({
@@ -220,7 +341,7 @@ export default function PersonalChatPage() {
         setIsLoading(false);
       }
     } else {
-      // チームメンバーとのチャットの場合、メッセージのみ保存
+      // チームメンバーとのチャットの場合
       await saveChatHistory(activeChat, newMessages);
       setIsLoading(false);
     }
@@ -242,9 +363,62 @@ export default function PersonalChatPage() {
     if (user) {
       // デフォルトチャットを読み込み
       loadChatHistory(activeChat);
-      
-      // チャットリストを初期化（AIアシスタント + チームメンバー）
-      setChats([
+    }
+  }, [user, activeChat]);
+
+  // リアルタイム更新（チームメンバーとのチャットのみ）
+  useEffect(() => {
+    if (!user || activeChat === "ai-assistant") return;
+
+    let checkInterval: NodeJS.Timeout | null = null;
+
+    // 定期的にチェック（簡易的な実装）
+    const startPolling = async () => {
+      checkInterval = setInterval(async () => {
+        try {
+          const updatedSession = await fetchChatSession(activeChat, user.uid);
+          if (updatedSession) {
+            const newMessages = updatedSession.messages
+              .filter(msg => msg.sender === 'other')
+              .map(msg => ({
+                id: msg.id,
+                text: msg.text,
+                sender: 'user' as const,
+                timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp),
+                isTyping: false
+              }));
+            
+            // 既存のメッセージとマージ（重複を避ける）
+            setMessages(prev => {
+              const existingIds = new Set(prev.map(m => m.id));
+              const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
+              if (uniqueNewMessages.length > 0) {
+                return [...prev, ...uniqueNewMessages].sort((a, b) => 
+                  a.timestamp.getTime() - b.timestamp.getTime()
+                );
+              }
+              return prev;
+            });
+          }
+        } catch (error) {
+          console.error('リアルタイム更新エラー:', error);
+        }
+      }, 2000); // 2秒ごとにチェック
+    };
+
+    startPolling();
+
+    return () => {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+    };
+  }, [user, activeChat]);
+
+  // チームメンバーが読み込まれたらチャットリストを更新
+  useEffect(() => {
+    if (user) {
+      const chatList: Chat[] = [
         {
           id: "ai-assistant",
           name: "AI アシスタント",
@@ -254,45 +428,19 @@ export default function PersonalChatPage() {
           unreadCount: 0,
           isOnline: true
         },
-        {
-          id: "team-member-1",
-          name: "田中 太郎",
-          avatar: "👨‍💼",
-          lastMessage: "お疲れ様です！プロジェクトの進捗はいかがですか？",
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2時間前
-          unreadCount: 2,
-          isOnline: true
-        },
-        {
-          id: "team-member-2",
-          name: "佐藤 花子",
-          avatar: "👩‍💻",
-          lastMessage: "資料の確認お願いします！",
-          timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4時間前
-          unreadCount: 1,
-          isOnline: false
-        },
-        {
-          id: "team-member-3",
-          name: "鈴木 一郎",
-          avatar: "👨‍🔧",
-          lastMessage: "会議の時間変更になりました",
-          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6時間前
+        ...teamMembers.map((member) => ({
+          id: member.id,
+          name: member.displayName,
+          avatar: member.displayName.charAt(0).toUpperCase(),
+          lastMessage: "メッセージを開始",
+          timestamp: new Date(),
           unreadCount: 0,
-          isOnline: true
-        },
-        {
-          id: "team-member-4",
-          name: "高橋 美咲",
-          avatar: "👩‍🎨",
-          lastMessage: "デザイン案を送りました！",
-          timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8時間前
-          unreadCount: 0,
-          isOnline: false
-        }
-      ]);
+          isOnline: false // オンライン状態は実装していないため、デフォルトでfalse
+        }))
+      ];
+      setChats(chatList);
     }
-  }, [user]);
+  }, [user, teamMembers]);
 
   // Enterキーでメッセージ送信
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -116,36 +116,63 @@ export default function CustomTabPage() {
   }, [slug, user, getCustomTabByRoute]);
 
   const handleAddComponent = async (newComponent: CustomComponent) => {
-    const updatedComponents = [...components, newComponent];
-    setComponents(updatedComponents);
+    if (!currentTab || !user || currentTab.userId !== user.uid) {
+      alert("このタブは編集できません。所有者のみが編集できます。");
+      return;
+    }
     
-    // Firestoreに保存
-    if (currentTab) {
+    try {
+      const updatedComponents = [...components, newComponent];
+      setComponents(updatedComponents);
+      
+      // Firestoreに保存
       await updateCustomTabComponents(currentTab.id, updatedComponents);
+    } catch (error: any) {
+      console.error("Error adding component:", error);
+      alert(error.message || "コンポーネントの追加に失敗しました。");
     }
   };
 
   const handleUpdateComponent = async (updatedComponent: CustomComponent) => {
-    const updatedComponents = components.map(comp => 
-      comp.id === updatedComponent.id ? updatedComponent : comp
-    );
-    setComponents(updatedComponents);
+    if (!currentTab || !user || currentTab.userId !== user.uid) {
+      alert("このタブは編集できません。所有者のみが編集できます。");
+      return;
+    }
     
-    // Firestoreに保存
-    if (currentTab) {
+    try {
+      const updatedComponents = components.map(comp => 
+        comp.id === updatedComponent.id ? updatedComponent : comp
+      );
+      setComponents(updatedComponents);
+      
+      // Firestoreに保存
       await updateCustomTabComponents(currentTab.id, updatedComponents);
+    } catch (error: any) {
+      console.error("Error updating component:", error);
+      alert(error.message || "コンポーネントの更新に失敗しました。");
     }
   };
 
   const handleDeleteComponent = async (componentId: string) => {
-    const updatedComponents = components.filter(comp => comp.id !== componentId);
-    setComponents(updatedComponents);
+    if (!currentTab || !user || currentTab.userId !== user.uid) {
+      alert("このタブは編集できません。所有者のみが編集できます。");
+      return;
+    }
     
-    // Firestoreに保存
-    if (currentTab) {
+    try {
+      const updatedComponents = components.filter(comp => comp.id !== componentId);
+      setComponents(updatedComponents);
+      
+      // Firestoreに保存
       await updateCustomTabComponents(currentTab.id, updatedComponents);
+    } catch (error: any) {
+      console.error("Error deleting component:", error);
+      alert(error.message || "コンポーネントの削除に失敗しました。");
     }
   };
+  
+  // タブの所有者かどうかを確認
+  const isOwner = currentTab && user && currentTab.userId === user.uid;
 
   const renderComponent = (component: CustomComponent) => {
     switch (component.type) {
@@ -216,22 +243,34 @@ export default function CustomTabPage() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                {currentTab ? currentTab.title : title}
-              </h1>
+              <div className="flex items-center space-x-2 mb-2">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {currentTab ? currentTab.title : title}
+                </h1>
+                {currentTab?.isShared && (
+                  <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                    共有
+                  </span>
+                )}
+              </div>
               <p className="text-gray-600">
-                カスタムコンポーネントで自由にページを構築できます。
+                {isOwner 
+                  ? "カスタムコンポーネントで自由にページを構築できます。"
+                  : "このタブは共有されています。閲覧のみ可能です。"
+                }
               </p>
             </div>
-            <button
-              onClick={() => setShowComponentEditor(true)}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors flex items-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>コンポーネントを追加</span>
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowComponentEditor(true)}
+                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors flex items-center space-x-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>コンポーネントを追加</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -241,15 +280,17 @@ export default function CustomTabPage() {
             components.map((component) => (
               <div key={component.id} className="relative group">
                 {renderComponent(component)}
-                <button
-                  onClick={() => handleDeleteComponent(component.id)}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200"
-                  title="コンポーネントを削除"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={() => handleDeleteComponent(component.id)}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200"
+                    title="コンポーネントを削除"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ))
           ) : (
@@ -265,12 +306,14 @@ export default function CustomTabPage() {
               <p className="text-gray-600 mb-6">
                 データテーブル、チャート、フォームなどのコンポーネントを自由に追加して、カスタムページを構築できます。
               </p>
-              <button
-                onClick={() => setShowComponentEditor(true)}
-                className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-              >
-                最初のコンポーネントを追加
-              </button>
+              {isOwner && (
+                <button
+                  onClick={() => setShowComponentEditor(true)}
+                  className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                >
+                  最初のコンポーネントを追加
+                </button>
+              )}
             </div>
           )}
         </div>

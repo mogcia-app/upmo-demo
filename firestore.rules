@@ -1,10 +1,78 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 開発環境用：すべてのドキュメントへのアクセスを許可
-    // 本番環境では適切なセキュリティルールに変更してください
+    // ユーザーコレクション：認証済みユーザーは自分のデータのみ読み書き可能
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // カスタムタブコレクション：認証済みユーザーは自分のタブまたは共有されたタブを読み取り可能
+    match /customTabs/{tabId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        (resource.data.isShared == true)
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // 手動文書コレクション：認証済みユーザーは自分の文書のみ読み書き可能（管理者は全件読み取り可能）
+    match /manualDocuments/{docId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+    
+    // カスタムタブコンポーネント：カスタムタブと同じルール
+    match /customTabComponents/{componentId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // TODOコレクション：認証済みユーザーは自分のTODOまたは共有されたTODOを読み取り可能
+    match /todos/{todoId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith)
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith)
+      );
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // チャットセッションコレクション：認証済みユーザーは自分のセッションのみ読み書き可能
+    match /chatSessions/{sessionId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // イベントコレクション：認証済みユーザーは自分のイベントまたは共有されたイベントを読み取り可能
+    match /events/{eventId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith)
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        (resource.data.sharedWith != null && request.auth.uid in resource.data.sharedWith)
+      );
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // その他のコレクション：認証済みユーザーのみアクセス可能
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }

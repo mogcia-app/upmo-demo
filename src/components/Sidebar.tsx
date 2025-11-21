@@ -19,7 +19,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     { name: "ダッシュボード", icon: "•", href: "/" },
     { name: "個人チャット", icon: "•", href: "/personal-chat" },
     { name: "TODOリスト", icon: "•", href: "/todo" },
-    { name: "顧客管理", icon: "•", href: "/customers" },
   ];
 
   const adminMenuItems = [
@@ -109,30 +108,40 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           </div>
 
           <ul className="space-y-1 px-4 mb-4">
-            {customTabs.map((tab) => (
-              <li key={tab.id} className="group">
-                <div className="flex items-center">
-                  <a
-                    href={tab.route}
-                    className="flex-1 flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white transition-colors duration-200 ease-in-out text-sm"
-                  >
-                    <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
-                      {tab.icon}
-                    </span>
-                    <span className="font-medium">{tab.title}</span>
-                  </a>
-                  <button
-                    onClick={() => deleteCustomTab(tab.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 text-red-600 transition-all duration-200 ml-2"
-                    title="タブを削除"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))}
+            {customTabs.map((tab) => {
+              const isOwner = tab.userId === user?.uid;
+              return (
+                <li key={tab.id} className="group">
+                  <div className="flex items-center">
+                    <a
+                      href={tab.route}
+                      className="flex-1 flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white transition-colors duration-200 ease-in-out text-sm"
+                    >
+                      <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
+                        {tab.icon}
+                      </span>
+                      <span className="font-medium">{tab.title}</span>
+                      {tab.isShared && (
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full" title="チーム全体に共有されています">
+                          共有
+                        </span>
+                      )}
+                    </a>
+                    {isOwner && (
+                      <button
+                        onClick={() => deleteCustomTab(tab.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 text-red-600 transition-all duration-200 ml-2"
+                        title="タブを削除"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
             
             {/* カスタムタブがない場合の表示 */}
             {customTabs.length === 0 && (

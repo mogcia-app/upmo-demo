@@ -32,6 +32,25 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // 認証チェック（管理者のみがユーザーを作成できる）
+    const userId = await verifyAuthToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: '認証が必要です' },
+        { status: 401 }
+      );
+    }
+
+    // 管理者権限チェック
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    if (!userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: '管理者権限が必要です' },
+        { status: 403 }
+      );
+    }
+
     const { email, password, displayName, role = 'user', department, position } = await request.json();
 
     // バリデーション
@@ -114,6 +133,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// 認証トークンを検証するヘルパー関数
+async function verifyAuthToken(request: NextRequest): Promise<string | null> {
+  if (!auth) return null;
+  
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await auth.verifyIdToken(token);
+    return decodedToken.uid;
+  } catch (error) {
+    console.error('認証トークン検証エラー:', error);
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Firebase Admin SDK が初期化されていない場合はエラーを返す
@@ -121,6 +159,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
       }, { status: 500 });
+    }
+
+    // 認証チェック
+    const userId = await verifyAuthToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: '認証が必要です' },
+        { status: 401 }
+      );
     }
 
     // Firestore からユーザー一覧を取得
@@ -185,6 +232,25 @@ export async function PUT(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // 認証チェック（管理者のみがユーザーを更新できる）
+    const userId = await verifyAuthToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: '認証が必要です' },
+        { status: 401 }
+      );
+    }
+
+    // 管理者権限チェック
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    if (!userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: '管理者権限が必要です' },
+        { status: 403 }
+      );
+    }
+
     const { uid, role, status, department, position } = await request.json();
 
     if (!uid) {
@@ -222,6 +288,25 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
       }, { status: 500 });
+    }
+
+    // 認証チェック（管理者のみがユーザーを削除できる）
+    const userId = await verifyAuthToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: '認証が必要です' },
+        { status: 401 }
+      );
+    }
+
+    // 管理者権限チェック
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    if (!userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: '管理者権限が必要です' },
+        { status: 403 }
+      );
     }
 
     const { uid } = await request.json();

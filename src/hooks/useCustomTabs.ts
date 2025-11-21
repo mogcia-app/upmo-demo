@@ -13,6 +13,7 @@ export interface CustomTab {
   route: string;
   userId: string;
   components: CustomComponent[]; // カスタムコンポーネントの配列
+  isShared: boolean; // チーム全体に共有されているか
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -38,27 +39,58 @@ export const useCustomTabs = () => {
 
   // カスタムタブを取得
   const fetchCustomTabs = useCallback(async () => {
-    if (!userId) {
+    if (!userId || !db) {
       setLoading(false);
       return;
     }
     
     try {
-      const q = query(
+      // 自分のタブを取得
+      const myTabsQuery = query(
         collection(db, "customTabs"),
-        where("userId", "==", userId),
-        orderBy("createdAt", "desc")
+        where("userId", "==", userId)
       );
-      const querySnapshot = await getDocs(q);
-      const tabs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-      })) as CustomTab[];
+      const myTabsSnapshot = await getDocs(myTabsQuery);
+      
+      // チーム全体に共有されたタブを取得（自分のタブ以外）
+      const sharedTabsQuery = query(
+        collection(db, "customTabs"),
+        where("isShared", "==", true)
+      );
+      const sharedTabsSnapshot = await getDocs(sharedTabsQuery);
+      
+      // 両方の結果をマージ
+      const allDocs = [...myTabsSnapshot.docs, ...sharedTabsSnapshot.docs];
+      
+      // 重複を除去（同じIDのタブが複数ある場合）
+      const uniqueDocs = Array.from(
+        new Map(allDocs.map(doc => [doc.id, doc])).values()
+      );
+      
+      // クライアント側でソート（Firestoreのインデックス問題を回避）
+      const tabs = uniqueDocs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          isShared: doc.data().isShared || false,
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+        })) as CustomTab[];
+      
+      // 作成日時で降順ソート
+      tabs.sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+        const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
       
       setCustomTabs(tabs);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching custom tabs:", error);
+      // インデックスエラーの場合は空配列を返す
+      if (error.code === 'failed-precondition') {
+        console.warn("Firestore index may be missing. Please create a composite index for customTabs collection.");
+        setCustomTabs([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -101,10 +133,11 @@ export const useCustomTabs = () => {
   };
 
   // 新しいカスタムタブを追加
-  const addCustomTab = async (title: string, icon: string) => {
+  const addCustomTab = async (title: string, icon: string, isShared: boolean = false) => {
     if (!userId) {
-      console.error("User not authenticated");
-      return;
+      const error = new Error("User not authenticated");
+      console.error(error.message);
+      throw error;
     }
     
     try {
@@ -115,6 +148,7 @@ export const useCustomTabs = () => {
         icon,
         route,
         userId,
+        isShared: isShared || false,
         components: [], // 初期状態では空のコンポーネント配列
         createdAt: new Date(),
       };
@@ -123,13 +157,17 @@ export const useCustomTabs = () => {
       const addedTab = { id: docRef.id, ...newTab };
       setCustomTabs(prev => [addedTab, ...prev]);
       return addedTab;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding custom tab:", error);
+      // 権限エラーの場合は詳細を表示
+      if (error.code === 'permission-denied') {
+        throw new Error("カスタムタブの追加に失敗しました。権限を確認してください。");
+      }
       throw error;
     }
   };
 
-  // カスタムタブを削除
+  // カスタムタブを削除（所有者のみ可能）
   const deleteCustomTab = async (tabId: string) => {
     if (!userId) {
       console.error("User not authenticated");
@@ -137,21 +175,47 @@ export const useCustomTabs = () => {
     }
     
     try {
+      // タブが自分のものか確認
+      const tab = customTabs.find(t => t.id === tabId);
+      if (!tab) {
+        alert("タブが見つかりません。");
+        return;
+      }
+      
+      if (tab.userId !== userId) {
+        alert("このタブは削除できません。所有者のみが削除できます。");
+        return;
+      }
+      
       await deleteDoc(doc(db, "customTabs", tabId));
       setCustomTabs(prev => prev.filter(tab => tab.id !== tabId));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting custom tab:", error);
+      // 権限エラーの場合はユーザーに通知
+      if (error.code === 'permission-denied') {
+        alert("カスタムタブの削除に失敗しました。権限を確認してください。");
+      }
     }
   };
 
-  // カスタムタブのコンポーネントを更新
+  // カスタムタブのコンポーネントを更新（所有者のみ可能）
   const updateCustomTabComponents = async (tabId: string, components: CustomComponent[]) => {
     if (!userId) {
       console.error("User not authenticated");
-      return;
+      throw new Error("ユーザーが認証されていません。");
     }
     
     try {
+      // タブが自分のものか確認
+      const tab = customTabs.find(t => t.id === tabId);
+      if (!tab) {
+        throw new Error("タブが見つかりません。");
+      }
+      
+      if (tab.userId !== userId) {
+        throw new Error("このタブは編集できません。所有者のみが編集できます。");
+      }
+      
       await updateDoc(doc(db, "customTabs", tabId), {
         components: components,
         updatedAt: new Date(),
@@ -163,25 +227,42 @@ export const useCustomTabs = () => {
           ? { ...tab, components: components, updatedAt: new Date() }
           : tab
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating custom tab components:", error);
+      // 権限エラーの場合はユーザーに通知
+      if (error.code === 'permission-denied') {
+        throw new Error("カスタムタブの更新に失敗しました。権限を確認してください。");
+      }
+      throw error;
     }
   };
 
-  // 特定のカスタムタブを取得
+  // 特定のカスタムタブを取得（自分のタブまたは共有タブ）
   const getCustomTabByRoute = useCallback(async (route: string): Promise<CustomTab | null> => {
-    if (!userId) {
-      console.error("User not authenticated");
+    if (!userId || !db) {
+      console.error("User not authenticated or db not available");
       return null;
     }
     
     try {
-      const q = query(
+      // 自分のタブを検索
+      const myTabsQuery = query(
         collection(db, "customTabs"),
         where("userId", "==", userId)
       );
-      const querySnapshot = await getDocs(q);
-      const tab = querySnapshot.docs.find(doc => doc.data().route === route);
+      const myTabsSnapshot = await getDocs(myTabsQuery);
+      let tab = myTabsSnapshot.docs.find(doc => doc.data().route === route);
+      
+      // 自分のタブで見つからない場合、共有タブを検索
+      if (!tab) {
+        const sharedTabsQuery = query(
+          collection(db, "customTabs"),
+          where("isShared", "==", true)
+        );
+        const sharedTabsSnapshot = await getDocs(sharedTabsQuery);
+        tab = sharedTabsSnapshot.docs.find(doc => doc.data().route === route);
+      }
+      
       if (tab) {
         const data = tab.data();
         return {
@@ -190,6 +271,7 @@ export const useCustomTabs = () => {
           icon: data.icon,
           route: data.route,
           userId: data.userId,
+          isShared: data.isShared || false,
           components: data.components || [],
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate(),

@@ -40,11 +40,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Firebaseが初期化されていない場合（環境変数が設定されていない場合）
+    if (!auth) {
+      console.warn('Firebase Auth is not initialized. Please check your environment variables.');
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       
       if (user) {
         // Firestore からユーザーロール情報を取得
+        if (!db) {
+          console.warn('Firestore is not initialized. User role cannot be fetched.');
+          setUserRole({
+            role: 'user',
+            status: 'active'
+          });
+          setLoading(false);
+          return;
+        }
+
         try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
@@ -80,6 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = async () => {
+    if (!auth) {
+      console.warn('Firebase Auth is not initialized. Cannot sign out.');
+      return;
+    }
     try {
       await signOut(auth);
     } catch (error) {

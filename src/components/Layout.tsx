@@ -66,18 +66,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               )}
             </div>
 
-            {/* ヘッダー右側のアクション */}
-            <div className="flex items-center space-x-4">
-              <button className="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#005eb2]">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4 19h6v-6H4v6z" />
-                </svg>
-              </button>
-              
-              <div className="w-8 h-8 bg-[#005eb2] rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">U</span>
-              </div>
-            </div>
           </div>
         </header>
 

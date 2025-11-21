@@ -6,12 +6,13 @@ import { CustomTab } from "../hooks/useCustomTabs";
 interface AddTabModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddTab: (title: string, icon: string) => Promise<CustomTab | undefined>;
+  onAddTab: (title: string, icon: string, isShared: boolean) => Promise<CustomTab | undefined>;
 }
 
 const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAddTab }) => {
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("📄");
+  const [isShared, setIsShared] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const predefinedIcons = [
@@ -25,9 +26,10 @@ const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAddTab }) 
 
     setLoading(true);
     try {
-      await onAddTab(title.trim(), icon);
+      await onAddTab(title.trim(), icon, isShared);
       setTitle("");
       setIcon("📄");
+      setIsShared(false);
       onClose();
     } catch (error) {
       console.error("Error adding tab:", error);
@@ -93,6 +95,23 @@ const AddTabModal: React.FC<AddTabModalProps> = ({ isOpen, onClose, onAddTab }) 
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isShared}
+                  onChange={(e) => setIsShared(e.target.checked)}
+                  className="w-4 h-4 text-[#005eb2] border-gray-300 rounded focus:ring-[#005eb2]"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  チーム全体に共有する
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                チェックを入れると、チーム内の全員がこのタブを閲覧できます
+              </p>
             </div>
 
             <div className="flex space-x-3 pt-4">

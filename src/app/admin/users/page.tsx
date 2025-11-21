@@ -11,7 +11,6 @@ interface User {
   displayName: string;
   photoURL?: string;
   role: 'admin' | 'user' | 'viewer';
-  status: 'active' | 'inactive' | 'pending';
   createdAt: Date;
   lastLoginAt?: Date;
   department?: string;
@@ -23,7 +22,6 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user' | 'viewer'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending'>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,9 +40,17 @@ export default function UsersPage() {
 
   // ユーザー一覧を取得
   const fetchUsers = async () => {
+    if (!user) return;
+    
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/users');
+      // 認証トークンを取得
+      const token = await user.getIdToken();
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await response.json();
       
       if (response.ok) {
@@ -65,7 +71,6 @@ export default function UsersPage() {
             displayName: '管理者',
             photoURL: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face',
             role: 'admin',
-            status: 'active',
             createdAt: new Date('2024-01-01'),
             lastLoginAt: new Date('2024-01-15'),
             department: 'IT',
@@ -82,8 +87,10 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (user) {
+      fetchUsers();
+    }
+  }, [user]);
 
   // フィルタリングされたユーザーを取得
   const filteredUsers = users.filter(user => {
@@ -91,9 +98,8 @@ export default function UsersPage() {
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.department?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     
-    return matchesSearch && matchesRole && matchesStatus;
+    return matchesSearch && matchesRole;
   });
 
   // ロールの色を取得
@@ -110,20 +116,6 @@ export default function UsersPage() {
     }
   };
 
-  // ステータスの色を取得
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-700';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-700';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
   // ユーザー詳細を開く
   const openUserDetail = (user: User) => {
     setSelectedUser(user);
@@ -132,6 +124,11 @@ export default function UsersPage() {
 
   // 新規ユーザーを作成
   const createUser = async () => {
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
+    
     if (!newUser.email || !newUser.password) {
       alert('メールアドレスとパスワードは必須です');
       return;
@@ -139,10 +136,13 @@ export default function UsersPage() {
 
     try {
       setIsCreating(true);
+      // 認証トークンを取得
+      const token = await user.getIdToken();
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(newUser),
       });
@@ -175,16 +175,23 @@ export default function UsersPage() {
 
   // ユーザーを編集
   const updateUser = async (updatedUser: User) => {
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
+    
     try {
+      // 認証トークンを取得
+      const token = await user.getIdToken();
       const response = await fetch('/api/admin/users', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           uid: updatedUser.id,
           role: updatedUser.role,
-          status: updatedUser.status,
           department: updatedUser.department,
           position: updatedUser.position,
         }),
@@ -208,15 +215,23 @@ export default function UsersPage() {
 
   // ユーザーを削除
   const deleteUser = async (userId: string) => {
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
+    
     if (!confirm('このユーザーを削除しますか？')) {
       return;
     }
 
     try {
+      // 認証トークンを取得
+      const token = await user.getIdToken();
       const response = await fetch('/api/admin/users', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ uid: userId }),
       });
@@ -266,51 +281,6 @@ export default function UsersPage() {
             </div>
           </div>
 
-          {/* フィルターと検索 */}
-          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* 検索バー */}
-              <div className="flex-1">
-                <div className="relative">
-                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="名前、メールアドレス、部署で検索..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                  />
-                </div>
-              </div>
-
-              {/* フィルター */}
-              <div className="flex gap-4">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">すべてのロール</option>
-                  <option value="admin">管理者</option>
-                  <option value="user">ユーザー</option>
-                  <option value="viewer">閲覧者</option>
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">すべてのステータス</option>
-                  <option value="active">アクティブ</option>
-                  <option value="inactive">非アクティブ</option>
-                  <option value="pending">承認待ち</option>
-                </select>
-              </div>
-            </div>
-          </div>
 
           {/* ユーザー一覧 */}
           <div className="p-4 sm:p-6">
@@ -342,11 +312,6 @@ export default function UsersPage() {
                             alt={user.displayName}
                             className="w-12 h-12 rounded-full border-2 border-white shadow-md"
                           />
-                          {/* ステータスインジケーター */}
-                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                            user.status === 'active' ? 'bg-green-500' : 
-                            user.status === 'inactive' ? 'bg-gray-400' : 'bg-yellow-500'
-                          }`}></div>
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="font-semibold text-gray-900 text-sm truncate">{user.displayName}</h3>
@@ -484,14 +449,6 @@ export default function UsersPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ロール</label>
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                      利用者
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">新規ユーザーは利用者ロールで作成されます。管理者・閲覧者ロールは既存ユーザーの編集で変更してください</p>
-                  </div>
-
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">部署</label>
                     <input
                       type="text"
@@ -563,32 +520,6 @@ export default function UsersPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ロール</label>
-                      <select
-                        value={selectedUser.role}
-                        onChange={(e) => setSelectedUser({...selectedUser, role: e.target.value as any})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="admin">管理者</option>
-                        <option value="user">利用者</option>
-                        <option value="viewer">閲覧者</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-                      <select
-                        value={selectedUser.status}
-                        onChange={(e) => setSelectedUser({...selectedUser, status: e.target.value as any})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="active">アクティブ</option>
-                        <option value="inactive">非アクティブ</option>
-                        <option value="pending">承認待ち</option>
-                      </select>
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">部署</label>
                       <input

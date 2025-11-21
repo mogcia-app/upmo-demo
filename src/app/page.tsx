@@ -6,21 +6,6 @@ import Layout from "../components/Layout";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useAuth } from "../contexts/AuthContext";
 
-interface IndustryConfig {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  color: string;
-  features: string[];
-  templates: {
-    name: string;
-    description: string;
-    icon: string;
-    href: string;
-  }[];
-}
-
 interface CompanySetup {
   companyName: string;
   industry: string;
@@ -29,6 +14,546 @@ interface CompanySetup {
   teamSize: string;
   isSetupComplete: boolean;
 }
+
+// リアルタイムカレンダーコンポーネント
+const CalendarView: React.FC = () => {
+  const { user } = useAuth();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isMobile, setIsMobile] = useState(false);
+  const [teamEvents, setTeamEvents] = useState<Array<{
+    id: string;
+    title: string;
+    date: string;
+    time?: string;
+    member: string;
+    color: string;
+  }>>([]);
+
+  // リアルタイムで時刻を更新
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // 画面サイズを監視
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // チーム全員の予定を取得
+  useEffect(() => {
+    const loadTeamEvents = async () => {
+      if (!user) return;
+
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/events', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.events) {
+            setTeamEvents(data.events.map((event: any) => ({
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time || '',
+              member: event.member || '自分',
+              color: event.color || '#3B82F6'
+            })));
+          }
+        }
+      } catch (error) {
+        console.error('予定の読み込みエラー:', error);
+      }
+    };
+
+    loadTeamEvents();
+  }, [currentDate, user]);
+
+  // 月の日付を生成
+  const generateMonthDays = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+
+    const days = [];
+    
+    // 前月の日付（空白）
+    for (let i = 0; i < startDayOfWeek; i++) {
+      days.push(null);
+    }
+    
+    // 当月の日付
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+    
+    return days;
+  };
+
+  // 今日の日付判定
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  };
+
+  // 指定された日付の予定を取得
+  const getEventsForDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    return teamEvents.filter(event => event.date === dateStr);
+  };
+
+  // 週の日付を生成
+  const generateWeekDays = () => {
+    const startOfWeek = new Date(currentDate);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day;
+    startOfWeek.setDate(diff);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  };
+
+  // 月を変更
+  const changeMonth = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentDate);
+    if (direction === 'prev') {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setMonth(newDate.getMonth() + 1);
+    }
+    setCurrentDate(newDate);
+  };
+
+  // 週を変更
+  const changeWeek = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentDate);
+    if (direction === 'prev') {
+      newDate.setDate(newDate.getDate() - 7);
+    } else {
+      newDate.setDate(newDate.getDate() + 7);
+    }
+    setCurrentDate(newDate);
+  };
+
+  // 今日に戻る
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const days = generateMonthDays();
+  const monthNames = [
+    "1月", "2月", "3月", "4月", "5月", "6月",
+    "7月", "8月", "9月", "10月", "11月", "12月"
+  ];
+  const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+
+  // 現在時刻のフォーマット
+  const formatTime = (date: Date) => {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">カレンダー</h2>
+        <div className="flex items-center space-x-4">
+          <div className="text-sm text-gray-600">
+            {formatTime(currentTime)}
+          </div>
+          <button
+            onClick={goToToday}
+            className="px-3 py-1 text-sm bg-[#005eb2] text-white rounded hover:bg-[#004a96] transition-colors"
+          >
+            今日
+          </button>
+        </div>
+      </div>
+
+      {/* 期間ナビゲーション */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => isMobile ? changeWeek('prev') : changeMonth('prev')}
+          className="p-2 hover:bg-gray-100 rounded transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        
+        <h3 className="text-lg font-medium text-gray-900">
+          {isMobile ? (() => {
+            const weekDays = generateWeekDays();
+            const startDate = weekDays[0];
+            const endDate = weekDays[6];
+            return `${startDate.getMonth() + 1}/${startDate.getDate()} - ${endDate.getMonth() + 1}/${endDate.getDate()}`;
+          })() : `${currentDate.getFullYear()}年${monthNames[currentDate.getMonth()]}`}
+        </h3>
+        
+        <button
+          onClick={() => isMobile ? changeWeek('next') : changeMonth('next')}
+          className="p-2 hover:bg-gray-100 rounded transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* カレンダーグリッド */}
+      {isMobile ? (
+        // モバイル: 週表示
+        <div className="space-y-2">
+          {generateWeekDays().map((date) => {
+            const today = isToday(date);
+            const dayEvents = getEventsForDate(date);
+            
+            return (
+              <div
+                key={date.toISOString()}
+                className={`p-3 border-2 border-gray-200 flex flex-col ${
+                  today 
+                    ? 'bg-blue-50 border-blue-300' 
+                    : 'hover:bg-gray-50 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`text-base font-semibold ${
+                      today ? 'text-blue-600' : 'text-gray-900'
+                    }`}>
+                      {date.getDate()}
+                    </div>
+                    <div className={`text-sm ${
+                      today ? 'text-blue-600' : 'text-gray-600'
+                    }`}>
+                      ({dayNames[date.getDay()]})
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {dayEvents.length > 0 ? (
+                    dayEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="text-sm px-2 py-1.5 rounded flex items-center justify-between"
+                        style={{ 
+                          backgroundColor: event.color + '20',
+                          borderLeft: `3px solid ${event.color}`
+                        }}
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{event.title}</div>
+                          {event.time && (
+                            <div className="text-xs text-gray-500">{event.time} - {event.member}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-gray-400">予定なし</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        // デスクトップ: 月表示
+        <div className="grid grid-cols-7 gap-2">
+          {/* 曜日ヘッダー */}
+          {dayNames.map((day, index) => (
+            <div
+              key={day}
+              className={`p-3 text-center text-sm font-medium ${
+                index === 0 || index === 6 ? 'text-red-500' : 'text-gray-700'
+              }`}
+            >
+              {day}
+            </div>
+          ))}
+          
+          {/* 日付 */}
+          {days.map((date, index) => {
+            if (!date) {
+              return <div key={index} className="aspect-square"></div>;
+            }
+            
+            const today = isToday(date);
+            const dayEvents = getEventsForDate(date);
+            
+            return (
+              <div
+                key={date.toISOString()}
+                className={`aspect-square p-2 border-2 border-gray-200 flex flex-col ${
+                  today 
+                    ? 'bg-blue-50 border-blue-300' 
+                    : 'hover:bg-gray-50 hover:border-gray-300'
+                }`}
+              >
+                <div className={`text-sm font-semibold mb-1 ${
+                  today ? 'text-blue-600' : 'text-gray-900'
+                }`}>
+                  {date.getDate()}
+                </div>
+                <div className="flex-1 space-y-1 overflow-hidden">
+                  {dayEvents.slice(0, 2).map((event) => (
+                    <div
+                      key={event.id}
+                      className="text-xs px-1.5 py-0.5 rounded truncate"
+                      style={{ 
+                        backgroundColor: event.color, 
+                        color: 'white',
+                        fontSize: '10px'
+                      }}
+                      title={`${event.title} - ${event.member}`}
+                    >
+                      {event.title}
+                    </div>
+                  ))}
+                  {dayEvents.length > 2 && (
+                    <div className="text-xs text-gray-500 px-1">
+                      +{dayEvents.length - 2}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 今日の予定詳細ビュー
+const TodayEventsView: React.FC = () => {
+  const { user } = useAuth();
+  const [todayEvents, setTodayEvents] = useState<Array<{
+    id: string;
+    title: string;
+    date: string;
+    time?: string;
+    member: string;
+    color: string;
+    description?: string;
+    location?: string;
+  }>>([]);
+  const [selectedEvent, setSelectedEvent] = useState<{
+    id: string;
+    title: string;
+    date: string;
+    time?: string;
+    member: string;
+    color: string;
+    description?: string;
+    location?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const loadTodayEvents = async () => {
+      if (!user) return;
+      
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/events?date=${today}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.events) {
+            setTodayEvents(data.events.map((event: any) => ({
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time || '',
+              member: event.member || '自分',
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || ''
+            })));
+          } else {
+            setTodayEvents([]);
+          }
+        }
+      } catch (error) {
+        console.error('今日の予定の読み込みエラー:', error);
+      }
+    };
+
+    loadTodayEvents();
+  }, [user]);
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        今日の予定
+      </h2>
+      {todayEvents.length > 0 ? (
+        <div className="space-y-3">
+          {todayEvents.map((event) => (
+            <button
+              key={event.id}
+              onClick={() => setSelectedEvent(event)}
+              className="w-full text-left p-4 border-2 border-gray-200 hover:border-gray-300 transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-1 h-full min-h-[60px] rounded"
+                  style={{ backgroundColor: event.color }}
+                ></div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-base font-semibold text-gray-900">
+                      {event.title}
+                    </h3>
+                    <span
+                      className="px-2 py-1 text-xs font-medium rounded text-white"
+                      style={{ backgroundColor: event.color }}
+                    >
+                      {event.member}
+                    </span>
+                  </div>
+                  {event.time && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{event.time}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>今日の予定はありません</p>
+        </div>
+      )}
+
+      {/* 予定詳細モーダル */}
+      {selectedEvent && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedEvent(null)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">{selectedEvent.title}</h3>
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                  style={{ backgroundColor: selectedEvent.color }}
+                >
+                  {selectedEvent.member.charAt(0)}
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">{selectedEvent.member}</div>
+                  <div className="text-sm text-gray-500">担当者</div>
+                </div>
+              </div>
+
+              {selectedEvent.time && (
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <div className="font-medium text-gray-900">{selectedEvent.time}</div>
+                    <div className="text-sm text-gray-500">時間</div>
+                  </div>
+                </div>
+              )}
+
+              {selectedEvent.location && (
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div>
+                    <div className="font-medium text-gray-900">{selectedEvent.location}</div>
+                    <div className="text-sm text-gray-500">場所</div>
+                  </div>
+                </div>
+              )}
+
+              {selectedEvent.description && (
+                <div>
+                  <div className="text-sm font-medium text-gray-500 mb-2">説明</div>
+                  <div className="text-gray-900">{selectedEvent.description}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Home() {
   const { user } = useAuth();
@@ -41,89 +566,21 @@ export default function Home() {
     teamSize: "",
     isSetupComplete: false
   });
-  const [currentStep, setCurrentStep] = useState(1);
 
-  // 業種別設定
-  const industryConfigs: IndustryConfig[] = [
-    {
-      id: "manufacturing",
-      name: "製造業",
-      icon: "🏭",
-      description: "生産管理、品質管理、在庫管理に特化",
-      color: "bg-blue-500",
-      features: ["生産管理", "品質管理", "在庫管理", "設備管理", "安全管理"],
-      templates: [
-        { name: "生産計画", description: "生産スケジュール管理", icon: "📅", href: "/custom/production-planning" },
-        { name: "品質管理", description: "検査記録・不良品管理", icon: "🔍", href: "/custom/quality-control" },
-        { name: "在庫管理", description: "原材料・完成品管理", icon: "📦", href: "/custom/inventory-management" }
-      ]
-    },
-    {
-      id: "retail",
-      name: "小売業",
-      icon: "🛍️",
-      description: "販売管理、顧客分析、在庫最適化に特化",
-      color: "bg-green-500",
-      features: ["販売管理", "顧客分析", "在庫管理", "商品管理", "プロモーション"],
-      templates: [
-        { name: "売上分析", description: "日次・月次売上分析", icon: "📊", href: "/custom/sales-analysis" },
-        { name: "顧客管理", description: "顧客情報・購買履歴", icon: "👥", href: "/customers" },
-        { name: "商品管理", description: "商品カタログ・価格管理", icon: "🛒", href: "/custom/product-management" }
-      ]
-    },
-    {
-      id: "services",
-      name: "サービス業",
-      icon: "💼",
-      description: "予約管理、スタッフ管理、顧客満足度に特化",
-      color: "bg-purple-500",
-      features: ["予約管理", "スタッフ管理", "顧客管理", "サービス提供", "収益分析"],
-      templates: [
-        { name: "予約管理", description: "予約・スケジュール管理", icon: "📅", href: "/custom/appointment-management" },
-        { name: "スタッフ管理", description: "シフト・スキル管理", icon: "👨‍💼", href: "/custom/staff-management" },
-        { name: "顧客満足度", description: "フィードバック・評価管理", icon: "⭐", href: "/custom/customer-satisfaction" }
-      ]
-    },
-    {
-      id: "construction",
-      name: "建設業",
-      icon: "🏗️",
-      description: "プロジェクト管理、資材管理、安全管理に特化",
-      color: "bg-orange-500",
-      features: ["プロジェクト管理", "資材管理", "安全管理", "品質管理", "工程管理"],
-      templates: [
-        { name: "プロジェクト管理", description: "工程・予算・品質管理", icon: "📋", href: "/custom/project-management" },
-        { name: "資材管理", description: "調達・在庫・使用記録", icon: "🔧", href: "/custom/material-management" },
-        { name: "安全管理", description: "事故記録・安全教育", icon: "🛡️", href: "/custom/safety-management" }
-      ]
-    },
-    {
-      id: "healthcare",
-      name: "医療業",
-      icon: "🏥",
-      description: "患者管理、診療記録、医療機器管理に特化",
-      color: "bg-red-500",
-      features: ["患者管理", "診療記録", "予約管理", "医療機器管理", "薬剤管理"],
-      templates: [
-        { name: "患者管理", description: "カルテ・診療記録管理", icon: "👤", href: "/custom/patient-management" },
-        { name: "診療予約", description: "予約・スケジュール管理", icon: "📅", href: "/custom/medical-appointments" },
-        { name: "医療機器", description: "機器稼働・メンテナンス", icon: "🔬", href: "/custom/medical-equipment" }
-      ]
-    },
-    {
-      id: "other",
-      name: "その他",
-      icon: "🏢",
-      description: "汎用的なビジネス管理機能",
-      color: "bg-gray-500",
-      features: ["プロジェクト管理", "顧客管理", "タスク管理", "文書管理", "チーム管理"],
-      templates: [
-        { name: "プロジェクト管理", description: "タスク・進捗管理", icon: "📋", href: "/todo" },
-        { name: "顧客管理", description: "顧客情報・関係管理", icon: "👥", href: "/customers" },
-        { name: "文書管理", description: "契約書・資料管理", icon: "📄", href: "/admin/contracts" }
-      ]
-    }
-  ];
+  // 通常のダッシュボード表示用のstate（すべてのHooksを早期リターンの前に配置）
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [taskStats, setTaskStats] = useState({ completed: 0, pending: 0, today: 0 });
+  const [contractCount, setContractCount] = useState(0);
+  const [teamMembers, setTeamMembers] = useState<Array<{
+    id: string;
+    displayName: string;
+    email: string;
+    role: string;
+    status: string;
+    department?: string;
+    position?: string;
+  }>>([]);
 
   useEffect(() => {
     // ユーザーの設定状況をチェック
@@ -155,375 +612,90 @@ export default function Home() {
     checkSetupStatus();
   }, [user]);
 
+  // タスク統計と契約書件数を取得
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!user) return;
+
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/dashboard/stats', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.stats) {
+            setTaskStats(data.stats.taskStats || { completed: 0, pending: 0, today: 0 });
+            setContractCount(data.stats.contractCount || 0);
+          }
+        }
+      } catch (error) {
+        console.error('統計情報の読み込みエラー:', error);
+      }
+    };
+
+    loadStats();
+  }, [user]);
+
+  // チーム利用者を取得
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (!user) return;
+      
+      try {
+        // 認証トークンを取得
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // role: 'user' のユーザーのみをチーム利用者として表示
+          const users = data.users.filter((u: any) => u.role === 'user');
+          setTeamMembers(users);
+        }
+      } catch (error) {
+        console.error('チーム利用者の読み込みエラー:', error);
+      }
+    };
+
+    loadTeamMembers();
+  }, [user]);
+
   const handleSetupComplete = async () => {
-    if (!user || !setupData.companyName || setupData.industries.length === 0) return;
+    if (!user || !setupData.companyName) return;
 
     try {
       const { doc, setDoc } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
-      const updatedSetupData = {
+      // 業種が選択されていない場合はデフォルトで「その他」を設定
+      const finalSetupData = {
         ...setupData,
+        industries: setupData.industries.length > 0 ? setupData.industries : ['other'],
+        industry: setupData.industry || 'other',
         isSetupComplete: true,
         completedAt: new Date()
       };
 
       await setDoc(doc(db, 'users', user.uid), {
-        companySetup: updatedSetupData,
+        companySetup: finalSetupData,
         companyName: setupData.companyName
       }, { merge: true });
 
-      setSetupData(updatedSetupData);
+      setSetupData(finalSetupData);
       setIsSetupMode(false);
-      
-      // 自動カスタマイズを実行
-      await applyAutoCustomization(updatedSetupData);
       
     } catch (error) {
       console.error('設定保存エラー:', error);
     }
   };
 
-  // テンプレートごとのデフォルトコンポーネント
-  const getDefaultComponents = (templateName: string, baseTimestamp: number = Date.now()) => {
-    const componentMap: Record<string, any[]> = {
-      "生産計画": [
-        {
-          id: `component_${baseTimestamp}_1`,
-          type: 'data_table',
-          title: '生産スケジュール',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '製品名', type: 'text' },
-              { id: 'col2', name: '生産数量', type: 'number' },
-              { id: 'col3', name: '納期', type: 'date' },
-              { id: 'col4', name: '状況', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "品質管理": [
-        {
-          id: `component_${baseTimestamp}_2`,
-          type: 'data_table',
-          title: '検査記録',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '検査項目', type: 'text' },
-              { id: 'col2', name: '検査結果', type: 'select' },
-              { id: 'col3', name: '検査日', type: 'date' },
-              { id: 'col4', name: '担当者', type: 'text' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "在庫管理": [
-        {
-          id: `component_${baseTimestamp}_3`,
-          type: 'data_table',
-          title: '在庫一覧',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '品目名', type: 'text' },
-              { id: 'col2', name: '在庫数量', type: 'number' },
-              { id: 'col3', name: '最低在庫数', type: 'number' },
-              { id: 'col4', name: '状態', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "売上分析": [
-        {
-          id: `component_${baseTimestamp}_4`,
-          type: 'data_table',
-          title: '売上データ',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '日付', type: 'date' },
-              { id: 'col2', name: '売上額', type: 'number' },
-              { id: 'col3', name: '商品名', type: 'text' },
-              { id: 'col4', name: '数量', type: 'number' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "顧客管理": [
-        {
-          id: `component_${baseTimestamp}_5`,
-          type: 'data_table',
-          title: '顧客一覧',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '顧客名', type: 'text' },
-              { id: 'col2', name: 'メール', type: 'text' },
-              { id: 'col3', name: '登録日', type: 'date' },
-              { id: 'col4', name: 'ステータス', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "商品管理": [
-        {
-          id: `component_${baseTimestamp}_6`,
-          type: 'data_table',
-          title: '商品カタログ',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '商品名', type: 'text' },
-              { id: 'col2', name: '価格', type: 'number' },
-              { id: 'col3', name: 'カテゴリ', type: 'text' },
-              { id: 'col4', name: '在庫', type: 'number' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "予約管理": [
-        {
-          id: `component_${baseTimestamp}_7`,
-          type: 'calendar',
-          title: '予約カレンダー',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 500 },
-          config: {
-            events: [],
-            view: 'month',
-            showWeekends: true
-          }
-        }
-      ],
-      "スタッフ管理": [
-        {
-          id: `component_${baseTimestamp}_8`,
-          type: 'data_table',
-          title: 'スタッフ一覧',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '氏名', type: 'text' },
-              { id: 'col2', name: '役職', type: 'text' },
-              { id: 'col3', name: 'スキル', type: 'text' },
-              { id: 'col4', name: '状況', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "顧客満足度": [
-        {
-          id: `component_${baseTimestamp}_9`,
-          type: 'data_table',
-          title: 'フィードバック',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '評価', type: 'number' },
-              { id: 'col2', name: 'コメント', type: 'text' },
-              { id: 'col3', name: '日付', type: 'date' },
-              { id: 'col4', name: '担当者', type: 'text' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "プロジェクト管理": [
-        {
-          id: `component_${baseTimestamp}_10`,
-          type: 'data_table',
-          title: 'プロジェクト一覧',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: 'プロジェクト名', type: 'text' },
-              { id: 'col2', name: '進捗率', type: 'number' },
-              { id: 'col3', name: '期限', type: 'date' },
-              { id: 'col4', name: 'ステータス', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "資材管理": [
-        {
-          id: `component_${baseTimestamp}_11`,
-          type: 'data_table',
-          title: '資材一覧',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '資材名', type: 'text' },
-              { id: 'col2', name: '数量', type: 'number' },
-              { id: 'col3', name: '単価', type: 'number' },
-              { id: 'col4', name: '仕入先', type: 'text' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "安全管理": [
-        {
-          id: `component_${baseTimestamp}_12`,
-          type: 'data_table',
-          title: '安全記録',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '日付', type: 'date' },
-              { id: 'col2', name: '内容', type: 'text' },
-              { id: 'col3', name: '担当者', type: 'text' },
-              { id: 'col4', name: '状態', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "患者管理": [
-        {
-          id: `component_${baseTimestamp}_13`,
-          type: 'data_table',
-          title: '患者リスト',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '患者ID', type: 'text' },
-              { id: 'col2', name: '氏名', type: 'text' },
-              { id: 'col3', name: '生年月日', type: 'date' },
-              { id: 'col4', name: '状態', type: 'select' }
-            ],
-            data: []
-          }
-        }
-      ],
-      "診療予約": [
-        {
-          id: `component_${baseTimestamp}_14`,
-          type: 'calendar',
-          title: '診療予約カレンダー',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 500 },
-          config: {
-            events: [],
-            view: 'week',
-            showWeekends: false
-          }
-        }
-      ],
-      "医療機器": [
-        {
-          id: `component_${baseTimestamp}_15`,
-          type: 'data_table',
-          title: '医療機器一覧',
-          position: { x: 0, y: 0 },
-          size: { width: 800, height: 400 },
-          config: {
-            columns: [
-              { id: 'col1', name: '機器名', type: 'text' },
-              { id: 'col2', name: '状態', type: 'select' },
-              { id: 'col3', name: '最終メンテナンス', type: 'date' },
-              { id: 'col4', name: '次回メンテ', type: 'date' }
-            ],
-            data: []
-          }
-        }
-      ]
-    };
-
-    return componentMap[templateName] || [];
-  };
-
-  const applyAutoCustomization = async (setup: CompanySetup) => {
-    if (setup.industries.length === 0) return;
-
-    try {
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
-      
-      // 複数業種のテンプレートをマージ
-      const allTemplates: Array<{name: string; description: string; icon: string; href: string}> = [];
-      const mainIndustry = industryConfigs.find(ind => ind.id === setup.industry);
-      
-      setup.industries.forEach(industryId => {
-        const industry = industryConfigs.find(ind => ind.id === industryId);
-        if (industry) {
-          allTemplates.push(...industry.templates);
-        }
-      });
-      
-      // 重複を除去
-      const uniqueTemplates = allTemplates.filter((template, index, self) => 
-        index === self.findIndex(t => t.name === template.name)
-      );
-      
-      const baseTimestamp = Date.now();
-      const customTabs = uniqueTemplates.map((template, index) => {
-        const components = getDefaultComponents(template.name, baseTimestamp + index);
-        return {
-          id: `template_${template.name}_${baseTimestamp + index}`,
-          title: template.name,
-          description: template.description,
-          icon: template.icon,
-          route: template.href,
-          components: components,
-          createdAt: new Date(),
-          isTemplate: true
-        };
-      });
-
-      await setDoc(doc(db, 'users', user!.uid), {
-        customTabs: customTabs,
-        industryTheme: mainIndustry ? {
-          industry: mainIndustry.name,
-          color: mainIndustry.color,
-          icon: mainIndustry.icon,
-          industries: setup.industries.map(id => industryConfigs.find(ind => ind.id === id)?.name || id)
-        } : {}
-      }, { merge: true });
-
-      // ローカルストレージにも保存
-      localStorage.setItem('customTabs', JSON.stringify(customTabs));
-      localStorage.setItem('industryTheme', JSON.stringify({
-        industry: mainIndustry?.name,
-        color: mainIndustry?.color,
-        icon: mainIndustry?.icon,
-        industries: setup.industries.map(id => industryConfigs.find(ind => ind.id === id)?.name || id)
-      }));
-
-    } catch (error) {
-      console.error('自動カスタマイズエラー:', error);
-    }
-  };
-
-  const handleFeatureToggle = (feature: string) => {
-    setSetupData(prev => ({
-      ...prev,
-      selectedFeatures: prev.selectedFeatures.includes(feature)
-        ? prev.selectedFeatures.filter(f => f !== feature)
-        : [...prev.selectedFeatures, feature]
-    }));
-  };
 
   if (isSetupMode) {
     return (
@@ -542,30 +714,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* ステップインジケーター */}
-                <div className="flex justify-center mb-8">
-                  <div className="flex items-center space-x-4">
-                    {[1, 2, 3].map((step) => (
-                      <div key={step} className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                          currentStep >= step 
-                            ? 'bg-[#005eb2] text-white' 
-                            : 'bg-gray-300 text-gray-600'
-                        }`}>
-                          {step}
-                        </div>
-                        {step < 3 && (
-                          <div className={`w-16 h-1 mx-2 ${
-                            currentStep > step ? 'bg-[#005eb2]' : 'bg-gray-300'
-                          }`} />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ステップ1: 会社情報 */}
-                {currentStep === 1 && (
+                {/* 会社情報入力 */}
                   <div className="bg-white rounded-lg shadow-lg p-8">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">会社情報を入力</h2>
                     <div className="space-y-6">
@@ -600,169 +749,14 @@ export default function Home() {
                     </div>
                     <div className="flex justify-end mt-8">
                       <button
-                        onClick={() => setCurrentStep(2)}
+                      onClick={handleSetupComplete}
                         disabled={!setupData.companyName || !setupData.teamSize}
-                        className="px-8 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
-                      >
-                        次へ
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ステップ2: 業種選択 */}
-                {currentStep === 2 && (
-                  <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">業種を選択</h2>
-                    <p className="text-sm text-gray-600 mb-4 sm:mb-6">
-                      複数の業種を選択できます。該当する業種をすべて選択してください。
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                      {industryConfigs.map((industry) => (
-                        <label
-                          key={industry.id}
-                          className={`p-4 sm:p-6 rounded-lg border-2 cursor-pointer transition-all hover:shadow-lg ${
-                            (setupData.industries || []).includes(industry.id)
-                              ? 'border-[#005eb2] bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="flex items-start space-x-3">
-                            <input
-                              type="checkbox"
-                              checked={(setupData.industries || []).includes(industry.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSetupData(prev => {
-                                    const currentIndustries = prev.industries || [];
-                                    return {
-                                      ...prev, 
-                                      industries: [...currentIndustries, industry.id],
-                                      industry: currentIndustries.length === 0 ? industry.id : prev.industry // 最初の選択をメインに
-                                    };
-                                  });
-                                } else {
-                                  setSetupData(prev => {
-                                    const currentIndustries = prev.industries || [];
-                                    return {
-                                      ...prev, 
-                                      industries: currentIndustries.filter(id => id !== industry.id),
-                                      industry: prev.industry === industry.id && currentIndustries.length > 1 
-                                        ? currentIndustries.find(id => id !== industry.id) || '' 
-                                        : prev.industry
-                                    };
-                                  });
-                                }
-                              }}
-                              className="mt-1 w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
-                            />
-                            <div className="flex-1 text-center">
-                              <div className="text-4xl mb-3">{industry.icon}</div>
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">{industry.name}</h3>
-                              <p className="text-sm text-gray-600 mb-4">{industry.description}</p>
-                              <div className="flex flex-wrap gap-2 justify-center">
-                                {industry.features.slice(0, 3).map((feature) => (
-                                  <span key={feature} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                                    {feature}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                    <div className="flex justify-between mt-8">
-                      <button
-                        onClick={() => setCurrentStep(1)}
-                        className="px-8 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-lg font-medium"
-                      >
-                        戻る
-                      </button>
-                      <button
-                        onClick={() => setCurrentStep(3)}
-                        disabled={setupData.industries.length === 0}
-                        className="px-8 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
-                      >
-                        次へ ({setupData.industries.length}件選択中)
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ステップ3: 機能選択 */}
-                {currentStep === 3 && (
-                  <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">必要な機能を選択</h2>
-                    <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-                      選択した業種に基づいて推奨機能を表示しています。追加で必要な機能があれば選択してください。
-                    </p>
-                    
-                    {setupData.industries.length > 0 && (
-                      <div className="space-y-6">
-                        {/* 選択した業種の推奨機能をすべて表示 */}
-                        {setupData.industries.map((industryId) => {
-                          const industry = industryConfigs.find(ind => ind.id === industryId);
-                          if (!industry) return null;
-                          
-                          return (
-                            <div key={industryId}>
-                              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                                {industry.icon} {industry.name} 推奨機能
-                              </h3>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                {industry.features.map((feature) => (
-                                  <label key={feature} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={setupData.selectedFeatures.includes(feature)}
-                                      onChange={() => handleFeatureToggle(feature)}
-                                      className="w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
-                                    />
-                                    <span className="ml-3 text-gray-900 font-medium">{feature}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 mb-4">その他の機能</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                            {["AIチャット", "文書管理", "レポート作成", "通知機能", "データ分析", "API連携"].map((feature) => (
-                              <label key={feature} className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={setupData.selectedFeatures.includes(feature)}
-                                  onChange={() => handleFeatureToggle(feature)}
-                                  className="w-5 h-5 text-[#005eb2] rounded focus:ring-[#005eb2]"
-                                />
-                                <span className="ml-3 text-gray-900 font-medium">{feature}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between mt-8">
-                      <button
-                        onClick={() => setCurrentStep(2)}
-                        className="px-8 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-lg font-medium"
-                      >
-                        戻る
-                      </button>
-                      <button
-                        onClick={handleSetupComplete}
-                        disabled={setupData.selectedFeatures.length === 0}
                         className="px-8 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
                       >
                         設定完了
                       </button>
                     </div>
                   </div>
-                )}
               </div>
             </div>
           </div>
@@ -772,85 +766,60 @@ export default function Home() {
   }
 
   // 通常のダッシュボード表示
-  const selectedIndustries = (setupData.industries || []).map(id => industryConfigs.find(ind => ind.id === id)).filter(Boolean);
-  const mainIndustry = industryConfigs.find(ind => ind.id === setupData.industry);
-  
-  // すべてのテンプレートをマージ
-  const allTemplates: Array<{name: string; description: string; icon: string; href: string}> = selectedIndustries.flatMap(industry => industry?.templates || []);
-  const uniqueTemplates = allTemplates.filter((template, index, self) => 
-    index === self.findIndex(t => t.name === template.name)
-  );
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await response.json();
+      // 検索結果を処理（必要に応じて結果ページに遷移するなど）
+      console.log('検索結果:', data);
+      // ここで検索結果ページに遷移するか、モーダルで表示するなど
+    } catch (error) {
+      console.error('検索エラー:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
   
   return (
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
-          {/* ウェルカムセクション */}
+          {/* 検索バー */}
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
-                  {mainIndustry ? `${mainIndustry.icon} ${setupData.companyName}` : 'ようこそ、Upmo Demoへ！'}
-                </h1>
-                <p className="text-sm sm:text-base text-gray-600">
-                  {mainIndustry 
-                    ? `${mainIndustry.name}${selectedIndustries.length > 1 ? ` ほか ${selectedIndustries.length - 1}業種` : ''}向けに最適化されたダッシュボードです` 
-                    : 'Next.js + Firebase + Vercelで構築されたモダンなダッシュボードです。'}
-                </p>
-                {selectedIndustries.length > 1 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {selectedIndustries.slice(0, 3).map(industry => (
-                      <span key={industry?.id} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                        {industry?.icon} {industry?.name}
-                      </span>
-                    ))}
-                    {selectedIndustries.length > 3 && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                        +{selectedIndustries.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="文書、契約書、規則などを検索..."
+                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm"
+                />
+                <svg 
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
               </div>
               <button
-                onClick={() => setIsSetupMode(true)}
-                className="px-4 py-2 text-[#005eb2] border border-[#005eb2] rounded-lg hover:bg-[#005eb2] hover:text-white transition-colors text-sm sm:text-base"
+                type="submit"
+                disabled={isSearching || !searchQuery.trim()}
+                className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
               >
-                設定を変更
+                {isSearching ? '検索中...' : '検索'}
               </button>
-            </div>
+            </form>
           </div>
 
-          {/* 業種別テンプレート */}
-          {uniqueTemplates.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                {selectedIndustries.length === 1 
-                  ? `${mainIndustry?.name} 向けテンプレート`
-                  : `${selectedIndustries.length}業種向けテンプレート`}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {uniqueTemplates.map((template) => (
-                  <Link
-                    key={template.name}
-                    href={template.href}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{template.icon}</span>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{template.name}</h3>
-                        <p className="text-sm text-gray-600">{template.description}</p>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* 統計カード */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center">
                 <div className="p-2 bg-[#005eb2] rounded-lg">
@@ -859,8 +828,8 @@ export default function Home() {
                   </svg>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">チームメンバー</p>
-                  <p className="text-2xl font-bold text-gray-900">12</p>
+                  <p className="text-sm font-medium text-gray-600">チーム利用者</p>
+                  <p className="text-2xl font-bold text-gray-900">{teamMembers.length}</p>
                 </div>
               </div>
             </div>
@@ -874,111 +843,79 @@ export default function Home() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">契約書件数</p>
-                  <p className="text-2xl font-bold text-gray-900">28</p>
-                </div>
+                  <p className="text-2xl font-bold text-gray-900">{contractCount}</p>
               </div>
             </div>
           </div>
 
-          {/* 最近のアクティビティ */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">最近のアクティビティ</h2>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-[#005eb2] rounded-full"></div>
-                <p className="text-gray-600">新しい契約書「ABC株式会社とのサービス契約」が追加されました</p>
-                <span className="text-sm text-gray-400 ml-auto">1時間前</span>
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-500 rounded-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <p className="text-gray-600">タスク「顧客データ整理」が完了されました</p>
-                <span className="text-sm text-gray-400 ml-auto">3時間前</span>
+                <div className="ml-4 flex-1">
+                  <p className="text-sm font-medium text-gray-600">今日のタスク</p>
+                      <span className="text-lg font-bold text-[#000000]">{taskStats.today}</span>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <p className="text-gray-600">新しいチームメンバー「田中さん」が追加されました</p>
-                <span className="text-sm text-gray-400 ml-auto">5時間前</span>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <p className="text-gray-600">AIが「契約書の更新期限」について通知しました</p>
-                <span className="text-sm text-gray-400 ml-auto">1日前</span>
               </div>
             </div>
+
+          {/* カレンダー */}
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <CalendarView />
           </div>
 
-          {/* チーム予定とAI通知 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* チーム予定 */}
+          {/* 今日の予定詳細 */}
+          <TodayEventsView />
+
+          {/* チーム利用者 */}
+          {teamMembers.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">今日のチーム予定</h2>
-                <Link href="/todo" className="text-sm text-[#005eb2] hover:text-[#004a96]">
+                <h2 className="text-lg font-semibold text-gray-900">チーム利用者</h2>
+                <Link 
+                  href="/admin/users" 
+                  className="text-sm text-[#005eb2] hover:text-[#004a96]"
+                >
                   すべて表示
                 </Link>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">チーム定例会議</p>
-                    <p className="text-xs text-gray-600">10:00 - 11:00</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {teamMembers.slice(0, 6).map((member) => (
+                  <div
+                    key={member.id}
+                    className="p-4 border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#005eb2] text-white flex items-center justify-center font-semibold">
+                        {member.displayName.charAt(0)}
                   </div>
-                  <span className="text-xs text-gray-500">田中さん</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{member.displayName}</div>
+                        <div className="text-sm text-gray-500 truncate">{member.email}</div>
+                        {member.department && (
+                          <div className="text-xs text-gray-400 mt-1">{member.department}</div>
+                        )}
                 </div>
-                <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">プロジェクト進捗報告</p>
-                    <p className="text-xs text-gray-600">14:00 - 15:00</p>
                   </div>
-                  <span className="text-xs text-gray-500">佐藤さん</span>
                 </div>
-                <div className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">契約書レビュー</p>
-                    <p className="text-xs text-gray-600">16:00 - 17:00</p>
+                ))}
                   </div>
-                  <span className="text-xs text-gray-500">山田さん</span>
+              {teamMembers.length > 6 && (
+                <div className="mt-4 text-center">
+                  <Link
+                    href="/admin/users"
+                    className="text-sm text-[#005eb2] hover:text-[#004a96]"
+                  >
+                    +{teamMembers.length - 6}人の利用者を表示
+                  </Link>
                 </div>
+              )}
               </div>
-            </div>
-
-            {/* AI通知 */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">AIからの通知</h2>
-                <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">3件</span>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-start space-x-3 p-3 bg-purple-50 rounded-lg">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">契約書の更新期限が近づいています</p>
-                    <p className="text-xs text-gray-600 mt-1">「ABC株式会社との契約書」の更新期限まで3日です</p>
-                    <span className="text-xs text-gray-500">1時間前</span>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">新しいチームメンバーの追加を提案</p>
-                    <p className="text-xs text-gray-600 mt-1">プロジェクトの進捗を考慮すると、デザイナー1名の追加をお勧めします</p>
-                    <span className="text-xs text-gray-500">3時間前</span>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">データ分析レポートが完成しました</p>
-                    <p className="text-xs text-gray-600 mt-1">先月の売上分析レポートが自動生成されました</p>
-                    <span className="text-xs text-gray-500">6時間前</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* 自由タブ作成案内 */}
           {/* <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6">

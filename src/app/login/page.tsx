@@ -18,6 +18,13 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
+    // Firebase環境変数が設定されているかチェック
+    if (!auth) {
+      setError('Firebase環境変数が設定されていません。.env.localファイルに必要な環境変数を設定してください。');
+      setLoading(false);
+      return;
+    }
+
     try {
       if (isLogin) {
         // ログイン
@@ -34,7 +41,7 @@ export default function LoginPage() {
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           email: email,
           displayName: email.split('@')[0],
-          role: 'admin',
+          role: 'user',
           status: 'active',
           department: '',
           position: '',
@@ -64,6 +71,10 @@ export default function LoginPage() {
         return "パスワードは6文字以上で入力してください。";
       case "auth/invalid-email":
         return "有効なメールアドレスを入力してください。";
+      case "auth/api-key-not-valid":
+        return "Firebase APIキーが無効です。.env.localファイルの環境変数を確認してください。";
+      case "auth/network-request-failed":
+        return "ネットワークエラーが発生しました。インターネット接続を確認してください。";
       default:
         return "エラーが発生しました。もう一度お試しください。";
     }

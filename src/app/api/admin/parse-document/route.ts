@@ -1,4 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+
+// Firebase Admin SDK の初期化
+if (!getApps().length) {
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+
+    initializeApp({
+      credential: cert(serviceAccount),
+    });
+  }
+}
+
+const auth = getApps().length > 0 ? getAuth() : null;
+const adminDb = getApps().length > 0 ? getFirestore() : null;
+
+// 認証トークンを検証するヘルパー関数
+async function verifyAuthToken(request: NextRequest): Promise<string | null> {
+  if (!auth) return null;
+  
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await auth.verifyIdToken(token);
+    return decodedToken.uid;
+  } catch (error) {
+    console.error('認証トークン検証エラー:', error);
+    return null;
+  }
+}
+
+// 管理者権限をチェックするヘルパー関数
+async function checkAdminRole(userId: string): Promise<boolean> {
+  if (!adminDb) return false;
+  
+  try {
+    const userDoc = await adminDb.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    return userData?.role === 'admin';
+  } catch (error) {
+    console.error('管理者権限チェックエラー:', error);
+    return false;
+  }
+}
 
 interface AIParseRequest {
   content: string;
@@ -24,6 +78,24 @@ interface ParsedDocument {
 
 export async function POST(request: NextRequest) {
   try {
+    // 認証チェック
+    const userId = await verifyAuthToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: '認証が必要です' },
+        { status: 401 }
+      );
+    }
+
+    // 管理者権限チェック
+    const isAdmin = await checkAdminRole(userId);
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: '管理者権限が必要です' },
+        { status: 403 }
+      );
+    }
+
     const { content, documentType }: AIParseRequest = await request.json();
 
     if (!content || !documentType) {
@@ -85,7 +157,7 @@ ${content}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
