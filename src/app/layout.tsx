@@ -17,9 +17,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Upmo",
   description: "Upmo - チーム内の情報共有とタスク管理プラットフォーム",
-  icons: {
-    icon: '/upmo.png',
-  },
 };
 
 export default function RootLayout({

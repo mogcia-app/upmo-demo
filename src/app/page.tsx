@@ -29,6 +29,17 @@ const CalendarView: React.FC = () => {
     member: string;
     color: string;
   }>>([]);
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [newEvent, setNewEvent] = useState({
+    title: '',
+    date: '',
+    time: '',
+    description: '',
+    location: '',
+    color: '#3B82F6'
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // リアルタイムで時刻を更新
   useEffect(() => {
@@ -172,6 +183,93 @@ const CalendarView: React.FC = () => {
     setCurrentDate(new Date());
   };
 
+  // 予定を追加するモーダルを開く
+  const openAddEventModal = (date?: Date) => {
+    const targetDate = date || new Date();
+    const year = targetDate.getFullYear();
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const day = String(targetDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    setSelectedDate(targetDate);
+    setNewEvent({
+      title: '',
+      date: dateStr,
+      time: '',
+      description: '',
+      location: '',
+      color: '#3B82F6'
+    });
+    setShowAddEventModal(true);
+  };
+
+  // 予定を追加
+  const handleAddEvent = async () => {
+    if (!user || !newEvent.title.trim() || !newEvent.date) return;
+
+    setIsSubmitting(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: newEvent.title.trim(),
+          date: newEvent.date,
+          time: newEvent.time || '',
+          description: newEvent.description || '',
+          location: newEvent.location || '',
+          color: newEvent.color
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // 予定リストを再読み込み
+          const loadResponse = await fetch('/api/events', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (loadResponse.ok) {
+            const loadData = await loadResponse.json();
+            if (loadData.success && loadData.events) {
+              setTeamEvents(loadData.events.map((event: any) => ({
+                id: event.id,
+                title: event.title,
+                date: event.date,
+                time: event.time || '',
+                member: event.member || '自分',
+                color: event.color || '#3B82F6'
+              })));
+            }
+          }
+          setShowAddEventModal(false);
+          setNewEvent({
+            title: '',
+            date: '',
+            time: '',
+            description: '',
+            location: '',
+            color: '#3B82F6'
+          });
+        }
+      } else {
+        const error = await response.json();
+        alert(error.error || '予定の追加に失敗しました');
+      }
+    } catch (error) {
+      console.error('予定追加エラー:', error);
+      alert('予定の追加に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const days = generateMonthDays();
   const monthNames = [
     "1月", "2月", "3月", "4月", "5月", "6月",
@@ -195,6 +293,15 @@ const CalendarView: React.FC = () => {
           <div className="text-sm text-gray-600">
             {formatTime(currentTime)}
           </div>
+          <button
+            onClick={() => openAddEventModal()}
+            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            予定を追加
+          </button>
           <button
             onClick={goToToday}
             className="px-3 py-1 text-sm bg-[#005eb2] text-white rounded hover:bg-[#004a96] transition-colors"
@@ -245,7 +352,8 @@ const CalendarView: React.FC = () => {
             return (
               <div
                 key={date.toISOString()}
-                className={`p-3 border-2 border-gray-200 flex flex-col ${
+                onClick={() => openAddEventModal(date)}
+                className={`p-3 border-2 border-gray-200 flex flex-col cursor-pointer ${
                   today 
                     ? 'bg-blue-50 border-blue-300' 
                     : 'hover:bg-gray-50 hover:border-gray-300'
@@ -319,7 +427,8 @@ const CalendarView: React.FC = () => {
             return (
               <div
                 key={date.toISOString()}
-                className={`aspect-square p-2 border-2 border-gray-200 flex flex-col ${
+                onClick={() => openAddEventModal(date)}
+                className={`aspect-square p-2 border-2 border-gray-200 flex flex-col cursor-pointer ${
                   today 
                     ? 'bg-blue-50 border-blue-300' 
                     : 'hover:bg-gray-50 hover:border-gray-300'
@@ -353,7 +462,145 @@ const CalendarView: React.FC = () => {
                 </div>
               </div>
             );
-          })}
+          }          )}
+        </div>
+      )}
+
+      {/* 予定追加モーダル */}
+      {showAddEventModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowAddEventModal(false)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">予定を追加</h3>
+              <button
+                onClick={() => setShowAddEventModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  タイトル <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newEvent.title}
+                  onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                  placeholder="予定のタイトルを入力"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    日付 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={newEvent.date}
+                    onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    時間
+                  </label>
+                  <input
+                    type="time"
+                    value={newEvent.time}
+                    onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  場所
+                </label>
+                <input
+                  type="text"
+                  value={newEvent.location}
+                  onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                  placeholder="会議室、オンラインなど"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  説明
+                </label>
+                <textarea
+                  value={newEvent.description}
+                  onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                  placeholder="予定の詳細を入力"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  色
+                </label>
+                <div className="flex gap-2">
+                  {[
+                    { value: '#3B82F6', name: '青' },
+                    { value: '#EF4444', name: '赤' },
+                    { value: '#10B981', name: '緑' },
+                    { value: '#F59E0B', name: '黄' },
+                    { value: '#8B5CF6', name: '紫' },
+                    { value: '#F97316', name: 'オレンジ' }
+                  ].map((color) => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() => setNewEvent({ ...newEvent, color: color.value })}
+                      className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                        newEvent.color === color.value
+                          ? 'border-gray-900 scale-110'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      style={{ backgroundColor: color.value }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowAddEventModal(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleAddEvent}
+                disabled={!newEvent.title.trim() || !newEvent.date || isSubmitting}
+                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSubmitting ? '追加中...' : '追加'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
