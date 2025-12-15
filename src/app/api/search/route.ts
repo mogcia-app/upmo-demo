@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+
+// Firebase Admin SDK の初期化
+if (!getApps().length) {
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+}
+
+const adminDb = getFirestore();
 
 export async function GET(request: NextRequest) {
   try {
@@ -120,17 +135,17 @@ function detectDocumentTypeFromQuery(queryText: string): string | null {
 
 // 構造化文書検索
 async function searchStructuredDocuments(searchQuery: any, docType: string | null) {
-  let q = query(collection(db, 'structuredDocuments'), orderBy('lastUpdated', 'desc'));
+  let queryRef: FirebaseFirestore.CollectionReference | FirebaseFirestore.Query = adminDb.collection('structuredDocuments');
   
   // 文書タイプでフィルタ
   if (docType) {
-    q = query(q, where('type', '==', docType));
+    queryRef = queryRef.where('type', '==', docType);
   }
   
-  const querySnapshot = await getDocs(q);
+  const snapshot = await queryRef.get();
   const results: any[] = [];
   
-  for (const doc of querySnapshot.docs) {
+  for (const doc of snapshot.docs) {
     const data = doc.data();
     const relevanceScore = calculateRelevanceScore(data, searchQuery);
     
@@ -141,13 +156,22 @@ async function searchStructuredDocuments(searchQuery: any, docType: string | nul
         type: data.type,
         sections: data.sections,
         relevanceScore,
-        lastUpdated: data.lastUpdated
+        lastUpdated: data.lastUpdated?.toDate?.() || new Date()
       });
     }
   }
   
-  // 関連度順でソート
-  return results.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 5);
+  // 関連度順でソート（その後、更新日順でもソート）
+  return results
+    .sort((a, b) => {
+      // まず関連度でソート
+      if (b.relevanceScore !== a.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      // 関連度が同じ場合は更新日でソート
+      return (b.lastUpdated?.getTime?.() || 0) - (a.lastUpdated?.getTime?.() || 0);
+    })
+    .slice(0, 5);
 }
 
 // 関連度スコア計算

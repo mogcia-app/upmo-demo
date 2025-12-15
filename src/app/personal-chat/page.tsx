@@ -6,6 +6,7 @@ import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
 import AIAssistantIcon from "../../components/AIAssistantIcon";
 import { fetchChatSession, updateChatSession, saveChatSession, ChatMessage } from "../../utils/chatHistory";
+import SummaryModal from "../../components/SummaryModal";
 
 interface Message {
   id: string;
@@ -40,6 +41,11 @@ export default function PersonalChatPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { user } = useAuth();
+  
+  // 要約用の状態
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
+  const [summaryDocumentId, setSummaryDocumentId] = useState<string>('');
 
   // チームメンバーを取得
   useEffect(() => {
@@ -518,14 +524,41 @@ export default function PersonalChatPage() {
                     }
                   </p>
                 </div>
-                {activeChat !== "ai-assistant" && (
-                  <div className={`w-3 h-3 rounded-full ${
-                    chats.find(chat => chat.id === activeChat)?.isOnline 
-                      ? "bg-green-500" 
-                      : "bg-gray-400"
-                  }`}></div>
-                )}
+                <div className="flex items-center gap-2">
+                  {messages.length > 0 && (
+                    <button
+                      onClick={() => {
+                        // チャットログの内容を文字列に変換
+                        const chatLog = messages
+                          .filter(msg => !msg.isTyping)
+                          .map(msg => {
+                            const sender = msg.sender === 'user' ? 'ユーザー' : 'AI';
+                            const timestamp = msg.timestamp instanceof Date 
+                              ? msg.timestamp.toLocaleString('ja-JP')
+                              : new Date(msg.timestamp).toLocaleString('ja-JP');
+                            return `[${timestamp}] ${sender}: ${msg.text}`;
+                          })
+                          .join('\n\n');
+                        
+                        setSummaryContent(chatLog);
+                        setSummaryDocumentId(currentSessionId || activeChat);
+                        setShowSummaryModal(true);
+                      }}
+                      className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                      title="チャットログを要約"
+                    >
+                      要約
+                    </button>
+                  )}
+                  {activeChat !== "ai-assistant" && (
+                    <div className={`w-3 h-3 rounded-full ${
+                      chats.find(chat => chat.id === activeChat)?.isOnline 
+                        ? "bg-green-500" 
+                        : "bg-gray-400"
+                    }`}></div>
+                  )}
                 </div>
+              </div>
                 
                 {/* モバイル用チャット切り替えボタン */}
                 <button className="lg:hidden p-2 rounded-md hover:bg-gray-100">
@@ -635,6 +668,20 @@ export default function PersonalChatPage() {
             </div>
           </div>
         </div>
+
+        {/* 要約モーダル */}
+        <SummaryModal
+          isOpen={showSummaryModal}
+          onClose={() => {
+            setShowSummaryModal(false);
+            setSummaryContent('');
+            setSummaryDocumentId('');
+          }}
+          content={summaryContent}
+          documentType="chat"
+          documentId={summaryDocumentId}
+          sourceType="chat"
+        />
       </Layout>
     </ProtectedRoute>
   );

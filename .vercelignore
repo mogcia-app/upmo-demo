@@ -1,0 +1,25 @@
+# Vercelビルド最適化用のignoreファイル
+# 不要なファイルをビルドから除外してビルド時間を短縮
+
+# 開発用ファイル
+*.md
+!README.md
+.env.local
+.env*.local
+
+# テストファイル
+**/__tests__/**
+**/*.test.*
+**/*.spec.*
+
+# ドキュメント
+docs/
+*.md
+!README.md
+
+# その他
+.DS_Store
+*.log
+
+
+

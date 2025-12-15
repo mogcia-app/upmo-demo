@@ -44,7 +44,7 @@ async function checkAdminRole(uid: string) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
     const uid = await verifyAuthToken(request);
     if (!uid) return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
@@ -53,34 +53,35 @@ export async function GET(request: NextRequest) {
     if (!isAdmin) return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
-    const targetUserId = searchParams.get('userId');
+    const documentId = searchParams.get('id');
 
-    let snapshot;
-    if (targetUserId) {
-      snapshot = await adminDb.collection('manualDocuments')
-        .where('userId', '==', targetUserId)
-        .get();
-    } else {
-      snapshot = await adminDb.collection('manualDocuments').get();
+    if (!documentId) {
+      return NextResponse.json({ error: '文書IDが必要です' }, { status: 400 });
     }
-    const documents = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate?.() ?? null,
-        lastUpdated: data.lastUpdated?.toDate?.() ?? null,
-      };
+
+    // 文書の存在確認
+    const docRef = adminDb.collection('manualDocuments').doc(documentId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return NextResponse.json({ error: '文書が見つかりません' }, { status: 404 });
+    }
+
+    // 削除実行
+    await docRef.delete();
+
+    return NextResponse.json({
+      success: true,
+      message: '文書が正常に削除されました'
     });
 
-    documents.sort((a, b) => (b.lastUpdated?.getTime?.() ?? 0) - (a.lastUpdated?.getTime?.() ?? 0));
-
-    return NextResponse.json({ success: true, documents });
   } catch (error: any) {
-    console.error('Manual document fetch error:', error);
+    console.error('Manual document delete error:', error);
     return NextResponse.json(
-      { error: '文書の取得に失敗しました', details: error.message },
+      { error: '文書の削除に失敗しました', details: error.message },
       { status: 500 }
     );
   }
 }
+
+

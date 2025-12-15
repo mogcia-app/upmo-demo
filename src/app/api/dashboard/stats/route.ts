@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Firebase Admin SDKの初期化
 const initAdmin = () => {
@@ -33,6 +32,17 @@ const initAdmin = () => {
   }
 };
 
+// Firebase Admin SDKのインスタンスを取得する関数
+const getAdminDb = () => {
+  initAdmin();
+  return getApps().length > 0 ? getFirestore() : null;
+};
+
+const getAdminAuth = () => {
+  initAdmin();
+  return getApps().length > 0 ? getAuth() : null;
+};
+
 // 認証トークンを検証
 const verifyAuthToken = async (authHeader: string | null) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -41,25 +51,63 @@ const verifyAuthToken = async (authHeader: string | null) => {
 
   try {
     const token = authHeader.split('Bearer ')[1];
+    
+    // Firebase Admin SDKを初期化
     initAdmin();
-    const auth = getAuth();
+    
+    // 初期化に失敗した場合のチェック
+    if (getApps().length === 0) {
+      console.error('Firebase Admin SDK initialization failed');
+      throw new Error('Firebase Admin SDKが初期化されていません。環境変数を確認してください。');
+    }
+    
+    const auth = getAdminAuth();
+    if (!auth) {
+      throw new Error('Firebase Authが取得できませんでした');
+    }
+    
     const decodedToken = await auth.verifyIdToken(token);
     return decodedToken;
   } catch (error: any) {
     console.error('認証トークン検証エラー:', error);
-    if (error.message?.includes('Firebase Admin SDK')) {
-      throw new Error('認証サービスの初期化に失敗しました');
+    console.error('エラー詳細:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    
+    // より詳細なエラーメッセージを返す
+    if (error.message?.includes('Firebase Admin SDK') || error.code === 'app/no-app') {
+      throw new Error('Firebase Admin SDKの初期化に失敗しました。環境変数（FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY）を確認してください。');
     }
-    throw new Error('認証トークンの検証に失敗しました');
+    if (error.code === 'auth/argument-error') {
+      throw new Error('認証トークンの形式が正しくありません');
+    }
+    if (error.code === 'auth/id-token-expired') {
+      throw new Error('認証トークンの有効期限が切れています');
+    }
+    if (error.code === 'auth/invalid-id-token') {
+      throw new Error('無効な認証トークンです');
+    }
+    throw new Error(`認証トークンの検証に失敗しました: ${error.message || error.code || '不明なエラー'}`);
   }
 };
 
 // ダッシュボード統計情報を取得
 export async function GET(request: NextRequest) {
   try {
-    if (!db) {
+    // Firebase Admin SDKの初期化を試みる
+    const adminDb = getAdminDb();
+    
+    if (!adminDb) {
+      const hasCredentials = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
       return NextResponse.json(
-        { error: 'Firebaseが初期化されていません' },
+        { 
+          error: 'Firebase Admin SDKが初期化されていません',
+          details: hasCredentials 
+            ? '環境変数は設定されていますが、初期化に失敗しました。環境変数の形式を確認してください。'
+            : '環境変数（FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY）が設定されていません。'
+        },
         { status: 500 }
       );
     }
@@ -71,12 +119,10 @@ export async function GET(request: NextRequest) {
     const today = new Date();
     const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    // タスク統計を取得
-    const todosQuery = query(
-      collection(db, 'todos'),
-      where('userId', '==', decodedToken.uid)
-    );
-    const todosSnapshot = await getDocs(todosQuery);
+    // タスク統計を取得（Firebase Admin SDKを使用）
+    const todosSnapshot = await adminDb.collection('todos')
+      .where('userId', '==', decodedToken.uid)
+      .get();
 
     let completedCount = 0;
     let pendingCount = 0;
@@ -92,13 +138,13 @@ export async function GET(request: NextRequest) {
 
       // 今日のタスクをカウント
       if (data.dueDate) {
-        const dueDate = data.dueDate?.toDate?.() || new Date(data.dueDate);
+        const dueDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : (data.dueDate?.toDate?.() || new Date(data.dueDate));
         const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
         if (dueDateString === todayString && data.status !== 'completed') {
           todayCount++;
         }
       } else if (data.createdAt) {
-        const createdDate = data.createdAt?.toDate?.() || new Date(data.createdAt);
+        const createdDate = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt?.toDate?.() || new Date(data.createdAt));
         const createdDateString = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}`;
         if (createdDateString === todayString && data.status !== 'completed') {
           todayCount++;
@@ -108,11 +154,9 @@ export async function GET(request: NextRequest) {
 
     // 共有されているタスクもカウント
     try {
-      const sharedTodosQuery = query(
-        collection(db, 'todos'),
-        where('sharedWith', 'array-contains', decodedToken.uid)
-      );
-      const sharedTodosSnapshot = await getDocs(sharedTodosQuery);
+      const sharedTodosSnapshot = await adminDb.collection('todos')
+        .where('sharedWith', 'array-contains', decodedToken.uid)
+        .get();
       
       sharedTodosSnapshot.forEach((doc) => {
         const data = doc.data();
@@ -124,7 +168,7 @@ export async function GET(request: NextRequest) {
 
         // 今日のタスクをカウント
         if (data.dueDate) {
-          const dueDate = data.dueDate?.toDate?.() || new Date(data.dueDate);
+          const dueDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : (data.dueDate?.toDate?.() || new Date(data.dueDate));
           const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
           if (dueDateString === todayString && data.status !== 'completed') {
             todayCount++;
@@ -135,25 +179,27 @@ export async function GET(request: NextRequest) {
       console.error('共有タスク取得エラー:', error);
     }
 
-    // 契約書件数を取得（管理者のみ）
+    // 契約書件数を取得（手動入力された文書のみ）
     let contractCount = 0;
     try {
       // ユーザーのロールを確認
-      const userDoc = await getDoc(doc(db, 'users', decodedToken.uid));
+      const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
       
-      if (userDoc.exists()) {
+      if (userDoc.exists) {
         const userData = userDoc.data();
-        if (userData.role === 'admin') {
-          // 管理者の場合は全件数を取得
-          const contractsSnapshot = await getDocs(collection(db, 'manualDocuments'));
-          contractCount = contractsSnapshot.size;
+        if (userData?.role === 'admin') {
+          // 管理者の場合はuserIdフィールドがある文書のみをカウント（手動入力された文書）
+          // Firestoreでは!= nullが使えないため、全件取得してフィルタリング
+          const contractsSnapshot = await adminDb.collection('manualDocuments').get();
+          contractCount = contractsSnapshot.docs.filter(doc => {
+            const data = doc.data();
+            return data.userId != null && data.userId !== undefined;
+          }).length;
         } else {
           // 一般ユーザーの場合は自分の契約書のみ
-          const userContractsQuery = query(
-            collection(db, 'manualDocuments'),
-            where('userId', '==', decodedToken.uid)
-          );
-          const userContractsSnapshot = await getDocs(userContractsQuery);
+          const userContractsSnapshot = await adminDb.collection('manualDocuments')
+            .where('userId', '==', decodedToken.uid)
+            .get();
           contractCount = userContractsSnapshot.size;
         }
       }
@@ -164,7 +210,7 @@ export async function GET(request: NextRequest) {
     // チーム利用者数を取得
     let teamMembersCount = 0;
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersSnapshot = await adminDb.collection('users').get();
       usersSnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.role === 'user') {
@@ -189,8 +235,16 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('統計情報取得エラー:', error);
+    console.error('エラー詳細:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
     return NextResponse.json(
-      { error: error.message || '統計情報の取得に失敗しました' },
+      { 
+        error: error.message || '統計情報の取得に失敗しました',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: error.message?.includes('認証') ? 401 : 500 }
     );
   }

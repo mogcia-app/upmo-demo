@@ -2,8 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // ビルド最適化
+  compress: true,
   // Firebase Functionsを除外
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.externals = config.externals || [];
     config.externals.push({
       'firebase-functions': 'commonjs firebase-functions',
@@ -26,8 +28,21 @@ const nextConfig: NextConfig = {
       fs: false,
     };
     
+    // ビルド時間短縮のための最適化
+    if (!isServer) {
+      // クライアントサイドのビルド最適化
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'deterministic',
+      };
+    }
+    
     return config;
-  }
+  },
+  // 実験的な機能でビルド時間を短縮
+  experimental: {
+    optimizePackageImports: ['firebase', 'firebase-admin'],
+  },
 };
 
 export default nextConfig;

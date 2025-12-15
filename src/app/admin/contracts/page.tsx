@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import SummaryModal from '@/components/SummaryModal';
 
 interface ManualDocument {
   id: string;
@@ -18,6 +19,7 @@ interface ManualDocument {
     support?: string[];
     rules?: string[];
     terms?: string[];
+    qa?: { question: string; answer: string }[];
   };
   tags: string[];
   priority: 'high' | 'medium' | 'low';
@@ -40,21 +42,29 @@ export default function ContractsPage() {
       overview: '',
       features: [],
       pricing: [],
-      procedures: []
+      procedures: [],
+      qa: []
     },
     tags: [],
     priority: 'medium',
     createdAt: new Date(),
     lastUpdated: new Date()
   });
-  const [currentSection, setCurrentSection] = useState<'overview' | 'features' | 'pricing' | 'procedures' | 'support' | 'rules' | 'terms'>('overview');
+  const [currentSection, setCurrentSection] = useState<'overview' | 'features' | 'pricing' | 'procedures' | 'support' | 'rules' | 'terms' | 'qa'>('overview');
   const [sectionInput, setSectionInput] = useState('');
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview'])); // デフォルトで概要を展開
   
   // AI解析用の状態
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiInputText, setAiInputText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiParsedDocument, setAiParsedDocument] = useState<ManualDocument | null>(null);
+  
+  // 要約用の状態
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
+  const [summaryDocumentId, setSummaryDocumentId] = useState<string>('');
+  const [summaryDocumentType, setSummaryDocumentType] = useState<'meeting' | 'contract' | 'chat' | 'progressNote'>('contract');
 
   const handleSaveDocument = async () => {
     if (!newDocument.title || !user) {
@@ -89,7 +99,8 @@ export default function ContractsPage() {
       console.log('Document saved successfully:', result);
       
       // 成功メッセージ
-      alert(`文書が正常に保存されました！\n文書名: ${newDocument.title}\nタイプ: ${newDocument.type}`);
+      const isEdit = !!editingDocument;
+      alert(`文書が正常に${isEdit ? '更新' : '保存'}されました！\n文書名: ${newDocument.title}\nタイプ: ${newDocument.type}`);
       
       // フォームリセット
       setNewDocument({
@@ -109,8 +120,10 @@ export default function ContractsPage() {
         lastUpdated: new Date()
       });
       setShowInputModal(false);
+      setEditingDocument(null);
       setCurrentSection('overview');
       setSectionInput('');
+      setExpandedSections(new Set(['overview']));
       
       // ドキュメントリストを更新
       await fetchDocumentsFromFirestore();
@@ -325,15 +338,38 @@ export default function ContractsPage() {
   };
 
   const handleDeleteDocument = async (documentId: string) => {
-    if (!confirm('この文書を削除しますか？')) return;
+    if (!confirm('この文書を削除しますか？この操作は取り消せません。')) return;
     
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
+
     try {
-      // TODO: 削除APIを実装
-      console.log('Delete document:', documentId);
-      alert('削除機能は実装中です');
+      const token = await user.getIdToken();
+      
+      const response = await fetch(`/api/admin/delete-manual-document?id=${documentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '文書の削除に失敗しました');
+      }
+
+      const result = await response.json();
+      
+      alert('文書が正常に削除されました');
+      
+      // ドキュメントリストを更新
+      await fetchDocumentsFromFirestore();
+      
     } catch (error) {
       console.error('Delete error:', error);
-      alert('削除に失敗しました');
+      alert(`削除に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     }
   };
 
@@ -418,6 +454,7 @@ export default function ContractsPage() {
       case 'support': return 'サポート';
       case 'rules': return '規則';
       case 'terms': return '条項';
+      case 'qa': return 'Q&A';
       default: return section;
     }
   };
@@ -522,32 +559,93 @@ export default function ContractsPage() {
                   
                   {/* セクション内容 */}
                   <div className="mt-4">
-                    {Object.entries(doc.sections).map(([key, value]) => (
-                      <div key={key} className="mb-3">
-                        <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
-                        <div className="bg-gray-50 rounded-md p-3">
-                          {Array.isArray(value) ? (
-                            <ul className="text-sm text-gray-600 space-y-1">
-                              {value.map((item, index) => (
-                                <li key={index} className="flex items-start">
-                                  <span className="text-gray-400 mr-2">•</span>
-                                  <span>{item}</span>
-                                </li>
+                    {Object.entries(doc.sections).map(([key, value]) => {
+                      // Q&Aセクションの特別な処理
+                      if (key === 'qa' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && 'question' in value[0]) {
+                        const qaArray = value as { question: string; answer: string }[];
+                        return (
+                          <div key={key} className="mb-3">
+                            <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
+                            <div className="bg-gray-50 rounded-md p-3 space-y-3">
+                              {qaArray.map((qa, index) => (
+                                <div key={index} className="border-l-4 border-blue-500 pl-3">
+                                  <p className="text-sm font-medium text-gray-800 mb-1">
+                                    Q{index + 1}: {qa.question}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    A: {qa.answer}
+                                  </p>
+                                </div>
                               ))}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-gray-600">{value}</p>
-                          )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div key={key} className="mb-3">
+                          <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
+                          <div className="bg-gray-50 rounded-md p-3">
+                            {Array.isArray(value) ? (
+                              <ul className="text-sm text-gray-600 space-y-1">
+                                {value.map((item, index) => (
+                                  <li key={index} className="flex items-start">
+                                    <span className="text-gray-400 mr-2">•</span>
+                                    <span>{typeof item === 'string' ? item : JSON.stringify(item)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600">{value}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   
                   {/* アクションボタン */}
                   <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
                     <button
                       onClick={() => {
+                        // ドキュメントの内容を文字列に変換
+                        const contentParts: string[] = [];
+                        contentParts.push(`タイトル: ${doc.title}`);
+                        if (doc.description) contentParts.push(`概要: ${doc.description}`);
+                        Object.entries(doc.sections).forEach(([key, value]) => {
+                          if (Array.isArray(value) && value.length > 0) {
+                            contentParts.push(`${getSectionLabel(key)}:\n${value.join('\n')}`);
+                          } else if (typeof value === 'string' && value.trim()) {
+                            contentParts.push(`${getSectionLabel(key)}: ${value}`);
+                          }
+                        });
+                        const content = contentParts.join('\n\n');
+                        
+                        setSummaryContent(content);
+                        setSummaryDocumentId(doc.id);
+                        setSummaryDocumentType(doc.type === 'meeting' ? 'meeting' : 'contract');
+                        setShowSummaryModal(true);
+                      }}
+                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                    >
+                      要約
+                    </button>
+                    <button
+                      onClick={() => {
                         setEditingDocument(doc);
+                        setNewDocument({
+                          ...doc,
+                          createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
+                          lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
+                        });
+                        // 入力済みのセクションを展開
+                        const sectionsWithContent = Object.entries(doc.sections)
+                          .filter(([_, value]) => {
+                            if (Array.isArray(value)) return value.length > 0;
+                            return typeof value === 'string' && value.trim().length > 0;
+                          })
+                          .map(([key]) => key);
+                        setExpandedSections(new Set(sectionsWithContent.length > 0 ? sectionsWithContent : ['overview']));
                         setShowInputModal(true);
                       }}
                       className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
@@ -569,11 +667,33 @@ export default function ContractsPage() {
           {/* 手動入力モーダル */}
           {showInputModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-white rounded-lg p-6 w-full max-w-7xl max-h-[95vh] overflow-y-auto shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">文書を手動入力</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {editingDocument ? '文書を編集' : '文書を手動入力'}
+                  </h2>
                   <button
-                    onClick={() => setShowInputModal(false)}
+                    onClick={() => {
+                      setShowInputModal(false);
+                      setEditingDocument(null);
+                      setNewDocument({
+                        id: '',
+                        title: '',
+                        description: '',
+                        type: 'meeting',
+                        sections: {
+                          overview: '',
+                          features: [],
+                          pricing: [],
+                          procedures: []
+                        },
+                        tags: [],
+                        priority: 'medium',
+                        createdAt: new Date(),
+                        lastUpdated: new Date()
+                      });
+                      setExpandedSections(new Set(['overview']));
+                    }}
                     className="text-gray-400 hover:text-gray-600"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -612,158 +732,297 @@ export default function ContractsPage() {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
                       />
                     </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        文書タイプ
-                      </label>
-                      <select
-                        value={newDocument.type || 'meeting'}
-                        onChange={(e) => setNewDocument(prev => ({ 
-                          ...prev, 
-                          type: e.target.value as ManualDocument['type'] 
-                        }))}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
-                      >
-                        <option value="meeting">打ち合わせ</option>
-                        <option value="policy">規則</option>
-                        <option value="contract">契約</option>
-                        <option value="manual">マニュアル</option>
-                        <option value="other">その他</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        優先度
-                      </label>
-                      <select
-                        value={newDocument.priority || 'medium'}
-                        onChange={(e) => setNewDocument(prev => ({ 
-                          ...prev, 
-                          priority: e.target.value as ManualDocument['priority'] 
-                        }))}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
-                      >
-                        <option value="high">高</option>
-                        <option value="medium">中</option>
-                        <option value="low">低</option>
-                      </select>
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        タグ（検索用）
-                      </label>
-                      <div className="flex space-x-2 mb-2">
-                        <input
-                          id="tagInput"
-                          type="text"
-                          placeholder="例: 有給、休暇、規則"
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                        />
-                        <button
-                          onClick={handleAddTag}
-                          className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
-                        >
-                          追加
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {newDocument.tags?.map((tag, index) => (
-                          <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm flex items-center">
-                            {tag}
-                            <button
-                              onClick={() => handleRemoveTag(index)}
-                              className="ml-2 text-blue-600 hover:text-blue-800 font-bold"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </div>
                 
-                {/* セクション入力エリア */}
+                {/* セクション入力エリア - 全セクションを縦に並べて表示 */}
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">文書内容</h3>
                   
-                  {/* セクションタブ */}
-                  <div className="border-b border-gray-200 mb-6">
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { key: 'overview', label: '概要', desc: '文書の全体像を説明' },
-                        { key: 'features', label: '特徴・機能', desc: '主な特徴や機能を箇条書き' },
-                        { key: 'pricing', label: '料金・費用', desc: '料金や費用に関する情報' },
-                        { key: 'procedures', label: '手順・プロセス', desc: '手順やプロセスを箇条書き' },
-                        { key: 'support', label: 'サポート', desc: 'サポート情報' },
-                        { key: 'rules', label: '規則・ルール', desc: '規則やルールを箇条書き' },
-                        { key: 'terms', label: '条件・条項', desc: '条件や条項を箇条書き' }
-                      ].map((section) => (
-                        <button
-                          key={section.key}
-                          onClick={() => setCurrentSection(section.key as any)}
-                          className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
-                            currentSection === section.key
-                              ? 'bg-[#005eb2] text-white border-b-2 border-[#005eb2]'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                          title={section.desc}
-                        >
-                          {section.label}
-                        </button>
-                      ))}
-                    </div>
+                  {/* 全セクションを縦に並べて表示 */}
+                  <div className="space-y-4">
+                    {[
+                      { key: 'overview', label: '概要', desc: '文書の全体像を説明', isText: true },
+                      { key: 'features', label: '特徴・機能', desc: '主な特徴や機能を箇条書き', isText: false },
+                      { key: 'pricing', label: '料金・費用', desc: '料金や費用に関する情報', isText: false },
+                      { key: 'procedures', label: '手順・プロセス', desc: '手順やプロセスを箇条書き', isText: false },
+                      { key: 'support', label: 'サポート', desc: 'サポート情報', isText: false },
+                      { key: 'rules', label: '規則・ルール', desc: '規則やルールを箇条書き', isText: false },
+                      { key: 'terms', label: '条件・条項', desc: '条件や条項を箇条書き', isText: false },
+                      { key: 'qa', label: 'Q&A', desc: 'よくある質問と回答', isQA: true }
+                    ].map((section) => {
+                      const isExpanded = expandedSections.has(section.key);
+                      const sectionValue = section.isText
+                        ? (newDocument.sections?.overview || '')
+                        : section.isQA
+                        ? ''
+                        : (Array.isArray(newDocument.sections?.[section.key as keyof typeof newDocument.sections]) 
+                            ? (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]).join('\n')
+                            : '');
+                      const hasContent = section.isQA
+                        ? (newDocument.sections?.qa && newDocument.sections.qa.length > 0)
+                        : sectionValue.trim().length > 0;
+                      
+                      return (
+                        <div key={section.key} className="border border-gray-200 rounded-lg overflow-hidden">
+                          {/* セクションヘッダー */}
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSections);
+                              if (isExpanded) {
+                                newExpanded.delete(section.key);
+                              } else {
+                                newExpanded.add(section.key);
+                              }
+                              setExpandedSections(newExpanded);
+                            }}
+                            className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <svg
+                                className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'transform rotate-90' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                              <div>
+                                <span className="font-medium text-gray-900">{section.label}</span>
+                                <span className="text-xs text-gray-500 ml-2">{section.desc}</span>
+                              </div>
+                            </div>
+                            {hasContent && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                入力済み
+                              </span>
+                            )}
+                          </button>
+                          
+                          {/* セクション入力エリア */}
+                          {isExpanded && (
+                            <div className="p-4 bg-white">
+                              {section.isQA ? (
+                                // Q&Aセクション
+                                <div className="space-y-4">
+                                  <div className="space-y-4">
+                                    {(newDocument.sections?.qa || []).map((qa, index) => (
+                                      <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                        <div className="flex items-start justify-between mb-2">
+                                          <span className="text-sm font-medium text-gray-700">Q&A {index + 1}</span>
+                                          <button
+                                            onClick={() => {
+                                              const currentQA = newDocument.sections?.qa || [];
+                                              const updatedQA = currentQA.filter((_, i) => i !== index);
+                                              setNewDocument(prev => ({
+                                                ...prev,
+                                                sections: {
+                                                  ...prev.sections,
+                                                  qa: updatedQA
+                                                }
+                                              }));
+                                            }}
+                                            className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors p-1"
+                                            title="削除"
+                                          >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                          </button>
+                                        </div>
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                              質問
+                                            </label>
+                                            <input
+                                              type="text"
+                                              value={qa.question}
+                                              onChange={(e) => {
+                                                const currentQA = newDocument.sections?.qa || [];
+                                                const updatedQA = [...currentQA];
+                                                updatedQA[index] = { ...qa, question: e.target.value };
+                                                setNewDocument(prev => ({
+                                                  ...prev,
+                                                  sections: {
+                                                    ...prev.sections,
+                                                    qa: updatedQA
+                                                  }
+                                                }));
+                                              }}
+                                              placeholder="質問を入力してください"
+                                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                              回答
+                                            </label>
+                                            <textarea
+                                              value={qa.answer}
+                                              onChange={(e) => {
+                                                const currentQA = newDocument.sections?.qa || [];
+                                                const updatedQA = [...currentQA];
+                                                updatedQA[index] = { ...qa, answer: e.target.value };
+                                                setNewDocument(prev => ({
+                                                  ...prev,
+                                                  sections: {
+                                                    ...prev.sections,
+                                                    qa: updatedQA
+                                                  }
+                                                }));
+                                              }}
+                                              placeholder="回答を入力してください"
+                                              rows={3}
+                                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base resize-y"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const currentQA = newDocument.sections?.qa || [];
+                                      setNewDocument(prev => ({
+                                        ...prev,
+                                        sections: {
+                                          ...prev.sections,
+                                          qa: [...currentQA, { question: '', answer: '' }]
+                                        }
+                                      }));
+                                    }}
+                                    className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-[#005eb2] hover:text-[#005eb2] transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Q&Aを追加
+                                  </button>
+                                  <p className="text-xs text-gray-500">
+                                    💡 「Q&Aを追加」ボタンで新しい質問と回答のペアを追加できます。
+                                  </p>
+                                </div>
+                              ) : section.isText ? (
+                                // テキストセクション（概要）
+                                <>
+                                  <textarea
+                                    value={sectionValue}
+                                    onChange={(e) => {
+                                      setNewDocument(prev => ({
+                                        ...prev,
+                                        sections: {
+                                          ...prev.sections,
+                                          overview: e.target.value
+                                        }
+                                      }));
+                                    }}
+                                    placeholder={`${section.label}の内容を入力してください...`}
+                                    rows={8}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base leading-relaxed resize-y"
+                                  />
+                                  <p className="mt-2 text-xs text-gray-500">
+                                    💡 自由に長文を入力できます。改行も自由に使えます。
+                                  </p>
+                                </>
+                              ) : (
+                                // 配列セクション（箇条書き）
+                                <div className="space-y-3">
+                                  <div className="space-y-2">
+                                    {Array.isArray(newDocument.sections?.[section.key as keyof typeof newDocument.sections]) 
+                                      ? (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]).map((item, index) => (
+                                          <div key={index} className="flex items-start gap-2">
+                                            <span className="mt-3 text-gray-400">•</span>
+                                            <input
+                                              type="text"
+                                              value={item}
+                                              onChange={(e) => {
+                                                const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]) || [];
+                                                const updatedArray = [...currentArray];
+                                                updatedArray[index] = e.target.value;
+                                                setNewDocument(prev => ({
+                                                  ...prev,
+                                                  sections: {
+                                                    ...prev.sections,
+                                                    [section.key]: updatedArray
+                                                  }
+                                                }));
+                                              }}
+                                              placeholder={`${section.label}の項目 ${index + 1}`}
+                                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
+                                            />
+                                            <button
+                                              onClick={() => {
+                                                const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]) || [];
+                                                const updatedArray = currentArray.filter((_, i) => i !== index);
+                                                setNewDocument(prev => ({
+                                                  ...prev,
+                                                  sections: {
+                                                    ...prev.sections,
+                                                    [section.key]: updatedArray
+                                                  }
+                                                }));
+                                              }}
+                                              className="mt-2 px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                              title="削除"
+                                            >
+                                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        ))
+                                      : null
+                                    }
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]) || [];
+                                      setNewDocument(prev => ({
+                                        ...prev,
+                                        sections: {
+                                          ...prev.sections,
+                                          [section.key]: [...currentArray, '']
+                                        }
+                                      }));
+                                    }}
+                                    className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-[#005eb2] hover:text-[#005eb2] transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    項目を追加
+                                  </button>
+                                  <p className="text-xs text-gray-500">
+                                    💡 「項目を追加」ボタンで新しい項目を追加できます。各項目は個別に編集・削除できます。
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   
-                  {/* 現在のセクション入力 */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {getSectionLabel(currentSection)}
-                        <span className="text-gray-500 text-xs ml-2">（自由に長文を入力できます）</span>
-                      </label>
-                      
-                      <textarea
-                        value={
-                          currentSection === 'overview' 
-                            ? (newDocument.sections?.overview || '')
-                            : (Array.isArray(newDocument.sections?.[currentSection]) 
-                                ? (newDocument.sections?.[currentSection] as string[]).join('\n')
-                                : '')
-                        }
-                        onChange={(e) => {
-                          if (currentSection === 'overview') {
-                            setNewDocument(prev => ({
-                              ...prev,
-                              sections: {
-                                ...prev.sections,
-                                overview: e.target.value
-                              }
-                            }));
-                          } else {
-                            // 配列セクションの場合、改行で分割して配列として保存
-                            const lines = e.target.value.split('\n').filter(line => line.trim().length > 0);
-                            setNewDocument(prev => ({
-                              ...prev,
-                              sections: {
-                                ...prev.sections,
-                                [currentSection]: lines.length > 0 ? lines : []
-                              }
-                            }));
-                          }
-                        }}
-                        placeholder={`${getSectionLabel(currentSection)}の内容を自由に入力してください...\n\n改行も自由に使えます。\n箇条書きにしたい場合は、1行ずつ入力してください。`}
-                        rows={12}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base leading-relaxed"
-                      />
-                      <p className="mt-2 text-xs text-gray-500">
-                        💡 自由に長文を入力できます。改行も自由に使えます。箇条書きにしたい場合は、1行ずつ入力してください。
-                      </p>
-                    </div>
+                  {/* クイックアクション */}
+                  <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setExpandedSections(new Set(['overview', 'features', 'pricing', 'procedures', 'support', 'rules', 'terms', 'qa']));
+                      }}
+                      className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      すべて展開
+                    </button>
+                    <button
+                      onClick={() => {
+                        setExpandedSections(new Set());
+                      }}
+                      className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      すべて折りたたみ
+                    </button>
                   </div>
                 </div>
                 
@@ -785,10 +1044,10 @@ export default function ContractsPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        保存中...
+                        {editingDocument ? '更新中...' : '保存中...'}
                       </span>
                     ) : (
-                      '保存'
+                      editingDocument ? '更新' : '保存'
                     )}
                   </button>
                 </div>
@@ -958,6 +1217,20 @@ export default function ContractsPage() {
             </div>
           )}
         </div>
+
+        {/* 要約モーダル */}
+        <SummaryModal
+          isOpen={showSummaryModal}
+          onClose={() => {
+            setShowSummaryModal(false);
+            setSummaryContent('');
+            setSummaryDocumentId('');
+          }}
+          content={summaryContent}
+          documentType={summaryDocumentType}
+          documentId={summaryDocumentId}
+          sourceType="document"
+        />
       </Layout>
     </ProtectedRoute>
   );

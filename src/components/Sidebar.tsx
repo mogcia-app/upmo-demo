@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import { useCustomTabs } from "../hooks/useCustomTabs";
-import AddTabModal from "./AddTabModal";
+import React from "react";
+import { useSidebarConfig } from "../hooks/useSidebarConfig";
 import { useAuth } from "../contexts/AuthContext";
+import { CATEGORY_NAMES, MenuCategory } from "../types/sidebar";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -11,20 +11,13 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const { customTabs, addCustomTab, deleteCustomTab } = useCustomTabs();
+  const { getEnabledCommonMenuItems, getEnabledAdminMenuItems, getEnabledAdditionalMenuItems } = useSidebarConfig();
   const { user, userRole, logout } = useAuth();
 
-  const commonMenuItems = [
-    { name: "ダッシュボード", icon: "•", href: "/" },
-    { name: "個人チャット", icon: "•", href: "/personal-chat" },
-    { name: "TODOリスト", icon: "•", href: "/todo" },
-  ];
-
-  const adminMenuItems = [
-    { name: "契約書", icon: "•", href: "/admin/contracts" },
-    { name: "ユーザー管理", icon: "•", href: "/admin/users" },
-  ];
+  // Firestoreから取得した設定を使用（有効なもののみ、order順にソート済み）
+  const commonMenuItems = getEnabledCommonMenuItems();
+  const adminMenuItems = getEnabledAdminMenuItems();
+  const additionalMenuItems = getEnabledAdditionalMenuItems();
 
   // 管理者のみに表示するメニューアイテム
   const isAdmin = userRole?.role === 'admin';
@@ -69,8 +62,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         <nav className="mt-6 flex-1 overflow-y-auto min-h-0">
           {/* 共通メニュー */}
           <ul className="space-y-1 px-4">
-            {commonMenuItems.map((item, index) => (
-              <li key={index}>
+            {commonMenuItems.map((item) => (
+              <li key={item.id}>
                 <a
                   href={item.href}
                   className="
@@ -88,68 +81,52 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
             ))}
           </ul>
 
-          {/* カスタムタブセクション */}
-          <div className="px-4 mb-2">
-            <div className="flex items-center justify-between px-4 py-2">
-              <div className="flex items-center text-gray-500 text-sm font-semibold">
-                <span className="text-lg mr-3 text-blue-500">•</span>
-                カスタム
-              </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="w-6 h-6 rounded-full bg-[#005eb2] text-white flex items-center justify-center hover:bg-[#004a96] transition-colors"
-                title="新しいタブを追加"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <ul className="space-y-1 px-4 mb-4">
-            {customTabs.map((tab) => {
-              const isOwner = tab.userId === user?.uid;
-              return (
-                <li key={tab.id} className="group">
-                  <div className="flex items-center">
-                    <a
-                      href={tab.route}
-                      className="flex-1 flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white transition-colors duration-200 ease-in-out text-sm"
-                    >
-                      <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
-                        {tab.icon}
-                      </span>
-                      <span className="font-medium">{tab.title}</span>
-                      {tab.isShared && (
-                        <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full" title="チーム全体に共有されています">
-                          共有
-                        </span>
-                      )}
-                    </a>
-                    {isOwner && (
-                      <button
-                        onClick={() => deleteCustomTab(tab.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 text-red-600 transition-all duration-200 ml-2"
-                        title="タブを削除"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
+          {/* 有効化された追加メニュー項目（カテゴリごとに表示） */}
+          {additionalMenuItems.length > 0 && (
+            <>
+              {/* セパレーター */}
+              <div className="mx-4 my-4 border-t border-gray-200"></div>
+              
+              {/* カテゴリごとにグループ化して表示 */}
+              {Object.entries(
+                additionalMenuItems.reduce((acc, item) => {
+                  if (!acc[item.category]) {
+                    acc[item.category] = [];
+                  }
+                  acc[item.category].push(item);
+                  return acc;
+                }, {} as Record<MenuCategory, typeof additionalMenuItems>)
+              ).map(([category, items]) => (
+                <div key={category} className="mb-4">
+                  <div className="px-4 mb-2">
+                    <div className="flex items-center px-4 py-2 text-gray-500 text-sm font-semibold">
+                      <span className="text-lg mr-3 text-blue-500">•</span>
+                      {CATEGORY_NAMES[category as MenuCategory]}
+                    </div>
                   </div>
-                </li>
-              );
-            })}
-            
-            {/* カスタムタブがない場合の表示 */}
-            {customTabs.length === 0 && (
-              <li className="px-8 py-2 text-gray-400 text-sm">
-                まだカスタムタブがありません
-              </li>
-            )}
-          </ul>
+                  <ul className="space-y-1 px-4">
+                    {items.map((item) => (
+                      <li key={item.id}>
+                        <a
+                          href={item.href}
+                          className="
+                            flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-[#005eb2] hover:text-white
+                            transition-colors duration-200 ease-in-out
+                            group
+                          "
+                        >
+                          <span className="text-lg mr-3 group-hover:scale-110 transition-transform duration-200">
+                            {item.icon}
+                          </span>
+                          <span className="font-medium">{item.name}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </>
+          )}
 
           {/* セパレーター */}
           <div className="mx-4 my-4 border-t border-gray-200"></div>
@@ -165,8 +142,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               </div>
               
               <ul className="space-y-1 px-4 mb-4">
-                {adminMenuItems.map((item, index) => (
-                  <li key={index}>
+                {adminMenuItems.map((item) => (
+                  <li key={item.id}>
                     <a
                       href={item.href}
                       className="
@@ -226,13 +203,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           </div>
         </div>
       </div>
-
-      {/* タブ追加モーダル */}
-      <AddTabModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAddTab={addCustomTab}
-      />
     </>
   );
 };

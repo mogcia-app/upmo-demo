@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromFile, parseDocumentByType } from '@/utils/fileExtractor';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+
+// Firebase Admin SDK の初期化
+if (!getApps().length) {
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+}
+
+const adminDb = getFirestore();
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,10 +60,10 @@ export async function POST(request: NextRequest) {
       structuredSections = createFallbackSections(extractedText, documentType);
     }
     
-    // 4. Firestoreに保存
+    // 4. Firestoreに保存（Admin SDKを使用）
     let docRef;
     try {
-      docRef = await addDoc(collection(db, 'structuredDocuments'), {
+      docRef = await adminDb.collection('structuredDocuments').add({
         name: title || file.name, // タイトルを優先、なければファイル名
         originalFileName: file.name,
         description: description || '',
@@ -56,8 +71,8 @@ export async function POST(request: NextRequest) {
         type: documentType,
         sections: structuredSections,
         originalText: extractedText.substring(0, 10000), // テキストを制限
-        createdAt: new Date(),
-        lastUpdated: new Date(),
+        createdAt: Timestamp.now(),
+        lastUpdated: Timestamp.now(),
         sectionCount: Object.keys(structuredSections).length,
         fileSize: file.size
       });

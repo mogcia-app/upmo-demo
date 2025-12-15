@@ -1,90 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Firebase Admin SDK の初期化
 if (!getApps().length) {
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    const serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    };
-
     initializeApp({
-      credential: cert(serviceAccount),
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
     });
   }
 }
 
-const auth = getApps().length > 0 ? getAuth() : null;
-const adminDb = getApps().length > 0 ? getFirestore() : null;
+const auth = getAuth();
+const adminDb = getFirestore();
 
-// 認証トークンを検証するヘルパー関数
-async function verifyAuthToken(request: NextRequest): Promise<string | null> {
-  if (!auth) return null;
-  
+// 認証トークン検証
+async function verifyAuthToken(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-    
+    if (!authHeader?.startsWith('Bearer ')) return null;
     const token = authHeader.split('Bearer ')[1];
-    const decodedToken = await auth.verifyIdToken(token);
-    return decodedToken.uid;
-  } catch (error) {
-    console.error('認証トークン検証エラー:', error);
+    const decoded = await auth.verifyIdToken(token);
+    return decoded.uid;
+  } catch (e) {
+    console.error('Token verify error:', e);
     return null;
   }
 }
 
-// 管理者権限をチェックするヘルパー関数
-async function checkAdminRole(userId: string): Promise<boolean> {
-  if (!adminDb) return false;
-  
+// 管理者権限チェック
+async function checkAdminRole(uid: string) {
   try {
-    const userDoc = await adminDb.collection('users').doc(userId).get();
-    const userData = userDoc.data();
-    return userData?.role === 'admin';
-  } catch (error) {
-    console.error('管理者権限チェックエラー:', error);
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    return userDoc.data()?.role === 'admin';
+  } catch (e) {
+    console.error('Admin check error:', e);
     return false;
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // 認証チェック
-    const userId = await verifyAuthToken(request);
-    if (!userId) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      );
-    }
+    const uid = await verifyAuthToken(request);
+    if (!uid) return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
 
-    // 管理者権限チェック
-    const isAdmin = await checkAdminRole(userId);
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: '管理者権限が必要です' },
-        { status: 403 }
-      );
-    }
+    const isAdmin = await checkAdminRole(uid);
+    if (!isAdmin) return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
 
     const data = await request.json();
-    const { title, description, type, sections, tags, priority } = data;
+    const { id, title, description, type, sections, tags, priority } = data;
     
     if (!title) {
       return NextResponse.json({ error: 'タイトルが必要です' }, { status: 400 });
     }
 
-    // Firestoreに保存
-    const docRef = await addDoc(collection(db, 'manualDocuments'), {
+    // 編集モード（idがある場合）
+    if (id) {
+      const docRef = adminDb.collection('manualDocuments').doc(id);
+      const doc = await docRef.get();
+
+      if (!doc.exists) {
+        return NextResponse.json({ error: '文書が見つかりません' }, { status: 404 });
+      }
+
+      // 既存の文書を更新
+      await docRef.update({
+        title,
+        description: description || '',
+        type: type || 'meeting',
+        sections: sections || {
+          overview: '',
+          features: [],
+          pricing: [],
+          procedures: []
+        },
+        tags: tags || [],
+        priority: priority || 'medium',
+        lastUpdated: Timestamp.now()
+      });
+
+      return NextResponse.json({ 
+        success: true, 
+        documentId: id,
+        message: '文書が正常に更新されました'
+      });
+    }
+
+    // 新規作成モード
+    const docRef = await adminDb.collection('manualDocuments').add({
       title,
       description: description || '',
       type: type || 'meeting',
@@ -96,9 +104,9 @@ export async function POST(request: NextRequest) {
       },
       tags: tags || [],
       priority: priority || 'medium',
-      userId, // 認証されたユーザーIDを使用
-      createdAt: new Date(),
-      lastUpdated: new Date()
+      userId: uid,
+      createdAt: Timestamp.now(),
+      lastUpdated: Timestamp.now()
     });
 
     return NextResponse.json({ 
@@ -107,59 +115,11 @@ export async function POST(request: NextRequest) {
       message: '文書が正常に保存されました'
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Manual document save error:', error);
-    return NextResponse.json({ error: '文書の保存に失敗しました' }, { status: 500 });
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    // 認証チェック
-    const authenticatedUserId = await verifyAuthToken(request);
-    if (!authenticatedUserId) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      );
-    }
-
-    // 管理者権限チェック
-    const isAdmin = await checkAdminRole(authenticatedUserId);
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: '管理者権限が必要です' },
-        { status: 403 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    
-    // 管理者は全件取得可能、または特定ユーザーの文書を取得
-    const targetUserId = userId || null;
-    
-    let q = query(collection(db, 'manualDocuments'), orderBy('lastUpdated', 'desc'));
-    
-    if (targetUserId) {
-      q = query(q, where('userId', '==', targetUserId));
-    }
-    
-    const querySnapshot = await getDocs(q);
-    const documents = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      lastUpdated: doc.data().lastUpdated?.toDate() || new Date()
-    }));
-
-    return NextResponse.json({ 
-      success: true, 
-      documents 
-    });
-
-  } catch (error) {
-    console.error('Manual document fetch error:', error);
-    return NextResponse.json({ error: '文書の取得に失敗しました' }, { status: 500 });
+    return NextResponse.json(
+      { error: '文書の保存に失敗しました', details: error.message },
+      { status: 500 }
+    );
   }
 }

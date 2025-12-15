@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, query, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { searchSalesCases, searchProgressNotes } from '@/utils/salesSearch';
+
+// Firebase Admin SDK の初期化
+if (!getApps().length) {
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+}
+
+const adminDb = getFirestore();
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,23 +38,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // まず文書管理の内容を検索
+    // 文書、案件、進捗メモを統合検索
     let documentContext = '';
+    let salesCaseContext = '';
+    let progressNoteContext = '';
+    
     try {
-      // 文書管理の内容を直接検索（Firestoreから）
       const searchQuery = message.toLowerCase();
-      const keywords = searchQuery
-        .replace(/[のをについて教えてとは]/g, ' ')
-        .replace(/[、。！？]/g, ' ')
-        .trim()
-        .split(/\s+/)
-        .filter((word: string) => word.length > 1);
       
-      const q = query(collection(db, 'manualDocuments'), orderBy('lastUpdated', 'desc'));
-      const querySnapshot = await getDocs(q);
+      // 1. 文書管理の内容を検索（Admin SDKを使用）
+      const snapshot = await adminDb.collection('manualDocuments').get();
       
       const relevantDocs: any[] = [];
-      for (const doc of querySnapshot.docs) {
+      for (const doc of snapshot.docs) {
         const data = doc.data();
         const titleMatch = data.title?.toLowerCase().includes(searchQuery);
         const contentMatch = JSON.stringify(data.sections || {}).toLowerCase().includes(searchQuery);
@@ -51,12 +63,16 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 更新日順でソート
+      relevantDocs.sort((a, b) => {
+        // ここでは簡易的にタイトルでソート（必要に応じてlastUpdatedを追加）
+        return 0;
+      });
+      
       if (relevantDocs.length > 0) {
-        // 最も関連性の高い文書の内容を取得
         const bestDoc = relevantDocs[0];
         const sections = bestDoc.sections || {};
         
-        // セクションの内容を結合
         const sectionTexts: string[] = [];
         for (const [key, value] of Object.entries(sections)) {
           if (Array.isArray(value)) {
@@ -66,25 +82,78 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        documentContext = `${bestDoc.title}\n\n${sectionTexts.join('\n\n')}`;
+        documentContext = `【社内ドキュメント】\n${bestDoc.title}\n\n${sectionTexts.join('\n\n')}`;
+      }
+      
+      // 2. 営業案件を検索
+      try {
+        const salesCases = await searchSalesCases(message, userId, 3);
+        if (salesCases.length > 0) {
+          const caseTexts = salesCases.map(c => {
+            let text = `案件名: ${c.title}\n顧客: ${c.customerName}`;
+            if (c.customerCompany) text += ` (${c.customerCompany})`;
+            text += `\nステータス: ${getStatusLabel(c.status)}`;
+            if (c.description) text += `\n概要: ${c.description}`;
+            if (c.estimatedValue) text += `\n見積金額: ${c.estimatedValue.toLocaleString()}円`;
+            if (c.probability) text += `\n成約確率: ${c.probability}%`;
+            if (c.expectedCloseDate) text += `\n予定クロージング日: ${c.expectedCloseDate.toLocaleDateString('ja-JP')}`;
+            return text;
+          });
+          salesCaseContext = `【営業案件】\n${caseTexts.join('\n\n---\n\n')}`;
+        }
+      } catch (error) {
+        console.error('案件検索エラー:', error);
+      }
+      
+      // 3. 進捗メモを検索
+      try {
+        const progressNotes = await searchProgressNotes(message, userId, undefined, 3);
+        if (progressNotes.length > 0) {
+          const noteTexts = progressNotes.map(n => {
+            let text = `タイトル: ${n.title}\n日付: ${n.date.toLocaleDateString('ja-JP')}`;
+            if (n.caseTitle) text += `\n関連案件: ${n.caseTitle}`;
+            text += `\n内容: ${n.content}`;
+            if (n.nextActions && n.nextActions.length > 0) {
+              text += `\n次アクション: ${n.nextActions.join(', ')}`;
+            }
+            if (n.risks && n.risks.length > 0) {
+              text += `\nリスク・懸念: ${n.risks.join(', ')}`;
+            }
+            return text;
+          });
+          progressNoteContext = `【進捗メモ】\n${noteTexts.join('\n\n---\n\n')}`;
+        }
+      } catch (error) {
+        console.error('進捗メモ検索エラー:', error);
       }
     } catch (error) {
-      console.error('文書検索エラー:', error);
+      console.error('検索エラー:', error);
     }
 
-    // OpenAI APIで回答生成
-    const systemPrompt = documentContext
-      ? `あなたは企業の社内AIアシスタントです。以下の文書管理システムに保存されている情報を参考にして、ユーザーの質問に正確で分かりやすい回答をしてください。
+    // 統合されたコンテキストを構築
+    const allContexts: string[] = [];
+    if (documentContext) allContexts.push(documentContext);
+    if (salesCaseContext) allContexts.push(salesCaseContext);
+    if (progressNoteContext) allContexts.push(progressNoteContext);
+    
+    const combinedContext = allContexts.join('\n\n');
+    const hasContext = allContexts.length > 0;
 
-参考文書:
-${documentContext}
+    // OpenAI APIで回答生成
+    const systemPrompt = hasContext
+      ? `あなたは企業の社内AIアシスタントです。以下の情報源から、ユーザーの質問に正確で分かりやすい回答をしてください。
+
+情報源:
+${combinedContext}
 
 回答のガイドライン:
-- 文書の内容に基づいて回答してください
-- 不明な点がある場合は「文書に記載がありません」と明記してください
+- 提供された情報（社内ドキュメント、営業案件、進捗メモ）に基づいて回答してください
+- 複数の情報源がある場合は、それらを統合して包括的な回答をしてください
+- 案件や進捗メモに関する質問の場合は、最新の状況を反映してください
+- 不明な点がある場合は「情報が見つかりませんでした」と明記してください
 - 分かりやすい日本語で回答してください
-- 必要に応じて文書の該当箇所を引用してください
-- 文書にない情報については、一般的な知識として回答してください`
+- 必要に応じて情報源の該当箇所を引用してください
+- 情報源にない情報については、一般的な知識として回答してください`
       : `あなたは親しみやすいAIアシスタントです。ユーザーの質問に分かりやすく、丁寧に回答してください。
 
 回答のガイドライン:
@@ -110,7 +179,7 @@ ${documentContext}
             content: message
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 1500,
         temperature: 0.7,
       }),
     });
@@ -126,7 +195,14 @@ ${documentContext}
 
     return NextResponse.json({
       response: aiResponse,
-      hasDocumentContext: !!documentContext
+      hasDocumentContext: !!documentContext,
+      hasSalesCaseContext: !!salesCaseContext,
+      hasProgressNoteContext: !!progressNoteContext,
+      contextSources: {
+        documents: !!documentContext,
+        salesCases: !!salesCaseContext,
+        progressNotes: !!progressNoteContext
+      }
     });
 
   } catch (error) {
@@ -136,5 +212,18 @@ ${documentContext}
       { status: 500 }
     );
   }
+}
+
+// 案件ステータスのラベルを取得
+function getStatusLabel(status: string): string {
+  const statusMap: Record<string, string> = {
+    'prospecting': '見込み客',
+    'qualification': '見極め中',
+    'proposal': '提案中',
+    'negotiation': '交渉中',
+    'closed_won': '成約',
+    'closed_lost': '失注'
+  };
+  return statusMap[status] || status;
 }
 

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp, orderBy, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Firebase Admin SDKの初期化
 const initAdmin = () => {
@@ -33,6 +32,17 @@ const initAdmin = () => {
   }
 };
 
+// Firebase Admin SDKのインスタンスを取得する関数
+const getAdminDb = () => {
+  initAdmin();
+  return getApps().length > 0 ? getFirestore() : null;
+};
+
+const getAdminAuth = () => {
+  initAdmin();
+  return getApps().length > 0 ? getAuth() : null;
+};
+
 // 認証トークンを検証
 const verifyAuthToken = async (authHeader: string | null) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -41,25 +51,63 @@ const verifyAuthToken = async (authHeader: string | null) => {
 
   try {
     const token = authHeader.split('Bearer ')[1];
+    
+    // Firebase Admin SDKを初期化
     initAdmin();
-    const auth = getAuth();
+    
+    // 初期化に失敗した場合のチェック
+    if (getApps().length === 0) {
+      console.error('Firebase Admin SDK initialization failed');
+      throw new Error('Firebase Admin SDKが初期化されていません。環境変数を確認してください。');
+    }
+    
+    const auth = getAdminAuth();
+    if (!auth) {
+      throw new Error('Firebase Authが取得できませんでした');
+    }
+    
     const decodedToken = await auth.verifyIdToken(token);
     return decodedToken;
   } catch (error: any) {
     console.error('認証トークン検証エラー:', error);
-    if (error.message?.includes('Firebase Admin SDK')) {
-      throw new Error('認証サービスの初期化に失敗しました');
+    console.error('エラー詳細:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    
+    // より詳細なエラーメッセージを返す
+    if (error.message?.includes('Firebase Admin SDK') || error.code === 'app/no-app') {
+      throw new Error('Firebase Admin SDKの初期化に失敗しました。環境変数（FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY）を確認してください。');
     }
-    throw new Error('認証トークンの検証に失敗しました');
+    if (error.code === 'auth/argument-error') {
+      throw new Error('認証トークンの形式が正しくありません');
+    }
+    if (error.code === 'auth/id-token-expired') {
+      throw new Error('認証トークンの有効期限が切れています');
+    }
+    if (error.code === 'auth/invalid-id-token') {
+      throw new Error('無効な認証トークンです');
+    }
+    throw new Error(`認証トークンの検証に失敗しました: ${error.message || error.code || '不明なエラー'}`);
   }
 };
 
 // イベントを取得
 export async function GET(request: NextRequest) {
   try {
-    if (!db) {
+    // Firebase Admin SDKの初期化を試みる
+    const adminDb = getAdminDb();
+    
+    if (!adminDb) {
+      const hasCredentials = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
       return NextResponse.json(
-        { error: 'Firebaseが初期化されていません' },
+        { 
+          error: 'Firebase Admin SDKが初期化されていません',
+          details: hasCredentials 
+            ? '環境変数は設定されていますが、初期化に失敗しました。環境変数の形式を確認してください。'
+            : '環境変数（FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY）が設定されていません。'
+        },
         { status: 500 }
       );
     }
@@ -71,34 +119,31 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('Authorization');
     const decodedToken = await verifyAuthToken(authHeader);
 
-    // 自分のイベントを取得
-    const q = query(
-      collection(db, 'events'),
-      where('userId', '==', decodedToken.uid)
-    );
+    // 自分のイベントを取得（Firebase Admin SDKを使用）
+    const myEventsSnapshot = await adminDb.collection('events')
+      .where('userId', '==', decodedToken.uid)
+      .get();
     
-    const querySnapshot = await getDocs(q);
     const events: any[] = [];
 
-    querySnapshot.forEach((doc) => {
+    myEventsSnapshot.forEach((doc) => {
       const data = doc.data();
       events.push({
         id: doc.id,
         ...data,
         date: data.date,
         time: data.time || '',
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
       });
     });
 
     // 共有されているイベントも取得
     try {
-      const sharedQuery = query(
-        collection(db, 'events'),
-        where('sharedWith', 'array-contains', decodedToken.uid)
-      );
-      const sharedSnapshot = await getDocs(sharedQuery);
+      const sharedSnapshot = await adminDb.collection('events')
+        .where('sharedWith', 'array-contains', decodedToken.uid)
+        .get();
+      
       sharedSnapshot.forEach((doc) => {
         const data = doc.data();
         // 重複チェック
@@ -108,8 +153,8 @@ export async function GET(request: NextRequest) {
             ...data,
             date: data.date,
             time: data.time || '',
-            createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-            updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+            updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
           });
         }
       });
@@ -134,8 +179,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, events: filteredEvents });
   } catch (error: any) {
     console.error('イベント取得エラー:', error);
+    console.error('エラー詳細:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
     return NextResponse.json(
-      { error: error.message || 'イベントの取得に失敗しました' },
+      { 
+        error: error.message || 'イベントの取得に失敗しました',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: error.message?.includes('認証') ? 401 : 500 }
     );
   }
@@ -144,7 +197,8 @@ export async function GET(request: NextRequest) {
 // イベントを作成
 export async function POST(request: NextRequest) {
   try {
-    if (!db) {
+    const adminDb = getAdminDb();
+    if (!adminDb) {
       return NextResponse.json(
         { error: 'Firebaseが初期化されていません' },
         { status: 500 }
@@ -178,7 +232,7 @@ export async function POST(request: NextRequest) {
       updatedAt: Timestamp.now(),
     };
 
-    const docRef = await addDoc(collection(db, 'events'), eventData);
+    const docRef = await adminDb.collection('events').add(eventData);
 
     return NextResponse.json({
       success: true,
@@ -201,7 +255,8 @@ export async function POST(request: NextRequest) {
 // イベントを更新
 export async function PUT(request: NextRequest) {
   try {
-    if (!db) {
+    const adminDb = getAdminDb();
+    if (!adminDb) {
       return NextResponse.json(
         { error: 'Firebaseが初期化されていません' },
         { status: 500 }
@@ -222,8 +277,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // イベントの所有者を確認
-    const eventDoc = await getDoc(doc(db, 'events', id));
-    if (!eventDoc.exists()) {
+    const eventDoc = await adminDb.collection('events').doc(id).get();
+    if (!eventDoc.exists) {
       return NextResponse.json(
         { error: 'イベントが見つかりません' },
         { status: 404 }
@@ -231,7 +286,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const eventData = eventDoc.data();
-    if (eventData.userId !== decodedToken.uid && !(eventData.sharedWith || []).includes(decodedToken.uid)) {
+    if (eventData?.userId !== decodedToken.uid && !(eventData?.sharedWith || []).includes(decodedToken.uid)) {
       return NextResponse.json(
         { error: 'このイベントを更新する権限がありません' },
         { status: 403 }
@@ -244,7 +299,7 @@ export async function PUT(request: NextRequest) {
       updatedAt: Timestamp.now(),
     };
 
-    await updateDoc(doc(db, 'events', id), updatedData);
+    await adminDb.collection('events').doc(id).update(updatedData);
 
     return NextResponse.json({
       success: true,
@@ -262,7 +317,8 @@ export async function PUT(request: NextRequest) {
 // イベントを削除
 export async function DELETE(request: NextRequest) {
   try {
-    if (!db) {
+    const adminDb = getAdminDb();
+    if (!adminDb) {
       return NextResponse.json(
         { error: 'Firebaseが初期化されていません' },
         { status: 500 }
@@ -283,25 +339,24 @@ export async function DELETE(request: NextRequest) {
     }
 
     // イベントの所有者を確認
-    const eventDoc = doc(db, 'events', id);
-    const eventSnapshot = await getDoc(eventDoc);
+    const eventDoc = await adminDb.collection('events').doc(id).get();
     
-    if (!eventSnapshot.exists()) {
+    if (!eventDoc.exists) {
       return NextResponse.json(
         { error: 'イベントが見つかりません' },
         { status: 404 }
       );
     }
 
-    const eventData = eventSnapshot.data();
-    if (eventData.userId !== decodedToken.uid) {
+    const eventData = eventDoc.data();
+    if (eventData?.userId !== decodedToken.uid) {
       return NextResponse.json(
         { error: 'このイベントを削除する権限がありません' },
         { status: 403 }
       );
     }
 
-    await deleteDoc(eventDoc);
+    await adminDb.collection('events').doc(id).delete();
 
     return NextResponse.json({
       success: true,
