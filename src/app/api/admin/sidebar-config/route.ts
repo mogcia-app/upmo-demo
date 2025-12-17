@@ -71,11 +71,10 @@ export async function GET() {
       return NextResponse.json({
         id: "default",
         commonMenuItems: [
-          { id: "dashboard", name: "ダッシュボード", icon: "•", href: "/", enabled: true, order: 1 },
-          { id: "personal-chat", name: "個人チャット", icon: "•", href: "/personal-chat", enabled: true, order: 2 },
-          { id: "todo", name: "TODOリスト", icon: "•", href: "/todo", enabled: true, order: 3 },
-          { id: "sales-cases", name: "営業案件", icon: "•", href: "/sales/cases", enabled: true, order: 4 },
-          { id: "progress-notes", name: "進捗メモ", icon: "•", href: "/sales/progress-notes", enabled: true, order: 5 },
+          { id: "todo", name: "TODOリスト", icon: "•", href: "/todo", enabled: true, order: 1 },
+          { id: "progress-notes", name: "進捗メモ", icon: "•", href: "/sales/progress-notes", enabled: true, order: 2 },
+          { id: "contracts", name: "契約書管理", icon: "•", href: "/admin/contracts", enabled: true, order: 3 },
+          { id: "users", name: "利用者招待", icon: "•", href: "/admin/users", enabled: true, order: 4 },
         ],
         adminMenuItems: [
           { id: "contracts", name: "契約書", icon: "•", href: "/admin/contracts", enabled: true, order: 1 },

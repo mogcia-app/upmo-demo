@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, displayName, role = 'user', department, position } = await request.json();
+    const { email, password, displayName, role = 'user', department, position, companyName } = await request.json();
 
     // バリデーション
     if (!email || !password) {
@@ -76,6 +76,14 @@ export async function POST(request: NextRequest) {
       emailVerified: false,
     });
 
+    // 作成者のcompanyNameを取得（companyNameが指定されていない場合）
+    let finalCompanyName = companyName;
+    if (!finalCompanyName) {
+      const creatorDoc = await db.collection('users').doc(userId).get();
+      const creatorData = creatorDoc.data();
+      finalCompanyName = creatorData?.companyName || '';
+    }
+    
     // Firestore にユーザー情報を保存
     await db.collection('users').doc(userRecord.uid).set({
       email,
@@ -84,6 +92,7 @@ export async function POST(request: NextRequest) {
       status: 'active',
       department: department || '',
       position: position || '',
+      companyName: finalCompanyName,
       createdAt: new Date(),
       createdBy: 'admin', // 管理者が作成したことを記録
     });
@@ -207,6 +216,7 @@ export async function GET(request: NextRequest) {
         status: data.status || 'active',
         department: data.department || '',
         position: data.position || '',
+        companyName: data.companyName || '',
         createdAt: createdAt.toISOString(),
         lastLoginAt: lastLoginAt?.toISOString()
       };

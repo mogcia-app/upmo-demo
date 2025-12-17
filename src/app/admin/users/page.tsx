@@ -54,8 +54,15 @@ export default function UsersPage() {
       const data = await response.json();
       
       if (response.ok) {
+        // 現在のユーザーのcompanyNameを取得
+        const currentUser = data.users.find((u: any) => u.id === user.uid);
+        const currentCompanyName = currentUser?.companyName || '';
+        
+        // 同じcompanyNameのユーザーのみをフィルタリング
+        const filteredUsers = data.users.filter((u: any) => u.companyName === currentCompanyName);
+        
         // APIから取得した日付文字列をDateオブジェクトに変換
-        const usersWithDates = data.users.map((user: any) => ({
+        const usersWithDates = filteredUsers.map((user: any) => ({
           ...user,
           createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
           lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt) : undefined
@@ -138,13 +145,30 @@ export default function UsersPage() {
       setIsCreating(true);
       // 認証トークンを取得
       const token = await user.getIdToken();
+      
+      // 現在のユーザーのcompanyNameを取得
+      const currentUserResponse = await fetch('/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      let companyName = '';
+      if (currentUserResponse.ok) {
+        const currentUserData = await currentUserResponse.json();
+        const currentUser = currentUserData.users.find((u: any) => u.id === user.uid);
+        companyName = currentUser?.companyName || '';
+      }
+      
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify({
+          ...newUser,
+          companyName: companyName
+        }),
       });
 
       const data = await response.json();
@@ -251,7 +275,7 @@ export default function UsersPage() {
   };
 
   return (
-    <ProtectedRoute adminOnly={true}>
+    <ProtectedRoute>
       <Layout>
         <div className="min-h-screen bg-gray-50">
           {/* ヘッダー */}
@@ -274,7 +298,7 @@ export default function UsersPage() {
                     <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    ユーザーを追加
+                    利用者招待
                   </span>
                 </button>
               </div>
@@ -401,7 +425,7 @@ export default function UsersPage() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">新しいユーザーを作成</h3>
+                  <h3 className="text-lg font-semibold">利用者を招待</h3>
                   <button
                     onClick={() => setShowCreateModal(false)}
                     className="text-gray-400 hover:text-gray-600"

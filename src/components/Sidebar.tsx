@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import Link from "next/link";
 import { useSidebarConfig } from "../hooks/useSidebarConfig";
 import { useAuth } from "../contexts/AuthContext";
 import { CATEGORY_NAMES, MenuCategory } from "../types/sidebar";
@@ -22,6 +23,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   // 管理者のみに表示するメニューアイテム
   const isAdmin = userRole?.role === 'admin';
 
+  // カテゴリの折りたたみ状態を管理
+  const [expandedCategories, setExpandedCategories] = useState<Set<MenuCategory>>(new Set());
+  // 共通メニューの折りたたみ状態を管理
+  const [isCommonMenuExpanded, setIsCommonMenuExpanded] = useState(true); // デフォルトで展開
+
+  // カテゴリの展開/折りたたみを切り替え
+  const toggleCategory = (category: MenuCategory) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
 
   return (
     <>
@@ -36,20 +55,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
       {/* サイドバー */}
       <div
         className={`
-          fixed top-0 left-0 h-full bg-white shadow-lg z-50 transition-transform duration-300 ease-in-out
+          fixed top-0 left-0 h-full bg-gradient-to-b from-[#005eb2] to-[#004a96] shadow-lg z-50 transition-transform duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0 lg:static lg:shadow-none
-          w-64
+          w-20 lg:w-64
           flex flex-col
         `}
       >
         {/* ヘッダー */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-4 lg:p-6 border-b border-blue-400/30">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-[#005eb2]">Upmo</h1>
+            <Link href="/" className="text-xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer hidden lg:block">
+              upmo
+            </Link>
+            <Link href="/" className="text-2xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer lg:hidden">
+              U
+            </Link>
             <button
               onClick={onClose}
-              className="lg:hidden p-1 rounded-md hover:bg-gray-100"
+              className="lg:hidden p-1 rounded-md hover:bg-blue-600/50 text-white"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -59,103 +83,152 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         </div>
 
         {/* ナビゲーションメニュー */}
-        <nav className="mt-6 flex-1 overflow-y-auto min-h-0">
+        <nav className="mt-4 flex-1 overflow-y-auto min-h-0 px-2 lg:px-4">
           {/* 共通メニュー */}
-          <ul className="space-y-1 px-4">
-            {commonMenuItems.map((item) => (
-              <li key={item.id}>
-                <a
-                  href={item.href}
-                  className="
-                    flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-[#005eb2] hover:text-white
-                    transition-colors duration-200 ease-in-out
-                    group
-                  "
-                >
-                  <span className="text-lg mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
-                    {item.icon}
-                  </span>
-                  <span className="font-medium">{item.name}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-4">
+            <button
+              onClick={() => setIsCommonMenuExpanded(!isCommonMenuExpanded)}
+              className="w-full hidden lg:flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <div className="flex items-center">
+                <span>メインメニュー</span>
+                <span className="ml-2 text-xs text-white/60">({commonMenuItems.length})</span>
+              </div>
+              <svg
+                className={`w-4 h-4 transition-transform duration-200 ${isCommonMenuExpanded ? 'transform rotate-90' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            {isCommonMenuExpanded && (
+              <ul className="space-y-2 mt-2">
+                {commonMenuItems.map((item) => (
+                  <li key={item.id}>
+                    <a
+                      href={item.href}
+                      className="
+                        flex flex-col lg:flex-row items-center justify-center lg:justify-start px-2 lg:px-4 py-3 lg:py-2 rounded-xl lg:rounded-lg text-white hover:bg-white/20
+                        transition-all duration-200 ease-in-out
+                        group text-xs lg:text-sm
+                      "
+                      title={item.name}
+                    >
+                      <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
+                        {item.icon}
+                      </span>
+                      <span className="font-medium hidden lg:inline">{item.name}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/* 有効化された追加メニュー項目（カテゴリごとに表示） */}
           {additionalMenuItems.length > 0 && (
             <>
               {/* セパレーター */}
-              <div className="mx-4 my-4 border-t border-gray-200"></div>
+              <div className="mx-2 lg:mx-4 my-4 border-t border-white/20"></div>
               
               {/* カテゴリごとにグループ化して表示 */}
-              {Object.entries(
-                additionalMenuItems.reduce((acc, item) => {
+              {(() => {
+                // カテゴリの順序を固定
+                const categoryOrder: MenuCategory[] = ['sales', 'customer', 'inventory', 'finance', 'pdca', 'document', 'project', 'analytics', 'other'];
+                
+                // カテゴリごとにグループ化
+                const groupedByCategory = additionalMenuItems.reduce((acc, item) => {
                   if (!acc[item.category]) {
                     acc[item.category] = [];
                   }
                   acc[item.category].push(item);
                   return acc;
-                }, {} as Record<MenuCategory, typeof additionalMenuItems>)
-              ).map(([category, items]) => (
-                <div key={category} className="mb-4">
-                  <div className="px-4 mb-2">
-                    <div className="flex items-center px-4 py-2 text-gray-500 text-sm font-semibold">
-                      <span className="text-lg mr-3 text-blue-500">•</span>
-                      {CATEGORY_NAMES[category as MenuCategory]}
-                    </div>
-                  </div>
-                  <ul className="space-y-1 px-4">
-                    {items.map((item) => (
-                      <li key={item.id}>
-                        <a
-                          href={item.href}
-                          className="
-                            flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-[#005eb2] hover:text-white
-                            transition-colors duration-200 ease-in-out
-                            group
-                          "
+                }, {} as Record<MenuCategory, typeof additionalMenuItems>);
+                
+                // カテゴリ順にソートして、空でないカテゴリのみ表示
+                return categoryOrder
+                  .filter(category => groupedByCategory[category] && groupedByCategory[category].length > 0)
+                  .map((category) => {
+                    const items = groupedByCategory[category];
+                    const isExpanded = expandedCategories.has(category);
+                    return (
+                      <div key={category} className="mb-2">
+                      <button
+                          onClick={() => toggleCategory(category)}
+                          className="w-full hidden lg:flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
                         >
-                          <span className="text-lg mr-3 group-hover:scale-110 transition-transform duration-200">
-                            {item.icon}
-                          </span>
-                          <span className="font-medium">{item.name}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                          <div className="flex items-center">
+                            <span>{CATEGORY_NAMES[category]}</span>
+                            <span className="ml-2 text-xs text-white/60">({items.length})</span>
+                          </div>
+                          <svg
+                            className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'transform rotate-90' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                        {isExpanded && (
+                          <ul className="space-y-2 mt-2">
+                            {items.map((item) => (
+                              <li key={item.id}>
+                                <a
+                                  href={item.href}
+                                  className="
+                                    flex flex-col lg:flex-row items-center justify-center lg:justify-start px-2 lg:px-4 py-3 lg:py-2 rounded-xl lg:rounded-lg text-white hover:bg-white/20
+                                    transition-all duration-200 ease-in-out
+                                    group text-xs lg:text-sm
+                                  "
+                                  title={item.name}
+                                >
+                                  <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
+                                    {item.icon}
+                                  </span>
+                                  <span className="font-medium hidden lg:inline">{item.name}</span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                    )}
+                  </div>
+              );
+                  });
+              })()}
             </>
-          )}
+            )}
 
           {/* セパレーター */}
-          <div className="mx-4 my-4 border-t border-gray-200"></div>
+          <div className="mx-2 lg:mx-4 my-4 border-t border-white/20"></div>
 
           {/* Admin セクション - 管理者のみ表示 */}
           {isAdmin && (
             <>
-              <div className="px-4 mb-2">
-                <div className="flex items-center px-4 py-2 text-gray-500 text-sm font-semibold">
-                  <span className="text-lg mr-3 text-blue-500">•</span>
+              <div className="px-2 lg:px-4 mb-2 hidden lg:block">
+                <div className="flex items-center px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold">
                   Admin
                 </div>
               </div>
               
-              <ul className="space-y-1 px-4 mb-4">
+              <ul className="space-y-2 mb-4">
                 {adminMenuItems.map((item) => (
                   <li key={item.id}>
                     <a
                       href={item.href}
                       className="
-                        flex items-center px-8 py-2 rounded-lg text-gray-600 hover:bg-[#005eb2] hover:text-white
-                        transition-colors duration-200 ease-in-out
-                        group text-sm
+                        flex flex-col lg:flex-row items-center justify-center lg:justify-start px-2 lg:px-4 py-3 lg:py-2 rounded-xl lg:rounded-lg text-white hover:bg-white/20
+                        transition-all duration-200 ease-in-out
+                        group text-xs lg:text-sm
                       "
+                      title={item.name}
                     >
-                      <span className="text-sm mr-3 group-hover:scale-110 transition-transform duration-200 text-blue-500">
+                      <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
                         {item.icon}
                       </span>
-                      <span className="font-medium">{item.name}</span>
+                      <span className="font-medium hidden lg:inline">{item.name}</span>
                     </a>
                   </li>
                 ))}
@@ -166,24 +239,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         </nav>
 
         {/* フッター */}
-        <div className="p-6 border-t border-gray-200 bg-white">
+        <div className="p-4 lg:p-6 border-t border-white/20 bg-blue-600/50">
           {user ? (
             <div className="space-y-2">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-[#005eb2] rounded-full flex items-center justify-center">
+              <div className="flex items-center space-x-2 lg:space-x-3 justify-center lg:justify-start">
+                <div className="w-10 h-10 lg:w-8 lg:h-8 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/30">
                   <span className="text-white text-sm font-medium">
                     {user.email?.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                <div className="flex-1 min-w-0 hidden lg:block">
+                  <p className="text-sm font-medium text-white truncate">
                     {user.email}
                   </p>
                 </div>
               </div>
               <button
                 onClick={logout}
-                className="w-full px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                className="w-full px-3 py-2 text-xs lg:text-sm text-white hover:text-red-200 hover:bg-white/10 rounded-lg transition-colors border border-white/20"
               >
                 ログアウト
               </button>
@@ -192,14 +265,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
             <div className="text-center">
               <a
                 href="/login"
-                className="text-sm text-[#005eb2] hover:text-[#004a96] font-medium"
+                className="text-sm text-white hover:text-blue-100 font-medium"
               >
                 ログイン
               </a>
             </div>
           )}
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center">© 2024 Upmo Demo</p>
+          <div className="mt-3 pt-3 border-t border-white/20 hidden lg:block">
+            <p className="text-xs text-white/60 text-center">© 2024 Upmo Demo</p>
           </div>
         </div>
       </div>

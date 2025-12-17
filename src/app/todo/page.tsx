@@ -61,17 +61,27 @@ export default function TodoPage() {
         });
         if (response.ok) {
           const data = await response.json();
-          // 全ユーザー情報を保存（TODOのユーザー情報表示用）
-          const allUsersData = data.users.map((u: any) => ({
-            id: u.id,
-            displayName: u.displayName,
-            email: u.email
-          }));
+          // 現在のユーザーのcompanyNameを取得
+          const currentUser = data.users.find((u: any) => u.id === user.uid);
+          const currentCompanyName = currentUser?.companyName || '';
+          
+          // 全ユーザー情報を保存（TODOのユーザー情報表示用）- 同じcompanyNameのユーザーのみ
+          const allUsersData = data.users
+            .filter((u: any) => u.companyName === currentCompanyName)
+            .map((u: any) => ({
+              id: u.id,
+              displayName: u.displayName,
+              email: u.email
+            }));
           setAllUsers(allUsersData);
           
-          // 自分以外のユーザー（role: 'user'）をチームメンバーとして取得
+          // 自分以外のユーザー（role: 'user' かつ同じcompanyName）をチームメンバーとして取得
           const members = data.users
-            .filter((u: any) => u.id !== user.uid && u.role === 'user')
+            .filter((u: any) => 
+              u.id !== user.uid && 
+              u.role === 'user' && 
+              u.companyName === currentCompanyName
+            )
             .map((u: any) => ({
               id: u.id,
               displayName: u.displayName,

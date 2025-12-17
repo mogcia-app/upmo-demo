@@ -49,9 +49,6 @@ export async function POST(request: NextRequest) {
     const uid = await verifyAuthToken(request);
     if (!uid) return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
 
-    const isAdmin = await checkAdminRole(uid);
-    if (!isAdmin) return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
-
     const data = await request.json();
     const { id, title, description, type, sections, tags, priority } = data;
     

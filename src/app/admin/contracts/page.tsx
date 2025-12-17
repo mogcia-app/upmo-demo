@@ -460,7 +460,7 @@ export default function ContractsPage() {
   };
 
   return (
-    <ProtectedRoute adminOnly={true}>
+    <ProtectedRoute>
       <Layout>
         <div className="p-6">
           <div className="mb-6">

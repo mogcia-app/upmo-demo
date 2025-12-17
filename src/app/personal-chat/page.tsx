@@ -61,8 +61,16 @@ export default function PersonalChatPage() {
         });
         if (response.ok) {
           const data = await response.json();
+          // 現在のユーザーのcompanyNameを取得
+          const currentUser = data.users.find((u: any) => u.id === user.uid);
+          const currentCompanyName = currentUser?.companyName || '';
+          
           const members = data.users
-            .filter((u: any) => u.id !== user.uid && u.role === 'user')
+            .filter((u: any) => 
+              u.id !== user.uid && 
+              u.role === 'user' && 
+              u.companyName === currentCompanyName
+            )
             .map((u: any) => ({
               id: u.id,
               displayName: u.displayName,

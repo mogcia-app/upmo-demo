@@ -46,33 +46,7 @@ export interface SidebarMenuItem {
 // 利用可能なメニュー項目の候補プール（全モジュール）
 export const AVAILABLE_MENU_ITEMS: AvailableMenuItem[] = [
   // ===== 営業管理 =====
-  {
-    id: 'sales-cases',
-    name: '営業案件管理',
-    icon: '📋',
-    href: '/sales/cases',
-    category: 'sales',
-    description: '営業案件の管理と追跡',
-    order: 1,
-  },
-  {
-    id: 'sales-quotes',
-    name: '見積管理',
-    icon: '💰',
-    href: '/sales/quotes',
-    category: 'sales',
-    description: '見積書の作成と管理',
-    order: 2,
-  },
-  {
-    id: 'sales-orders',
-    name: '受注管理',
-    icon: '✅',
-    href: '/sales/orders',
-    category: 'sales',
-    description: '受注情報の管理',
-    order: 3,
-  },
+  // 営業案件管理は顧客管理に統合されました
   
   // ===== 顧客管理 =====
   {
@@ -107,13 +81,31 @@ export const AVAILABLE_MENU_ITEMS: AvailableMenuItem[] = [
   
   // ===== 財務管理 =====
   {
+    id: 'sales-quotes',
+    name: '見積管理',
+    icon: '💰',
+    href: '/sales/quotes',
+    category: 'finance',
+    description: '見積書の作成と管理',
+    order: 1,
+  },
+  {
+    id: 'sales-orders',
+    name: '受注管理',
+    icon: '✅',
+    href: '/sales/orders',
+    category: 'finance',
+    description: '受注情報の管理',
+    order: 2,
+  },
+  {
     id: 'billing-management',
     name: '請求管理',
     icon: '🧾',
     href: '/billing',
     category: 'finance',
     description: '請求書の作成と管理',
-    order: 1,
+    order: 3,
   },
   {
     id: 'expense-management',
@@ -122,7 +114,7 @@ export const AVAILABLE_MENU_ITEMS: AvailableMenuItem[] = [
     href: '/expenses',
     category: 'finance',
     description: '経費の記録と管理',
-    order: 2,
+    order: 4,
   },
   
   // ===== PDCA管理 =====

@@ -207,13 +207,18 @@ export async function GET(request: NextRequest) {
       console.error('契約書件数取得エラー:', error);
     }
 
-    // チーム利用者数を取得
+    // チーム利用者数を取得（同じcompanyNameのユーザーのみ）
     let teamMembersCount = 0;
     try {
+      // 現在のユーザーのcompanyNameを取得
+      const currentUserDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+      const currentUserData = currentUserDoc.data();
+      const currentCompanyName = currentUserData?.companyName || '';
+      
       const usersSnapshot = await adminDb.collection('users').get();
       usersSnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.role === 'user') {
+        if (data.role === 'user' && data.companyName === currentCompanyName && doc.id !== decodedToken.uid) {
           teamMembersCount++;
         }
       });
