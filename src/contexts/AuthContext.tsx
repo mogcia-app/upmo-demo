@@ -43,17 +43,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Firebaseが初期化されていない場合（環境変数が設定されていない場合）
     if (!auth) {
       console.warn('Firebase Auth is not initialized. Please check your environment variables.');
+      console.warn('Auth state:', { auth: null, db: db ? 'initialized' : 'not initialized' });
       setLoading(false);
       return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', { 
+        hasUser: !!user, 
+        userId: user?.uid,
+        dbInitialized: !!db 
+      });
       setUser(user);
       
       if (user) {
         // Firestore からユーザーロール情報を取得
         if (!db) {
           console.warn('Firestore is not initialized. User role cannot be fetched.');
+          console.warn('Setting default role to "user"');
           setUserRole({
             role: 'user',
             status: 'active'
@@ -63,9 +70,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         try {
+          console.log('Fetching user role from Firestore for user:', user.uid);
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            console.log('User data from Firestore:', { 
+              role: userData.role, 
+              status: userData.status,
+              hasRole: !!userData.role
+            });
             setUserRole({
               role: userData.role || 'user',
               status: userData.status || 'active',
@@ -74,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           } else {
             // ユーザーデータが存在しない場合はデフォルト値を設定
+            console.warn('User document does not exist in Firestore. Setting default role to "user"');
             setUserRole({
               role: 'user',
               status: 'active'

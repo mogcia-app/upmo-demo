@@ -15,14 +15,34 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminO
   const router = useRouter();
 
   useEffect(() => {
+    console.log('ProtectedRoute state:', { 
+      loading, 
+      hasUser: !!user, 
+      userId: user?.uid,
+      userRole, 
+      adminOnly 
+    });
+    
     if (!loading && !user) {
+      console.log('ProtectedRoute: No user, redirecting to login');
       router.push("/login");
-    } else if (!loading && user && adminOnly && userRole?.role !== 'admin') {
-      router.push("/");
+    } else if (!loading && user && adminOnly) {
+      // userRoleがnullの場合は、まだ読み込み中の可能性があるので待つ
+      if (userRole === null) {
+        console.warn('ProtectedRoute: userRole is null, waiting for role to be loaded...');
+        return;
+      }
+      if (userRole?.role !== 'admin') {
+        console.warn('ProtectedRoute: User does not have admin role. Current role:', userRole?.role);
+        router.push("/");
+      } else {
+        console.log('ProtectedRoute: User has admin role, allowing access');
+      }
     }
   }, [user, userRole, loading, router, adminOnly]);
 
-  if (loading) {
+  // ローディング中、またはuserRoleがnullでadminOnlyの場合は待つ
+  if (loading || (adminOnly && user && userRole === null)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -44,6 +64,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminO
           <div className="text-6xl mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">アクセス権限がありません</h1>
           <p className="text-gray-600 mb-4">このページにアクセスするには管理者権限が必要です。</p>
+          <p className="text-sm text-gray-500 mb-4">現在のロール: {userRole?.role || '未設定'}</p>
           <button
             onClick={() => router.push("/")}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

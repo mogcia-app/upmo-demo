@@ -25,14 +25,16 @@ const validateConfig = () => {
     'NEXT_PUBLIC_FIREBASE_APP_ID',
   ];
 
-  // デバッグ: 環境変数の状態を確認
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  // デバッグ: 環境変数の状態を確認（開発環境・本番環境ともに）
+  if (typeof window !== 'undefined') {
     const envStatus = requiredEnvVars.map(varName => ({
       name: varName,
       exists: !!process.env[varName],
-      length: process.env[varName]?.length || 0
+      length: process.env[varName]?.length || 0,
+      value: process.env[varName] ? `${process.env[varName]?.substring(0, 10)}...` : 'undefined'
     }));
     console.log('🔍 Firebase environment variables status:', envStatus);
+    console.log('🔍 Environment:', process.env.NODE_ENV);
   }
 
   const missingVars = requiredEnvVars.filter(
@@ -93,21 +95,38 @@ if (getApps().length === 0) {
   // 環境変数の検証（警告のみ、エラーはスローしない）
   const isValid = validateConfig();
   
+  // デバッグ: 実際の環境変数の値を確認（機密情報は一部のみ表示）
+  if (typeof window !== 'undefined') {
+    console.log('🔍 Firebase config values:', {
+      apiKey: firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 10)}...` : 'undefined',
+      authDomain: firebaseConfig.authDomain || 'undefined',
+      projectId: firebaseConfig.projectId || 'undefined',
+      storageBucket: firebaseConfig.storageBucket || 'undefined',
+      messagingSenderId: firebaseConfig.messagingSenderId || 'undefined',
+      appId: firebaseConfig.appId ? `${firebaseConfig.appId.substring(0, 10)}...` : 'undefined',
+      isValid: isValid
+    });
+  }
+  
   // 環境変数が設定されている場合、または設定されていなくても初期化を試みる
   try {
     // 環境変数がすべて設定されている場合のみ初期化
     if (isValid) {
+      console.log('✅ All Firebase environment variables are set. Initializing Firebase...');
       app = initializeApp(firebaseConfig);
+      console.log('✅ Firebase initialized successfully');
     } else {
       // 環境変数が一部でも設定されている場合、初期化を試みる
       // （本番環境でも環境変数が正しく設定されていない場合に備える）
       const hasAnyConfig = Object.values(firebaseConfig).some(val => val && val !== '');
       if (hasAnyConfig) {
         console.warn('⚠️ Some Firebase environment variables are missing, but attempting initialization with available values.');
+        console.warn('⚠️ Config:', firebaseConfig);
         try {
           app = initializeApp(firebaseConfig);
+          console.log('⚠️ Firebase initialized with partial config');
         } catch (initError) {
-          console.error('Firebase initialization failed with partial config:', initError);
+          console.error('❌ Firebase initialization failed with partial config:', initError);
           // 初期化に失敗した場合はnullのまま（アプリはクラッシュしない）
         }
       } else {
@@ -115,12 +134,13 @@ if (getApps().length === 0) {
       }
     }
   } catch (error) {
-    console.error('Firebase initialization error:', error);
+    console.error('❌ Firebase initialization error:', error);
     // エラーをスローせず、nullのままにする（アプリはクラッシュしない）
     app = null;
   }
 } else {
   app = getApps()[0];
+  console.log('✅ Firebase app already initialized');
 }
 
 // Initialize Firebase services (only if app is initialized)
@@ -128,6 +148,16 @@ if (getApps().length === 0) {
 export const auth = app ? getAuth(app) : null as any;
 export const db = app ? getFirestore(app) : null as any;
 export const storage = app ? getStorage(app) : null as any;
+
+// デバッグ: サービスの初期化状態を確認
+if (typeof window !== 'undefined') {
+  console.log('🔍 Firebase services initialized:', {
+    app: !!app,
+    auth: !!auth,
+    db: !!db,
+    storage: !!storage
+  });
+}
 
 // Handle network connectivity issues
 if (typeof window !== 'undefined' && db) {
