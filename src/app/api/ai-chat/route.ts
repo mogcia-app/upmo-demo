@@ -784,6 +784,9 @@ async function searchByIntent(
         
         if (relevantDocs.length > 0) {
           // 複数のドキュメントがある場合は、すべて表示
+          // 「について教えて」パターンの場合は、overviewセクションだけを返す
+          const isAboutQuery = !!extractedTitle;
+          
           const docTexts = relevantDocs.map((doc, index) => {
             const sections = doc.sections || {};
             const sectionTexts: string[] = [];
@@ -805,7 +808,12 @@ async function searchByIntent(
               'qa': 'Q&A'
             };
             
-            for (const [key, value] of Object.entries(sections)) {
+            // 「について教えて」の場合は、overviewセクションだけを処理
+            const sectionsToProcess = isAboutQuery 
+              ? Object.entries(sections).filter(([key]) => key === 'overview')
+              : Object.entries(sections);
+            
+            for (const [key, value] of sectionsToProcess) {
               if (Array.isArray(value) && value.length > 0) {
                 const label = sectionLabels[key] || key;
                 if (key === 'qa' && typeof value[0] === 'object' && 'question' in value[0]) {

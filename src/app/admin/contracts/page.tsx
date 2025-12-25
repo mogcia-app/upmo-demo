@@ -585,7 +585,9 @@ export default function ContractsPage() {
                   
                   {/* セクション内容 */}
                   <div className="mt-4">
-                    {Object.entries(doc.sections).map(([key, value]) => {
+                    {Object.entries(doc.sections)
+                      .filter(([key]) => key !== 'overview') // overviewセクションは表示しない
+                      .map(([key, value]) => {
                       // Q&Aセクションの特別な処理
                       if (key === 'qa' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && 'question' in value[0]) {
                         const qaArray = value as { question: string; answer: string }[];
@@ -652,8 +654,10 @@ export default function ContractsPage() {
                         // ドキュメントの内容を文字列に変換
                         const contentParts: string[] = [];
                         contentParts.push(`タイトル: ${doc.title}`);
-                        if (doc.description) contentParts.push(`概要: ${doc.description}`);
-                        Object.entries(doc.sections).forEach(([key, value]) => {
+                        // 概要は表示しない（入力ページがないため）
+                        Object.entries(doc.sections)
+                          .filter(([key]) => key !== 'overview') // overviewセクションは除外
+                          .forEach(([key, value]) => {
                           if (Array.isArray(value) && value.length > 0) {
                             const items = value.map((item: any) => {
                               if (typeof item === 'string') {

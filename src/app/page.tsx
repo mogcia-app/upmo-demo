@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Layout from "../components/Layout";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useAuth } from "../contexts/AuthContext";
@@ -1877,6 +1878,62 @@ const TodayEventsView: React.FC = () => {
 
 export default function Home() {
   const { user } = useAuth();
+  const router = useRouter();
+
+  // Markdownリンクをレンダリングする関数
+  const renderMessageWithLinks = (text: string) => {
+    // Markdownリンクのパターン: [テキスト](URL) - 改行を含む場合も考慮
+    const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts: (string | React.ReactElement)[] = [];
+    let match;
+    let key = 0;
+
+    // テキストを行ごとに分割して処理
+    const lines = text.split('\n');
+    
+    lines.forEach((line, lineIndex) => {
+      if (lineIndex > 0) {
+        // 改行を追加
+        parts.push('\n');
+      }
+      
+      let lineLastIndex = 0;
+      linkPattern.lastIndex = 0; // 正規表現をリセット
+      
+      while ((match = linkPattern.exec(line)) !== null) {
+        // リンクの前のテキスト
+        if (match.index > lineLastIndex) {
+          parts.push(line.substring(lineLastIndex, match.index));
+        }
+        
+        // リンク
+        const linkText = match[1];
+        const linkUrl = match[2];
+        parts.push(
+          <a
+            key={`link-${key++}`}
+            href={linkUrl}
+            onClick={(e) => {
+              e.preventDefault();
+              router.push(linkUrl);
+            }}
+            className="text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer"
+          >
+            {linkText}
+          </a>
+        );
+        
+        lineLastIndex = linkPattern.lastIndex;
+      }
+      
+      // 残りのテキスト
+      if (lineLastIndex < line.length) {
+        parts.push(line.substring(lineLastIndex));
+      }
+    });
+    
+    return parts.length > 0 ? <>{parts}</> : text;
+  };
 
   // 通常のダッシュボード表示用のstate（すべてのHooksを早期リターンの前に配置）
   const [searchQuery, setSearchQuery] = useState("");
@@ -2244,7 +2301,12 @@ export default function Home() {
                                   : 'bg-gray-100 text-gray-900'
                               }`}
                             >
-                              <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>
+                              <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                {message.sender === 'ai' 
+                                  ? renderMessageWithLinks(message.text)
+                                  : message.text
+                                }
+                              </p>
                               {message.id === "loading" && (
                                 <div className="flex gap-1 mt-2">
                                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
