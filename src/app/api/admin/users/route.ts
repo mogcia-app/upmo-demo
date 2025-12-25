@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 認証チェック（管理者のみがユーザーを作成できる）
+    // 認証チェック（ログイン済みユーザーなら誰でもユーザーを作成できる）
     const userId = await verifyAuthToken(request);
     if (!userId) {
       return NextResponse.json(
@@ -51,17 +51,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 管理者権限チェック
-    if (userData.role !== 'admin') {
-      return NextResponse.json(
-        { error: '管理者権限が必要です' },
-        { status: 403 }
-      );
-    }
-
     const { email, password, displayName, role = 'user', department, position, companyName } = await request.json();
     
-    // 管理者のみが任意のroleを設定可能
+    // ログイン済みユーザーなら誰でも任意のroleを設定可能
     const finalRole = role;
 
     // バリデーション

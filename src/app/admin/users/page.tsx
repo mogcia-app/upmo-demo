@@ -275,7 +275,7 @@ export default function UsersPage() {
   };
 
   return (
-    <ProtectedRoute adminOnly={true}>
+    <ProtectedRoute>
       <Layout>
         <div className="min-h-screen bg-gray-50">
           {/* ヘッダー */}
