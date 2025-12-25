@@ -2204,7 +2204,7 @@ export default function Home() {
           </div>
 
           {/* 統計カード */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <div className="hidden lg:grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-[#005eb2]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">

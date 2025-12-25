@@ -55,22 +55,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
       {/* サイドバー */}
       <div
         className={`
-          fixed top-0 left-0 h-full bg-gradient-to-b from-[#005eb2] to-[#004a96] shadow-lg z-50 transition-transform duration-300 ease-in-out
+          fixed top-0 left-0 h-full bg-gradient-to-b from-[#005eb2] to-[#004a96] shadow-lg z-50 transition-all duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0 lg:static lg:shadow-none
-          w-20 lg:w-64
+          ${isOpen ? "w-64" : "w-20"} lg:w-64
           flex flex-col
         `}
       >
         {/* ヘッダー */}
         <div className="p-4 lg:p-6 border-b border-blue-400/30">
           <div className="flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer hidden lg:block">
+            <Link href="/" className={`text-xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer ${isOpen ? 'block' : 'hidden lg:block'}`}>
               upmo
             </Link>
-            <Link href="/" className="text-2xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer lg:hidden">
-              U
-            </Link>
+            {!isOpen && (
+              <Link href="/" className="text-2xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer lg:hidden">
+                U
+              </Link>
+            )}
             <button
               onClick={onClose}
               className="lg:hidden p-1 rounded-md hover:bg-blue-600/50 text-white"
@@ -88,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           <div className="mb-4">
             <button
               onClick={() => setIsCommonMenuExpanded(!isCommonMenuExpanded)}
-              className="w-full hidden lg:flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
             >
               <div className="flex items-center">
                 <span>メインメニュー</span>
@@ -119,7 +121,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                       <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
                         {item.icon}
                       </span>
-                      <span className="font-medium hidden lg:inline">{item.name}</span>
+                      <span className={`font-medium ${isOpen ? 'inline' : 'hidden lg:inline'}`}>{item.name}</span>
                     </a>
                   </li>
                 ))}
@@ -157,7 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                       <div key={category} className="mb-2">
                       <button
                           onClick={() => toggleCategory(category)}
-                          className="w-full hidden lg:flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
+                          className="w-full flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
                         >
                           <div className="flex items-center">
                             <span>{CATEGORY_NAMES[category]}</span>
@@ -188,7 +190,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                   <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
                                     {item.icon}
                                   </span>
-                                  <span className="font-medium hidden lg:inline">{item.name}</span>
+                                  <span className={`font-medium ${isOpen ? 'inline' : 'hidden lg:inline'}`}>{item.name}</span>
                                 </a>
                               </li>
                             ))}
@@ -207,7 +209,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           {/* Admin セクション - 管理者のみ表示 */}
           {isAdmin && (
             <>
-              <div className="px-2 lg:px-4 mb-2 hidden lg:block">
+              <div className={`px-2 lg:px-4 mb-2 ${isOpen ? 'block' : 'hidden lg:block'}`}>
                 <div className="flex items-center px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold">
                   Admin
                 </div>
@@ -228,7 +230,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                       <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
                         {item.icon}
                       </span>
-                      <span className="font-medium hidden lg:inline">{item.name}</span>
+                      <span className={`font-medium ${isOpen ? 'inline' : 'hidden lg:inline'}`}>{item.name}</span>
                     </a>
                   </li>
                 ))}
@@ -248,7 +250,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                     {user.email?.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0 hidden lg:block">
+                <div className={`flex-1 min-w-0 ${isOpen ? 'block' : 'hidden lg:block'}`}>
                   <p className="text-sm font-medium text-white truncate">
                     {user.email}
                   </p>
@@ -271,7 +273,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               </a>
             </div>
           )}
-          <div className="mt-3 pt-3 border-t border-white/20 hidden lg:block">
+          <div className={`mt-3 pt-3 border-t border-white/20 ${isOpen ? 'block' : 'hidden lg:block'}`}>
             <p className="text-xs text-white/60 text-center">© 2024 Upmo Demo</p>
           </div>
         </div>
