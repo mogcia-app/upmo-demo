@@ -251,22 +251,12 @@ export async function PUT(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 認証チェック（管理者のみがユーザーを更新できる）
+    // 認証チェック（ログイン済みユーザーなら誰でもユーザーを更新できる）
     const userId = await verifyAuthToken(request);
     if (!userId) {
       return NextResponse.json(
         { error: '認証が必要です' },
         { status: 401 }
-      );
-    }
-
-    // 管理者権限チェック
-    const userDoc = await db.collection('users').doc(userId).get();
-    const userData = userDoc.data();
-    if (!userData || userData.role !== 'admin') {
-      return NextResponse.json(
-        { error: '管理者権限が必要です' },
-        { status: 403 }
       );
     }
 
@@ -309,22 +299,12 @@ export async function DELETE(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 認証チェック（管理者のみがユーザーを削除できる）
+    // 認証チェック（ログイン済みユーザーなら誰でもユーザーを削除できる）
     const userId = await verifyAuthToken(request);
     if (!userId) {
       return NextResponse.json(
         { error: '認証が必要です' },
         { status: 401 }
-      );
-    }
-
-    // 管理者権限チェック
-    const userDoc = await db.collection('users').doc(userId).get();
-    const userData = userDoc.data();
-    if (!userData || userData.role !== 'admin') {
-      return NextResponse.json(
-        { error: '管理者権限が必要です' },
-        { status: 403 }
       );
     }
 
@@ -349,6 +329,79 @@ export async function DELETE(request: NextRequest) {
     console.error('ユーザー削除エラー:', error);
     return NextResponse.json(
       { error: 'ユーザーの削除に失敗しました' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    // Firebase Admin SDK が初期化されていない場合はエラーを返す
+    if (!auth || !db) {
+      return NextResponse.json({ 
+        error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
+      }, { status: 500 });
+    }
+
+    // 認証チェック（ログイン済みユーザーなら誰でもパスワードを変更できる）
+    const userId = await verifyAuthToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: '認証が必要です' },
+        { status: 401 }
+      );
+    }
+
+    const { uid, newPassword } = await request.json();
+
+    if (!uid) {
+      return NextResponse.json(
+        { error: 'ユーザーIDは必須です' },
+        { status: 400 }
+      );
+    }
+
+    if (!newPassword) {
+      return NextResponse.json(
+        { error: '新しいパスワードは必須です' },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword.length < 6) {
+      return NextResponse.json(
+        { error: 'パスワードは6文字以上である必要があります' },
+        { status: 400 }
+      );
+    }
+
+    // Firebase Auth でパスワードを更新
+    await auth.updateUser(uid, {
+      password: newPassword
+    });
+
+    return NextResponse.json({ success: true });
+
+  } catch (error: any) {
+    console.error('パスワード変更エラー:', error);
+    
+    // Firebase Auth のエラーハンドリング
+    if (error.code === 'auth/user-not-found') {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    if (error.code === 'auth/weak-password') {
+      return NextResponse.json(
+        { error: 'パスワードが弱すぎます' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'パスワードの変更に失敗しました' },
       { status: 500 }
     );
   }

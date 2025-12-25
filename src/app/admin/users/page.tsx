@@ -25,6 +25,11 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   
@@ -234,6 +239,51 @@ export default function UsersPage() {
     } catch (error) {
       console.error('ユーザー更新エラー:', error);
       alert('ユーザー情報の更新に失敗しました');
+    }
+  };
+
+  // パスワードを変更
+  const changePassword = async (userId: string) => {
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
+    
+    if (!newPassword || newPassword.length < 6) {
+      alert('パスワードは6文字以上である必要があります');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      // 認証トークンを取得
+      const token = await user.getIdToken();
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          uid: userId,
+          newPassword: newPassword
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setNewPassword('');
+        setShowChangePassword(false);
+        alert('パスワードが変更されました');
+      } else {
+        alert(`エラー: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('パスワード変更エラー:', error);
+      alert('パスワードの変更に失敗しました');
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -451,14 +501,32 @@ export default function UsersPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">パスワード *</label>
-                    <input
-                      type="password"
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="6文字以上"
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="6文字以上"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                        ) : (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -469,28 +537,6 @@ export default function UsersPage() {
                       onChange={(e) => setNewUser({...newUser, displayName: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="田中太郎"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">部署</label>
-                    <input
-                      type="text"
-                      value={newUser.department}
-                      onChange={(e) => setNewUser({...newUser, department: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="営業部"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">役職</label>
-                    <input
-                      type="text"
-                      value={newUser.position}
-                      onChange={(e) => setNewUser({...newUser, position: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="マネージャー"
                     />
                   </div>
                 </div>
@@ -565,6 +611,67 @@ export default function UsersPage() {
                         placeholder="役職を入力"
                       />
                     </div>
+                  </div>
+
+                  {/* パスワード変更セクション */}
+                  <div className="pt-4 border-t border-gray-200">
+                    {!showChangePassword ? (
+                      <button
+                        onClick={() => setShowChangePassword(true)}
+                        className="w-full px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        パスワードを変更
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">新しいパスワード</label>
+                          <div className="relative">
+                            <input
+                              type={showNewPassword ? "text" : "password"}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="6文字以上"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                            >
+                              {showNewPassword ? (
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
+                              ) : (
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => changePassword(selectedUser.id)}
+                            disabled={isChangingPassword || !newPassword || newPassword.length < 6}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                          >
+                            {isChangingPassword ? '変更中...' : '変更'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowChangePassword(false);
+                              setNewPassword('');
+                            }}
+                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-3 pt-4">
