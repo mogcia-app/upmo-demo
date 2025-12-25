@@ -4,76 +4,32 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { ProgressNote, SalesCase } from '@/types/sales';
-import SummaryModal from '@/components/SummaryModal';
+import { ProgressNote } from '@/types/sales';
 
 export default function ProgressNotesPage() {
   const { user } = useAuth();
   const [notes, setNotes] = useState<ProgressNote[]>([]);
-  const [cases, setCases] = useState<SalesCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingNote, setEditingNote] = useState<ProgressNote | null>(null);
-  const [filterCaseId, setFilterCaseId] = useState<string>('all');
   const [isSaving, setIsSaving] = useState(false);
   
-  // 要約用の状態
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
-  const [summaryContent, setSummaryContent] = useState('');
-  const [summaryDocumentId, setSummaryDocumentId] = useState<string>('');
-
-  // URLパラメータから案件IDを取得
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const caseId = params.get('caseId');
-      if (caseId) {
-        setFilterCaseId(caseId);
-      }
-    }
-  }, []);
+  // 検索・フィルター
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'relevance' | 'date'>('date');
+  const [selectedNote, setSelectedNote] = useState<ProgressNote | null>(null);
 
   const [formData, setFormData] = useState<Partial<ProgressNote>>({
-    caseId: undefined,
-    caseTitle: '',
     title: '',
     content: '',
-    type: 'meeting',
     date: new Date(),
     participants: [],
-    nextActions: [],
-    risks: [],
-    tags: [],
     priority: 'medium'
   });
 
   const [participantInput, setParticipantInput] = useState('');
-  const [nextActionInput, setNextActionInput] = useState('');
-  const [riskInput, setRiskInput] = useState('');
-  const [tagInput, setTagInput] = useState('');
 
-  // 案件一覧を取得
-  const fetchCases = async () => {
-    if (!user) return;
-
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch(`/api/sales/cases?userId=${user.uid}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCases(data.cases || []);
-      }
-    } catch (error) {
-      console.error('案件取得エラー:', error);
-    }
-  };
-
-  // 進捗メモ一覧を取得
+  // メモ一覧を取得
   const fetchNotes = async () => {
     if (!user) return;
 
@@ -81,9 +37,6 @@ export default function ProgressNotesPage() {
       setLoading(true);
       const token = await user.getIdToken();
       const params = new URLSearchParams({ userId: user.uid });
-      if (filterCaseId !== 'all') {
-        params.append('caseId', filterCaseId);
-      }
 
       const response = await fetch(`/api/sales/progress-notes?${params}`, {
         headers: {
@@ -96,40 +49,27 @@ export default function ProgressNotesPage() {
         setNotes(data.notes || []);
       }
     } catch (error) {
-      console.error('進捗メモ取得エラー:', error);
-      alert('進捗メモの取得に失敗しました');
+      console.error('メモ取得エラー:', error);
+      alert('メモの取得に失敗しました');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCases();
-  }, [user]);
-
-  useEffect(() => {
     fetchNotes();
-  }, [user, filterCaseId]);
+  }, [user]);
 
   // フォームリセット
   const resetForm = () => {
     setFormData({
-      caseId: filterCaseId !== 'all' ? filterCaseId : undefined,
-      caseTitle: '',
       title: '',
       content: '',
-      type: 'meeting',
       date: new Date(),
       participants: [],
-      nextActions: [],
-      risks: [],
-      tags: [],
       priority: 'medium'
     });
     setParticipantInput('');
-    setNextActionInput('');
-    setRiskInput('');
-    setTagInput('');
     setEditingNote(null);
   };
 
@@ -143,16 +83,10 @@ export default function ProgressNotesPage() {
   const handleEdit = (note: ProgressNote) => {
     setEditingNote(note);
     setFormData({
-      caseId: note.caseId || undefined,
-      caseTitle: note.caseTitle || '',
       title: note.title,
       content: note.content,
-      type: note.type,
       date: note.date,
       participants: note.participants || [],
-      nextActions: note.nextActions || [],
-      risks: note.risks || [],
-      tags: note.tags || [],
       priority: note.priority || 'medium'
     });
     setShowModal(true);
@@ -169,18 +103,8 @@ export default function ProgressNotesPage() {
       setIsSaving(true);
       const token = await user.getIdToken();
 
-      // 案件タイトルを取得
-      let caseTitle = formData.caseTitle;
-      if (formData.caseId && !caseTitle) {
-        const selectedCase = cases.find(c => c.id === formData.caseId);
-        if (selectedCase) {
-          caseTitle = selectedCase.title;
-        }
-      }
-
       const payload = {
         ...formData,
-        caseTitle,
         userId: user.uid,
         date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString()
       };
@@ -206,7 +130,7 @@ export default function ProgressNotesPage() {
         throw new Error(errorMessage);
       }
 
-      alert(editingNote ? '進捗メモを更新しました' : '進捗メモを作成しました');
+      alert(editingNote ? 'メモを更新しました' : 'メモを作成しました');
       setShowModal(false);
       resetForm();
       fetchNotes();
@@ -221,7 +145,7 @@ export default function ProgressNotesPage() {
 
   // 削除
   const handleDelete = async (id: string) => {
-    if (!confirm('この進捗メモを削除しますか？')) return;
+    if (!confirm('このメモを削除しますか？')) return;
     if (!user) return;
 
     try {
@@ -234,7 +158,7 @@ export default function ProgressNotesPage() {
       });
 
       if (response.ok) {
-        alert('進捗メモを削除しました');
+        alert('メモを削除しました');
         fetchNotes();
       } else {
         throw new Error('削除に失敗しました');
@@ -256,81 +180,12 @@ export default function ProgressNotesPage() {
     }
   };
 
-  // 次アクション追加
-  const handleAddNextAction = () => {
-    if (nextActionInput.trim() && !formData.nextActions?.includes(nextActionInput.trim())) {
-      setFormData({
-        ...formData,
-        nextActions: [...(formData.nextActions || []), nextActionInput.trim()]
-      });
-      setNextActionInput('');
-    }
-  };
-
-  // リスク追加
-  const handleAddRisk = () => {
-    if (riskInput.trim() && !formData.risks?.includes(riskInput.trim())) {
-      setFormData({
-        ...formData,
-        risks: [...(formData.risks || []), riskInput.trim()]
-      });
-      setRiskInput('');
-    }
-  };
-
-  // タグ追加
-  const handleAddTag = () => {
-    if (tagInput.trim() && !formData.tags?.includes(tagInput.trim())) {
-      setFormData({
-        ...formData,
-        tags: [...(formData.tags || []), tagInput.trim()]
-      });
-      setTagInput('');
-    }
-  };
-
   // 参加者削除
   const handleRemoveParticipant = (participant: string) => {
     setFormData({
       ...formData,
       participants: formData.participants?.filter(p => p !== participant) || []
     });
-  };
-
-  // 次アクション削除
-  const handleRemoveNextAction = (action: string) => {
-    setFormData({
-      ...formData,
-      nextActions: formData.nextActions?.filter(a => a !== action) || []
-    });
-  };
-
-  // リスク削除
-  const handleRemoveRisk = (risk: string) => {
-    setFormData({
-      ...formData,
-      risks: formData.risks?.filter(r => r !== risk) || []
-    });
-  };
-
-  // タグ削除
-  const handleRemoveTag = (tag: string) => {
-    setFormData({
-      ...formData,
-      tags: formData.tags?.filter(t => t !== tag) || []
-    });
-  };
-
-  // タイプラベル
-  const getTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      'meeting': '打ち合わせ',
-      'call': '電話',
-      'email': 'メール',
-      'document': '資料',
-      'other': 'その他'
-    };
-    return labels[type] || type;
   };
 
   // 優先度ラベル
@@ -353,507 +208,339 @@ export default function ProgressNotesPage() {
     return colors[priority || 'medium'] || 'bg-yellow-100 text-yellow-800';
   };
 
+  // フィルターされたメモ
+  const filteredNotes = notes.filter(note => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      note.title.toLowerCase().includes(query) ||
+      note.content.toLowerCase().includes(query) ||
+      note.participants?.some(p => p.toLowerCase().includes(query))
+    );
+  });
+
+  // ソート
+  const sortedNotes = [...filteredNotes].sort((a, b) => {
+    if (sortBy === 'date') {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }
+    return 0;
+  });
+
+
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="max-w-7xl mx-auto">
-          {/* ヘッダー */}
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">進捗メモ管理</h1>
-              <p className="text-sm text-gray-600 mt-1">進捗メモの作成・編集・管理を行います</p>
+        <div className="min-h-screen bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            {/* ヘッダー */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">メモ</h1>
+              <p className="text-gray-600">自由にメモを管理できます</p>
             </div>
-            <div className="flex gap-3">
-              <a
-                href="/sales/cases"
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                案件一覧
-              </a>
-              <button
-                onClick={handleOpenModal}
-                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-              >
-                + 新規メモ
-              </button>
-            </div>
-          </div>
 
-          {/* フィルター */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              案件でフィルター
-            </label>
-            <select
-              value={filterCaseId}
-              onChange={(e) => setFilterCaseId(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-            >
-              <option value="all">すべての案件</option>
-              {cases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title} - {c.customerName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 進捗メモ一覧 */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
-              <p className="mt-2 text-gray-600">読み込み中...</p>
-            </div>
-          ) : notes.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <p className="text-gray-600">進捗メモがありません</p>
-              <button
-                onClick={handleOpenModal}
-                className="mt-4 px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-              >
-                最初のメモを作成
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+            {/* 検索バー */}
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="メモを検索..."
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={handleOpenModal}
+                  className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium whitespace-nowrap"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
+                  + 新規メモ
+                </button>
+              </div>
+
+              {/* フィルター */}
+              <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">並び替え:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'relevance' | 'date')}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm"
+                  >
+                    <option value="date">日付</option>
+                    <option value="relevance">関連度</option>
+                  </select>
+                </div>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-sm text-[#005eb2] hover:underline"
+                  >
+                    すべてクリア
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* メモ一覧 */}
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
+                <p className="mt-2 text-gray-600">読み込み中...</p>
+              </div>
+            ) : sortedNotes.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                <p className="text-gray-600 mb-4">
+                  {searchQuery ? '検索結果が見つかりませんでした' : 'メモがありません'}
+                </p>
+                {!searchQuery && (
+                  <button
+                    onClick={handleOpenModal}
+                    className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                  >
+                    最初のメモを作成
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600">
+                    {sortedNotes.length}件のメモ
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {sortedNotes.map((note, index) => {
+                    const isSelected = selectedNote?.id === note.id;
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() => setSelectedNote(note)}
+                        className={`group bg-white rounded-lg border-2 p-4 hover:shadow-md transition-all cursor-pointer ${
+                          isSelected ? 'border-[#005eb2] shadow-md' : 'border-gray-200'
+                        }`}
+                      >
+                        {/* タイトル */}
+                        <h3 className="text-base font-semibold text-gray-900 mb-2 line-clamp-2">
                           {note.title}
                         </h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(note.priority)}`}>
-                          {getPriorityLabel(note.priority)}
-                        </span>
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                          {getTypeLabel(note.type)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span>{new Date(note.date).toLocaleDateString('ja-JP')}</span>
-                        {note.caseTitle && (
-                          <span className="text-[#005eb2]">案件: {note.caseTitle}</span>
+
+                        {/* 日付と優先度 */}
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs text-gray-500">
+                            {new Date(note.date).toISOString().split('T')[0]}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(note.priority)}`}>
+                            {getPriorityLabel(note.priority)}
+                          </span>
+                        </div>
+
+                        {/* メモ内容 */}
+                        <p className="text-sm text-gray-700 mb-3 line-clamp-3 whitespace-pre-wrap">
+                          {note.content}
+                        </p>
+
+                        {/* 参加者 */}
+                        {note.participants && note.participants.length > 0 && (
+                          <div className="mb-3 pt-3 border-t border-gray-100">
+                            <div className="flex flex-wrap gap-1">
+                              {note.participants.slice(0, 3).map((participant, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded"
+                                >
+                                  {participant}
+                                </span>
+                              ))}
+                              {note.participants.length > 3 && (
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+                                  +{note.participants.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         )}
+
+                        {/* アクションボタン */}
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(note);
+                            }}
+                            className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                          >
+                            編集
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(note.id);
+                            }}
+                            className="px-3 py-1.5 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                          >
+                            削除
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* モーダル */}
+            {showModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {editingNote ? 'メモを編集' : '新規メモを作成'}
+                    </h2>
                   </div>
 
-                  <p className="text-gray-700 mb-4 whitespace-pre-wrap">
-                    {note.content}
-                  </p>
-
-                  {note.nextActions && note.nextActions.length > 0 && (
-                    <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">次アクション:</h4>
-                      <ul className="list-disc list-inside text-sm text-gray-600">
-                        {note.nextActions.map((action, idx) => (
-                          <li key={idx}>{action}</li>
-                        ))}
-                      </ul>
+                  <div className="p-6 space-y-4">
+                    {/* タイトル */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        タイトル <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.title || ''}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        placeholder="メモのタイトルを入力"
+                      />
                     </div>
-                  )}
 
-                  {note.risks && note.risks.length > 0 && (
-                    <div className="mb-3">
-                      <h4 className="text-sm font-medium text-red-700 mb-1">リスク・懸念:</h4>
-                      <ul className="list-disc list-inside text-sm text-red-600">
-                        {note.risks.map((risk, idx) => (
-                          <li key={idx}>{risk}</li>
-                        ))}
-                      </ul>
+                    {/* 日付と優先度 */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          日付
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.date 
+                            ? new Date(formData.date).toISOString().split('T')[0]
+                            : new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setFormData({ 
+                            ...formData, 
+                            date: e.target.value ? new Date(e.target.value) : new Date() 
+                          })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          優先度
+                        </label>
+                        <select
+                          value={formData.priority || 'medium'}
+                          onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        >
+                          <option value="high">高</option>
+                          <option value="medium">中</option>
+                          <option value="low">低</option>
+                        </select>
+                      </div>
                     </div>
-                  )}
 
-                  {note.participants && note.participants.length > 0 && (
-                    <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">参加者:</h4>
+                    {/* 内容 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        内容 <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={formData.content || ''}
+                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                        rows={8}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        placeholder="メモの内容を入力してください"
+                      />
+                    </div>
+
+                    {/* 参加者 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        参加者・関係者
+                      </label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={participantInput}
+                          onChange={(e) => setParticipantInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddParticipant()}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                          placeholder="参加者名を入力してEnter"
+                        />
+                        <button
+                          onClick={handleAddParticipant}
+                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                        >
+                          追加
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-2">
-                        {note.participants.map((participant, idx) => (
+                        {formData.participants?.map((p, idx) => (
                           <span
                             key={idx}
-                            className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded"
+                            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm flex items-center gap-2"
                           >
-                            {participant}
+                            {p}
+                            <button
+                              onClick={() => handleRemoveParticipant(p)}
+                              className="hover:text-gray-900"
+                            >
+                              ×
+                            </button>
                           </span>
                         ))}
                       </div>
                     </div>
-                  )}
+                  </div>
 
-                  {note.tags && note.tags.length > 0 && (
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {note.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-4 border-t border-gray-200">
+                  <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
                     <button
                       onClick={() => {
-                        // 進捗メモの内容を文字列に変換
-                        const contentParts: string[] = [];
-                        contentParts.push(`タイトル: ${note.title}`);
-                        contentParts.push(`日付: ${new Date(note.date).toLocaleDateString('ja-JP')}`);
-                        if (note.caseTitle) contentParts.push(`関連案件: ${note.caseTitle}`);
-                        contentParts.push(`内容:\n${note.content}`);
-                        if (note.nextActions && note.nextActions.length > 0) {
-                          contentParts.push(`次アクション:\n${note.nextActions.join('\n')}`);
-                        }
-                        if (note.risks && note.risks.length > 0) {
-                          contentParts.push(`リスク・懸念:\n${note.risks.join('\n')}`);
-                        }
-                        if (note.participants && note.participants.length > 0) {
-                          contentParts.push(`参加者: ${note.participants.join(', ')}`);
-                        }
-                        const content = contentParts.join('\n\n');
-                        
-                        setSummaryContent(content);
-                        setSummaryDocumentId(note.id);
-                        setShowSummaryModal(true);
+                        setShowModal(false);
+                        resetForm();
                       }}
-                      className="px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      disabled={isSaving}
                     >
-                      要約
+                      キャンセル
                     </button>
                     <button
-                      onClick={() => handleEdit(note)}
-                      className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors disabled:opacity-50"
                     >
-                      編集
-                    </button>
-                    <button
-                      onClick={() => handleDelete(note.id)}
-                      className="px-3 py-2 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                    >
-                      削除
+                      {isSaving ? '保存中...' : editingNote ? '更新' : '作成'}
                     </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* モーダル */}
-          {showModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {editingNote ? '進捗メモを編集' : '新規進捗メモを作成'}
-                  </h2>
-                </div>
-
-                <div className="p-6 space-y-4">
-                  {/* 基本情報 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      タイトル <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title || ''}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      placeholder="例: 初回打ち合わせ"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        関連案件
-                      </label>
-                      <select
-                        value={formData.caseId || ''}
-                        onChange={(e) => {
-                          const selectedCase = cases.find(c => c.id === e.target.value);
-                          setFormData({
-                            ...formData,
-                            caseId: e.target.value || undefined,
-                            caseTitle: selectedCase?.title || ''
-                          });
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      >
-                        <option value="">選択なし</option>
-                        {cases.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.title} - {c.customerName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        日付
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.date 
-                          ? new Date(formData.date).toISOString().split('T')[0]
-                          : new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setFormData({ 
-                          ...formData, 
-                          date: e.target.value ? new Date(e.target.value) : new Date() 
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        タイプ
-                      </label>
-                      <select
-                        value={formData.type || 'meeting'}
-                        onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      >
-                        <option value="meeting">打ち合わせ</option>
-                        <option value="call">電話</option>
-                        <option value="email">メール</option>
-                        <option value="document">資料</option>
-                        <option value="other">その他</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        優先度
-                      </label>
-                      <select
-                        value={formData.priority || 'medium'}
-                        onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      >
-                        <option value="high">高</option>
-                        <option value="medium">中</option>
-                        <option value="low">低</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      内容 <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={formData.content || ''}
-                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      rows={6}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      placeholder="進捗内容を入力してください"
-                    />
-                  </div>
-
-                  {/* 参加者 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      参加者・関係者
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={participantInput}
-                        onChange={(e) => setParticipantInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddParticipant()}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                        placeholder="参加者名を入力してEnter"
-                      />
-                      <button
-                        onClick={handleAddParticipant}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        追加
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.participants?.map((p, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm flex items-center gap-2"
-                        >
-                          {p}
-                          <button
-                            onClick={() => handleRemoveParticipant(p)}
-                            className="hover:text-gray-900"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 次アクション */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      次アクション
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={nextActionInput}
-                        onChange={(e) => setNextActionInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddNextAction()}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                        placeholder="次アクションを入力してEnter"
-                      />
-                      <button
-                        onClick={handleAddNextAction}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        追加
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.nextActions?.map((action, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm flex items-center gap-2"
-                        >
-                          {action}
-                          <button
-                            onClick={() => handleRemoveNextAction(action)}
-                            className="hover:text-yellow-900"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* リスク・懸念 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      リスク・懸念事項
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={riskInput}
-                        onChange={(e) => setRiskInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddRisk()}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                        placeholder="リスクを入力してEnter"
-                      />
-                      <button
-                        onClick={handleAddRisk}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        追加
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.risks?.map((risk, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm flex items-center gap-2"
-                        >
-                          {risk}
-                          <button
-                            onClick={() => handleRemoveRisk(risk)}
-                            className="hover:text-red-900"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* タグ */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      タグ
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                        placeholder="タグを入力してEnter"
-                      />
-                      <button
-                        onClick={handleAddTag}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        追加
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.tags?.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm flex items-center gap-2"
-                        >
-                          {tag}
-                          <button
-                            onClick={() => handleRemoveTag(tag)}
-                            className="hover:text-blue-900"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-                  <button
-                    onClick={() => {
-                      setShowModal(false);
-                      resetForm();
-                    }}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                    disabled={isSaving}
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors disabled:opacity-50"
-                  >
-                    {isSaving ? '保存中...' : editingNote ? '更新' : '作成'}
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-
-        {/* 要約モーダル */}
-        <SummaryModal
-          isOpen={showSummaryModal}
-          onClose={() => {
-            setShowSummaryModal(false);
-            setSummaryContent('');
-            setSummaryDocumentId('');
-          }}
-          content={summaryContent}
-          documentType="progressNote"
-          documentId={summaryDocumentId}
-          sourceType="progressNote"
-        />
       </Layout>
     </ProtectedRoute>
   );
 }
-

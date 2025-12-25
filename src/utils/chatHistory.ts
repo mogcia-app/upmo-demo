@@ -22,13 +22,26 @@ export interface ChatSession {
 // チャットセッションをFirestoreに保存
 export const saveChatSession = async (session: Omit<ChatSession, 'id'>): Promise<string> => {
   try {
-    const sessionData = {
-      ...session,
-      lastUpdated: new Date(),
-      messages: session.messages.map(msg => ({
-        ...msg,
+    // undefinedの値を削除してFirestoreに保存
+    const cleanMessage = (msg: ChatMessage) => {
+      const cleaned: any = {
+        id: msg.id,
+        text: msg.text,
+        sender: msg.sender,
         timestamp: msg.timestamp
-      }))
+      };
+      // オプショナルフィールドは値がある場合のみ追加
+      if (msg.senderName !== undefined) cleaned.senderName = msg.senderName;
+      if (msg.isTyping !== undefined) cleaned.isTyping = msg.isTyping;
+      return cleaned;
+    };
+
+    const sessionData = {
+      userId: session.userId,
+      chatId: session.chatId,
+      lastUpdated: new Date(),
+      messages: session.messages.map(cleanMessage),
+      ...(session.title !== undefined && { title: session.title })
     };
     
     const docRef = await addDoc(collection(db, 'chatSessions'), sessionData);
@@ -42,12 +55,23 @@ export const saveChatSession = async (session: Omit<ChatSession, 'id'>): Promise
 // チャットセッションを更新
 export const updateChatSession = async (sessionId: string, messages: ChatMessage[]): Promise<void> => {
   try {
+    // undefinedの値を削除してFirestoreに保存
+    const cleanMessage = (msg: ChatMessage) => {
+      const cleaned: any = {
+        id: msg.id,
+        text: msg.text,
+        sender: msg.sender,
+        timestamp: msg.timestamp
+      };
+      // オプショナルフィールドは値がある場合のみ追加
+      if (msg.senderName !== undefined) cleaned.senderName = msg.senderName;
+      if (msg.isTyping !== undefined) cleaned.isTyping = msg.isTyping;
+      return cleaned;
+    };
+
     const sessionRef = doc(db, 'chatSessions', sessionId);
     await updateDoc(sessionRef, {
-      messages: messages.map(msg => ({
-        ...msg,
-        timestamp: msg.timestamp
-      })),
+      messages: messages.map(cleanMessage),
       lastUpdated: new Date()
     });
   } catch (error) {

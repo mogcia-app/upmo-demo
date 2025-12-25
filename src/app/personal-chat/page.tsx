@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Layout from "../../components/Layout";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAuth } from "../../contexts/AuthContext";
@@ -33,6 +34,62 @@ interface Chat {
 }
 
 export default function PersonalChatPage() {
+  const router = useRouter();
+  
+  // Markdownリンクをクリック可能なリンクに変換する関数
+  const renderMessageWithLinks = (text: string) => {
+    // Markdownリンクのパターン: [テキスト](URL) - 改行を含む場合も考慮
+    const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts: (string | React.ReactElement)[] = [];
+    let match;
+    let key = 0;
+
+    // テキストを行ごとに分割して処理
+    const lines = text.split('\n');
+    
+    lines.forEach((line, lineIndex) => {
+      if (lineIndex > 0) {
+        // 改行を追加
+        parts.push('\n');
+      }
+      
+      let lineLastIndex = 0;
+      linkPattern.lastIndex = 0; // 正規表現をリセット
+      
+      while ((match = linkPattern.exec(line)) !== null) {
+        // リンクの前のテキスト
+        if (match.index > lineLastIndex) {
+          parts.push(line.substring(lineLastIndex, match.index));
+        }
+        
+        // リンク
+        const linkText = match[1];
+        const linkUrl = match[2];
+        parts.push(
+          <a
+            key={`link-${key++}`}
+            href={linkUrl}
+            onClick={(e) => {
+              e.preventDefault();
+              router.push(linkUrl);
+            }}
+            className="text-blue-600 hover:text-blue-800 underline font-medium cursor-pointer"
+          >
+            {linkText}
+          </a>
+        );
+        
+        lineLastIndex = linkPattern.lastIndex;
+      }
+      
+      // 残りのテキスト
+      if (lineLastIndex < line.length) {
+        parts.push(line.substring(lineLastIndex));
+      }
+    });
+    
+    return parts.length > 0 ? <>{parts}</> : text;
+  };
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -183,14 +240,19 @@ export default function PersonalChatPage() {
     try {
       const chatMessages: ChatMessage[] = messages
         .filter(msg => !msg.isTyping) // タイピング中のメッセージは除外
-        .map(msg => ({
-          id: msg.id,
-          text: msg.text,
-          sender: msg.sender === 'ai' ? 'ai' : 'user',
-          senderName: msg.sender === 'user' ? (user.displayName || user.email || 'Unknown') : undefined,
-          timestamp: msg.timestamp,
-          isTyping: false
-        }));
+        .map(msg => {
+          const baseMessage: ChatMessage = {
+            id: msg.id,
+            text: msg.text,
+            sender: msg.sender === 'ai' ? 'ai' : 'user',
+            timestamp: msg.timestamp
+          };
+          // senderNameは値がある場合のみ追加（undefinedを避ける）
+          if (msg.sender === 'user' && (user.displayName || user.email)) {
+            baseMessage.senderName = user.displayName || user.email || 'Unknown';
+          }
+          return baseMessage;
+        });
 
       if (activeChat === "ai-assistant") {
         // AIアシスタントの場合は自分のセッションのみ保存
@@ -263,14 +325,17 @@ export default function PersonalChatPage() {
     if (!user) return "ユーザーが認証されていません。";
 
     try {
+      // Firebase認証トークンを取得
+      const token = await user.getIdToken();
+      
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: query,
-          userId: user.uid
         }),
       });
 
@@ -604,7 +669,12 @@ export default function PersonalChatPage() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                        <div className="text-sm whitespace-pre-wrap">
+                          {message.sender === 'ai' 
+                            ? renderMessageWithLinks(message.text)
+                            : message.text
+                          }
+                        </div>
                         <p className="text-xs mt-1 opacity-70">
                           {message.timestamp.toLocaleTimeString('ja-JP', {
                             hour: '2-digit',

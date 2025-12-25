@@ -18,9 +18,24 @@ const SimpleCalendarView: React.FC = () => {
     time?: string;
     member: string;
     color: string;
+    description?: string;
+    location?: string;
+    attendees?: string[];
   }>>([]);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showEventDetailModal, setShowEventDetailModal] = useState(false);
+  const [selectedEventForDetail, setSelectedEventForDetail] = useState<{
+    id: string;
+    title: string;
+    date: string;
+    time?: string;
+    member: string;
+    color: string;
+    description?: string;
+    location?: string;
+    attendees?: string[];
+  } | null>(null);
   const [editingEvent, setEditingEvent] = useState<{
     id: string;
     title: string;
@@ -36,9 +51,53 @@ const SimpleCalendarView: React.FC = () => {
     time: '',
     description: '',
     location: '',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    attendees: [] as string[]
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<Array<{
+    id: string;
+    displayName: string;
+    email: string;
+  }>>([]);
+  const [showAttendeeDropdown, setShowAttendeeDropdown] = useState(false);
+
+  // チームメンバーを取得
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (!user) return;
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // 現在のユーザーのcompanyNameを取得
+          const currentUser = data.users.find((u: any) => u.id === user.uid);
+          const currentCompanyName = currentUser?.companyName || '';
+          
+          const members = data.users
+            .filter((u: any) => 
+              u.role === 'user' && 
+              u.companyName === currentCompanyName
+            )
+            .map((u: any) => ({
+              id: u.id,
+              displayName: u.displayName || u.email,
+              email: u.email
+            }));
+          setTeamMembers(members);
+        }
+      } catch (error) {
+        console.error('チームメンバーの読み込みエラー:', error);
+      }
+    };
+
+    loadTeamMembers();
+  }, [user]);
 
   // チーム全員の予定を取得
   useEffect(() => {
@@ -62,7 +121,10 @@ const SimpleCalendarView: React.FC = () => {
               date: event.date,
               time: event.time || '',
               member: event.member || '自分',
-              color: event.color || '#3B82F6'
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || '',
+              attendees: event.attendees || []
             })));
           }
         }
@@ -144,9 +206,20 @@ const SimpleCalendarView: React.FC = () => {
       time: '',
       description: '',
       location: '',
-      color: '#3B82F6'
+      color: '#3B82F6',
+      attendees: []
     });
     setShowAddEventModal(true);
+  };
+
+  // 参加者の選択を切り替え
+  const toggleAttendee = (memberId: string) => {
+    setNewEvent(prev => ({
+      ...prev,
+      attendees: prev.attendees.includes(memberId)
+        ? prev.attendees.filter(id => id !== memberId)
+        : [...prev.attendees, memberId]
+    }));
   };
 
   // 予定を追加
@@ -168,7 +241,8 @@ const SimpleCalendarView: React.FC = () => {
           time: newEvent.time || '',
           description: newEvent.description || '',
           location: newEvent.location || '',
-          color: newEvent.color
+          color: newEvent.color,
+          attendees: newEvent.attendees || []
         })
       });
 
@@ -190,7 +264,10 @@ const SimpleCalendarView: React.FC = () => {
                 date: event.date,
                 time: event.time || '',
                 member: event.member || '自分',
-                color: event.color || '#3B82F6'
+                color: event.color || '#3B82F6',
+                description: event.description || '',
+                location: event.location || '',
+                attendees: event.attendees || []
               })));
             }
           }
@@ -201,7 +278,8 @@ const SimpleCalendarView: React.FC = () => {
             time: '',
             description: '',
             location: '',
-            color: '#3B82F6'
+            color: '#3B82F6',
+            attendees: []
           });
         }
       } else {
@@ -216,6 +294,12 @@ const SimpleCalendarView: React.FC = () => {
     }
   };
 
+  // 予定の詳細を表示するモーダルを開く
+  const openEventDetailModal = (event: typeof teamEvents[0]) => {
+    setSelectedEventForDetail(event);
+    setShowEventDetailModal(true);
+  };
+
   // 予定を編集するモーダルを開く
   const openEditEventModal = (event: typeof teamEvents[0]) => {
     setEditingEvent({
@@ -223,17 +307,18 @@ const SimpleCalendarView: React.FC = () => {
       title: event.title,
       date: event.date,
       time: event.time || '',
-      description: '',
-      location: '',
+      description: event.description || '',
+      location: event.location || '',
       color: event.color || '#3B82F6'
     });
     setNewEvent({
       title: event.title,
       date: event.date,
       time: event.time || '',
-      description: '',
-      location: '',
-      color: event.color || '#3B82F6'
+      description: event.description || '',
+      location: event.location || '',
+      color: event.color || '#3B82F6',
+      attendees: event.attendees || []
     });
     setShowAddEventModal(true);
   };
@@ -254,7 +339,10 @@ const SimpleCalendarView: React.FC = () => {
           date: event.date,
           time: event.time || '',
           member: event.member || '自分',
-          color: event.color || '#3B82F6'
+          color: event.color || '#3B82F6',
+          description: event.description || '',
+          location: event.location || '',
+          attendees: event.attendees || []
         })));
       }
     }
@@ -283,7 +371,8 @@ const SimpleCalendarView: React.FC = () => {
             time: newEvent.time || '',
             description: newEvent.description || '',
             location: newEvent.location || '',
-            color: newEvent.color
+            color: newEvent.color,
+            attendees: newEvent.attendees || []
           })
         });
 
@@ -299,7 +388,8 @@ const SimpleCalendarView: React.FC = () => {
               time: '',
               description: '',
               location: '',
-              color: '#3B82F6'
+              color: '#3B82F6',
+              attendees: []
             });
           }
         } else {
@@ -335,7 +425,8 @@ const SimpleCalendarView: React.FC = () => {
               time: '',
               description: '',
               location: '',
-              color: '#3B82F6'
+              color: '#3B82F6',
+              attendees: []
             });
           }
         } else {
@@ -497,12 +588,33 @@ const SimpleCalendarView: React.FC = () => {
                   <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: event.color }}></div>
                   <div 
                     className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => openEditEventModal(event)}
+                    onClick={() => openEventDetailModal(event)}
                   >
                     <div className="font-medium text-sm text-gray-900">{event.title}</div>
                     <div className="text-xs text-gray-500 mt-1">
                       {month}月{day}日{event.time && ` ${event.time}`}
                     </div>
+                    {event.attendees && event.attendees.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {event.attendees.slice(0, 3).map((attendeeId) => {
+                          const member = teamMembers.find(m => m.id === attendeeId);
+                          const displayName = member?.displayName || attendeeId;
+                          return (
+                            <span
+                              key={attendeeId}
+                              className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded"
+                            >
+                              {displayName}
+                            </span>
+                          );
+                        })}
+                        {event.attendees.length > 3 && (
+                          <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                            +{event.attendees.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={(e) => {
@@ -519,6 +631,118 @@ const SimpleCalendarView: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* 予定詳細モーダル */}
+      {showEventDetailModal && selectedEventForDetail && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowEventDetailModal(false);
+            setSelectedEventForDetail(null);
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">予定の詳細</h3>
+              <button
+                onClick={() => {
+                  setShowEventDetailModal(false);
+                  setSelectedEventForDetail(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+                <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-900">{selectedEventForDetail.title}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">日付</label>
+                  <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-900">
+                    {(() => {
+                      const eventDate = new Date(selectedEventForDetail.date);
+                      return `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日`;
+                    })()}
+                  </div>
+                </div>
+                {selectedEventForDetail.time && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">時間</label>
+                    <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-900">{selectedEventForDetail.time}</div>
+                  </div>
+                )}
+              </div>
+
+              {selectedEventForDetail.attendees && selectedEventForDetail.attendees.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">参加者</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEventForDetail.attendees.map((attendeeId) => {
+                      const member = teamMembers.find(m => m.id === attendeeId);
+                      const displayName = member?.displayName || attendeeId;
+                      return (
+                        <span
+                          key={attendeeId}
+                          className="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                        >
+                          {displayName}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {selectedEventForDetail.location && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">場所</label>
+                  <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-900">{selectedEventForDetail.location}</div>
+                </div>
+              )}
+
+              {selectedEventForDetail.description && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
+                  <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-900 whitespace-pre-wrap">{selectedEventForDetail.description}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowEventDetailModal(false);
+                  setSelectedEventForDetail(null);
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+              >
+                閉じる
+              </button>
+              <button
+                onClick={() => {
+                  setShowEventDetailModal(false);
+                  setSelectedEventForDetail(null);
+                  openEditEventModal(selectedEventForDetail);
+                }}
+                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+              >
+                編集
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -616,6 +840,80 @@ const SimpleCalendarView: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  参加者
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowAttendeeDropdown(!showAttendeeDropdown)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left flex items-center justify-between bg-white"
+                  >
+                    <span className="text-gray-700">
+                      {newEvent.attendees.length > 0
+                        ? `${newEvent.attendees.length}名選択中`
+                        : '参加者を選択'}
+                    </span>
+                    <svg
+                      className={`w-5 h-5 text-gray-400 transition-transform ${showAttendeeDropdown ? 'transform rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showAttendeeDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {teamMembers.length === 0 ? (
+                        <div className="px-4 py-2 text-sm text-gray-500">利用者がいません</div>
+                      ) : (
+                        teamMembers.map((member) => (
+                          <label
+                            key={member.id}
+                            className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={newEvent.attendees.includes(member.id)}
+                              onChange={() => toggleAttendee(member.id)}
+                              className="mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="text-sm text-gray-700">{member.displayName}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                {newEvent.attendees.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {newEvent.attendees.map((attendeeId) => {
+                      const member = teamMembers.find(m => m.id === attendeeId);
+                      const displayName = member?.displayName || attendeeId;
+                      return (
+                        <span
+                          key={attendeeId}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                        >
+                          {displayName}
+                          <button
+                            type="button"
+                            onClick={() => toggleAttendee(attendeeId)}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -721,9 +1019,16 @@ const CalendarView: React.FC = () => {
     time: '',
     description: '',
     location: '',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    attendees: [] as string[]
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<Array<{
+    id: string;
+    displayName: string;
+    email: string;
+  }>>([]);
+  const [showAttendeeDropdown, setShowAttendeeDropdown] = useState(false);
 
   // リアルタイムで時刻を更新
   useEffect(() => {
@@ -768,7 +1073,10 @@ const CalendarView: React.FC = () => {
               date: event.date,
               time: event.time || '',
               member: event.member || '自分',
-              color: event.color || '#3B82F6'
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || '',
+              attendees: event.attendees || []
             })));
           }
         }
@@ -882,7 +1190,8 @@ const CalendarView: React.FC = () => {
       time: '',
       description: '',
       location: '',
-      color: '#3B82F6'
+      color: '#3B82F6',
+      attendees: []
     });
     setShowAddEventModal(true);
   };
@@ -901,7 +1210,8 @@ const CalendarView: React.FC = () => {
       time: event.time || '',
       description: '',
       location: '',
-      color: event.color || '#3B82F6'
+      color: event.color || '#3B82F6',
+      attendees: []
     });
     setShowAddEventModal(true);
   };
@@ -1001,7 +1311,8 @@ const CalendarView: React.FC = () => {
             time: '',
             description: '',
             location: '',
-            color: '#3B82F6'
+            color: '#3B82F6',
+            attendees: []
           });
         }
       } else {
@@ -1572,15 +1883,7 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [taskStats, setTaskStats] = useState({ completed: 0, pending: 0, today: 0 });
   const [contractCount, setContractCount] = useState(0);
-  const [teamMembers, setTeamMembers] = useState<Array<{
-    id: string;
-    displayName: string;
-    email: string;
-    role: string;
-    status: string;
-    department?: string;
-    position?: string;
-  }>>([]);
+  const [teamMembersCount, setTeamMembersCount] = useState(0);
   const [recentDocuments, setRecentDocuments] = useState<Array<{
     id: string;
     title: string;
@@ -1614,7 +1917,10 @@ export default function Home() {
           if (data.success && data.stats) {
             setTaskStats(data.stats.taskStats || { completed: 0, pending: 0, today: 0 });
             setContractCount(data.stats.contractCount || 0);
+            setTeamMembersCount(data.stats.teamMembersCount || 0);
           }
+        } else {
+          console.error('統計情報の取得に失敗:', await response.text());
         }
       } catch (error) {
         console.error('統計情報の読み込みエラー:', error);
@@ -1622,39 +1928,6 @@ export default function Home() {
     };
 
     loadStats();
-  }, [user]);
-
-  // チーム利用者を取得
-  useEffect(() => {
-    const loadTeamMembers = async () => {
-      if (!user) return;
-      
-      try {
-        // 認証トークンを取得
-        const token = await user.getIdToken();
-        const response = await fetch('/api/admin/users', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // 現在のユーザーのcompanyNameを取得
-          const currentUser = data.users.find((u: any) => u.id === user.uid);
-          const currentCompanyName = currentUser?.companyName || '';
-          
-          // role: 'user' かつ同じcompanyNameのユーザーのみをチーム利用者として表示
-          const users = data.users.filter((u: any) => 
-            u.role === 'user' && u.companyName === currentCompanyName && u.id !== user.uid
-          );
-          setTeamMembers(users);
-        }
-      } catch (error) {
-        console.error('チーム利用者の読み込みエラー:', error);
-      }
-    };
-
-    loadTeamMembers();
   }, [user]);
 
   // 最近の文書を取得
@@ -1873,80 +2146,76 @@ export default function Home() {
             </form>
           </div>
 
-          {/* メインコンテンツエリア - 2カラムレイアウト */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* 左側: 統計カードとその他のコンテンツ */}
-            <div className="lg:col-span-2 space-y-6">
           {/* 統計カード */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-                <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-[#005eb2]">
-                  <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                      <div className="p-3 bg-[#005eb2]/10 rounded-xl">
-                        <svg className="w-8 h-8 text-[#005eb2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">チーム利用者</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-1">{teamMembers.length}</p>
-                      </div>
-                </div>
-              </div>
-            </div>
-
-                <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-green-500">
-                  <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                      <div className="p-3 bg-green-500/10 rounded-xl">
-                        <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">契約書件数</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-1">{contractCount}</p>
-                      </div>
-              </div>
-            </div>
-          </div>
-
-                <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-purple-500">
-                  <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                      <div className="p-3 bg-purple-500/10 rounded-xl">
-                        <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-              </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">今日のタスク</p>
-                        <p className="text-3xl font-bold text-gray-900 mt-1">{taskStats.today}</p>
-                      </div>
-              </div>
-              </div>
-              </div>
-            </div>
-
-              {/* AIチャット */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md p-6 border border-blue-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                    </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">AIアシスタント</h2>
-                    <p className="text-sm text-gray-600">質問や相談をどうぞ</p>
+            <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-[#005eb2]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-3 bg-[#005eb2]/10">
+                    <svg className="w-8 h-8 text-[#005eb2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">チーム利用者</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">{teamMembersCount}</p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-green-500">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-3 bg-green-500/10">
+                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">契約書件数</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">{contractCount}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-purple-500">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-3 bg-purple-500/10">
+                    <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">今日のタスク</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">{taskStats.today}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-                {/* チャットメッセージエリア */}
-                <div className="bg-white rounded-lg border border-gray-200 mb-4" style={{ maxHeight: '400px', minHeight: '300px' }}>
-                  <div className="p-4 space-y-4 overflow-y-auto" style={{ maxHeight: '350px' }}>
+          {/* メインコンテンツエリア - 2カラムレイアウト */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 左側: AIチャット */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md p-6 border border-blue-100 flex flex-col h-full">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">AIアシスタント</h2>
+                  <p className="text-sm text-gray-600">質問や相談をどうぞ</p>
+                </div>
+              </div>
+
+              {/* チャットメッセージエリア */}
+              <div className="bg-white rounded-lg border border-gray-200 mb-4 flex-1 flex flex-col min-h-[300px] max-h-[500px]">
+                <div className="p-4 space-y-4 overflow-y-auto flex-1" style={{ maxHeight: '500px' }}>
                     {chatMessages.length === 0 ? (
                       <div className="text-center text-gray-500 py-8">
                         <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2002,12 +2271,12 @@ export default function Home() {
                         </div>
                       ))
                     )}
-                    <div ref={chatMessagesEndRef} />
-                  </div>
+                  <div ref={chatMessagesEndRef} />
                 </div>
+              </div>
 
-                {/* チャット入力エリア */}
-                <div className="flex gap-2">
+              {/* チャット入力エリア */}
+              <div className="flex gap-2 mb-3">
                   <input
                     type="text"
                     value={chatInput}
@@ -2037,10 +2306,10 @@ export default function Home() {
                       </svg>
                     )}
                   </button>
-                </div>
-                
-                {/* クイックアクション */}
-                <div className="mt-3 flex flex-wrap gap-2">
+              </div>
+              
+              {/* クイックアクション */}
+              <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => {
                       setChatInput("使い方を教えて");
@@ -2071,119 +2340,14 @@ export default function Home() {
                   >
                     ❓ よくある質問
                   </button>
-                </div>
               </div>
-
-              {/* 最近の文書 */}
-              {recentDocuments.length > 0 && (
-                <div className="bg-white rounded-xl shadow-md p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">最近の文書</h2>
-                    <Link 
-                      href="/admin/contracts" 
-                      className="text-sm text-[#005eb2] hover:text-[#004a96]"
-                    >
-                      すべて表示
-                    </Link>
-                  </div>
-                  <div className="space-y-3">
-                    {recentDocuments.map((doc) => (
-                      <Link
-                        key={doc.id}
-                        href="/admin/contracts"
-                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-gray-900 group-hover:text-[#005eb2] transition-colors truncate">
-                            {doc.title}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {doc.lastUpdated.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-          {/* チーム利用者 */}
-          {teamMembers.length > 0 && (
-                <div className="bg-white rounded-xl shadow-md p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">チーム利用者</h2>
-                <Link 
-                  href="/admin/users" 
-                  className="text-sm text-[#005eb2] hover:text-[#004a96]"
-                >
-                  すべて表示
-                </Link>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {teamMembers.slice(0, 6).map((member) => (
-                  <div
-                    key={member.id}
-                    className="p-4 border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#005eb2] text-white flex items-center justify-center font-semibold">
-                        {member.displayName.charAt(0)}
-                  </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">{member.displayName}</div>
-                        <div className="text-sm text-gray-500 truncate">{member.email}</div>
-                        {member.department && (
-                          <div className="text-xs text-gray-400 mt-1">{member.department}</div>
-                        )}
-                </div>
-                  </div>
-                </div>
-                ))}
-                  </div>
-              {teamMembers.length > 6 && (
-                <div className="mt-4 text-center">
-                  <Link
-                    href="/admin/users"
-                    className="text-sm text-[#005eb2] hover:text-[#004a96]"
-                  >
-                    +{teamMembers.length - 6}人の利用者を表示
-                  </Link>
-                </div>
-              )}
-              </div>
-          )}
             </div>
 
             {/* 右側: カレンダー */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl shadow-md p-6 sticky top-6">
-                <SimpleCalendarView />
-              </div>
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <SimpleCalendarView />
             </div>
           </div>
-
-          {/* 自由タブ作成案内 */}
-          {/* <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">追加の機能が必要ですか？</h3>
-                <p className="text-sm sm:text-base text-gray-600">
-                  自由タブから独自のページを作成して、さらにカスタマイズできます
-                </p>
-              </div>
-              <Link
-                href="/custom/new-page"
-                className="px-4 sm:px-6 py-2 sm:py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium text-sm sm:text-base text-center"
-              >
-                自由タブを作成
-              </Link>
-            </div>
-          </div> */}
         </div>
       </Layout>
     </ProtectedRoute>

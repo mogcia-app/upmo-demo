@@ -6,6 +6,11 @@ import Layout from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import SummaryModal from '@/components/SummaryModal';
 
+interface SectionItem {
+  title: string;
+  content: string;
+}
+
 interface ManualDocument {
   id: string;
   title: string;
@@ -13,12 +18,12 @@ interface ManualDocument {
   description: string;
   sections: {
     overview: string;
-    features: string[];
-    pricing: string[];
-    procedures: string[];
-    support?: string[];
-    rules?: string[];
-    terms?: string[];
+    features: (string | SectionItem)[];
+    pricing: (string | SectionItem)[];
+    procedures: (string | SectionItem)[];
+    support?: (string | SectionItem)[];
+    rules?: (string | SectionItem)[];
+    terms?: (string | SectionItem)[];
     qa?: { question: string; answer: string }[];
   };
   tags: string[];
@@ -37,7 +42,7 @@ export default function ContractsPage() {
     id: '',
     title: '',
     description: '',
-    type: 'meeting',
+    type: 'contract', // デフォルトを契約に変更
     sections: {
       overview: '',
       features: [],
@@ -46,13 +51,14 @@ export default function ContractsPage() {
       qa: []
     },
     tags: [],
-    priority: 'medium',
+    priority: 'low', // デフォルトを低に変更
     createdAt: new Date(),
     lastUpdated: new Date()
   });
-  const [currentSection, setCurrentSection] = useState<'overview' | 'features' | 'pricing' | 'procedures' | 'support' | 'rules' | 'terms' | 'qa'>('overview');
+  const [currentSection, setCurrentSection] = useState<'features' | 'pricing' | 'procedures' | 'support' | 'rules' | 'terms' | 'qa'>('features');
   const [sectionInput, setSectionInput] = useState('');
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview'])); // デフォルトで概要を展開
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['features'])); // デフォルトで特徴・機能を展開
+  const [sectionInputs, setSectionInputs] = useState<Record<string, { title: string; content: string }>>({}); // 各セクションごとの入力欄の状態（タイトルと本文）
   
   // AI解析用の状態
   const [showAIModal, setShowAIModal] = useState(false);
@@ -107,7 +113,7 @@ export default function ContractsPage() {
         id: '',
         title: '',
         description: '',
-        type: 'meeting',
+        type: 'contract', // デフォルトを契約に変更
         sections: {
           overview: '',
           features: [],
@@ -115,15 +121,16 @@ export default function ContractsPage() {
           procedures: []
         },
         tags: [],
-        priority: 'medium',
+        priority: 'low', // デフォルトを低に変更
         createdAt: new Date(),
         lastUpdated: new Date()
       });
       setShowInputModal(false);
       setEditingDocument(null);
-      setCurrentSection('overview');
+      setCurrentSection('features');
       setSectionInput('');
-      setExpandedSections(new Set(['overview']));
+      setSectionInputs({});
+      setExpandedSections(new Set(['features']));
       
       // ドキュメントリストを更新
       await fetchDocumentsFromFirestore();
@@ -235,6 +242,16 @@ export default function ContractsPage() {
         const parsed = result.parsedDocument;
         
         // AI解析結果を独立したドキュメントとして保存
+        // 文字列配列をオブジェクト配列に変換
+        const convertArrayToItems = (arr: any[]): SectionItem[] => {
+          return arr.map((item: any) => {
+            if (typeof item === 'string') {
+              return { title: '', content: item };
+            }
+            return { title: item.title || '', content: item.content || '' };
+          });
+        };
+        
         const parsedDocument: ManualDocument = {
           id: '',
           title: parsed.title || 'AI解析された文書',
@@ -242,12 +259,12 @@ export default function ContractsPage() {
           type: parsed.type || 'contract',
           sections: {
             overview: parsed.sections.overview || '',
-            features: parsed.sections.features || [],
-            pricing: parsed.sections.pricing || [],
-            procedures: parsed.sections.procedures || [],
-            support: parsed.sections.support || [],
-            rules: parsed.sections.rules || [],
-            terms: parsed.sections.terms || []
+            features: convertArrayToItems(parsed.sections.features || []),
+            pricing: convertArrayToItems(parsed.sections.pricing || []),
+            procedures: convertArrayToItems(parsed.sections.procedures || []),
+            support: convertArrayToItems(parsed.sections.support || []),
+            rules: convertArrayToItems(parsed.sections.rules || []),
+            terms: convertArrayToItems(parsed.sections.terms || [])
           },
           tags: parsed.tags || [],
           priority: parsed.priority || 'medium',
@@ -387,12 +404,29 @@ export default function ContractsPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        // 日付を確実にDateオブジェクトに変換
-        const documents = (data.documents || []).map((doc: any) => ({
-          ...doc,
-          createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
-          lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
-        }));
+        // 日付を確実にDateオブジェクトに変換し、既存の文字列配列をオブジェクト配列に変換
+        const documents = (data.documents || []).map((doc: any) => {
+          const convertedSections = { ...doc.sections };
+          
+          // 各セクションの文字列配列をオブジェクト配列に変換
+          ['features', 'pricing', 'procedures', 'support', 'rules', 'terms'].forEach((sectionKey) => {
+            if (Array.isArray(convertedSections[sectionKey])) {
+              convertedSections[sectionKey] = convertedSections[sectionKey].map((item: any) => {
+                if (typeof item === 'string') {
+                  return { title: '', content: item };
+                }
+                return item;
+              });
+            }
+          });
+          
+          return {
+            ...doc,
+            sections: convertedSections,
+            createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
+            lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
+          };
+        });
         setDocuments(documents);
       }
     } catch (error) {
@@ -534,14 +568,6 @@ export default function ContractsPage() {
                         <span>更新日: {doc.lastUpdated instanceof Date ? doc.lastUpdated.toLocaleDateString('ja-JP') : new Date(doc.lastUpdated).toLocaleDateString('ja-JP')}</span>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeColor(doc.type)}`}>
-                        {getTypeLabel(doc.type)}
-                      </span>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(doc.priority)}`}>
-                        優先度: {getPriorityLabel(doc.priority)}
-                      </span>
-                    </div>
                   </div>
                   
                   {/* タグ */}
@@ -587,13 +613,28 @@ export default function ContractsPage() {
                           <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
                           <div className="bg-gray-50 rounded-md p-3">
                             {Array.isArray(value) ? (
-                              <ul className="text-sm text-gray-600 space-y-1">
-                                {value.map((item, index) => (
-                                  <li key={index} className="flex items-start">
-                                    <span className="text-gray-400 mr-2">•</span>
-                                    <span>{typeof item === 'string' ? item : JSON.stringify(item)}</span>
-                                  </li>
-                                ))}
+                              <ul className="text-sm text-gray-600 space-y-3">
+                                {value.map((item, index) => {
+                                  // 既存データとの互換性：文字列の場合は変換
+                                  // qaセクションは既に処理されているので、ここではSectionItem型のみを想定
+                                  const itemData = typeof item === 'string' 
+                                    ? { title: '', content: item }
+                                    : ('title' in item && 'content' in item)
+                                    ? { title: item.title || '', content: item.content || '' }
+                                    : { title: '', content: '' };
+                                  
+                                  return (
+                                    <li key={index} className="flex items-start">
+                                      <span className="text-gray-400 mr-2 mt-1">•</span>
+                                      <div className="flex-1">
+                                        {itemData.title && (
+                                          <div className="font-medium text-gray-800 mb-1">{itemData.title}</div>
+                                        )}
+                                        <div className="text-gray-600 whitespace-pre-wrap">{itemData.content}</div>
+                                      </div>
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             ) : (
                               <p className="text-sm text-gray-600">{value}</p>
@@ -614,7 +655,20 @@ export default function ContractsPage() {
                         if (doc.description) contentParts.push(`概要: ${doc.description}`);
                         Object.entries(doc.sections).forEach(([key, value]) => {
                           if (Array.isArray(value) && value.length > 0) {
-                            contentParts.push(`${getSectionLabel(key)}:\n${value.join('\n')}`);
+                            const items = value.map((item: any) => {
+                              if (typeof item === 'string') {
+                                return item;
+                              }
+                              const itemData = { title: item.title || '', content: item.content || '' };
+                              if (itemData.title && itemData.content) {
+                                return `${itemData.title}\n${itemData.content}`;
+                              } else if (itemData.title) {
+                                return itemData.title;
+                              } else {
+                                return itemData.content;
+                              }
+                            });
+                            contentParts.push(`${getSectionLabel(key)}:\n${items.join('\n\n')}`);
                           } else if (typeof value === 'string' && value.trim()) {
                             contentParts.push(`${getSectionLabel(key)}: ${value}`);
                           }
@@ -632,20 +686,35 @@ export default function ContractsPage() {
                     </button>
                     <button
                       onClick={() => {
+                        // 既存データを変換（文字列配列をオブジェクト配列に）
+                        const convertedSections = { ...doc.sections };
+                        ['features', 'pricing', 'procedures', 'support', 'rules', 'terms'].forEach((sectionKey) => {
+                          if (Array.isArray(convertedSections[sectionKey as keyof typeof convertedSections])) {
+                            convertedSections[sectionKey as keyof typeof convertedSections] = (convertedSections[sectionKey as keyof typeof convertedSections] as any[]).map((item: any) => {
+                              if (typeof item === 'string') {
+                                return { title: '', content: item };
+                              }
+                              return item;
+                            }) as any;
+                          }
+                        });
+                        
                         setEditingDocument(doc);
                         setNewDocument({
                           ...doc,
+                          sections: convertedSections,
                           createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
                           lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
                         });
                         // 入力済みのセクションを展開
-                        const sectionsWithContent = Object.entries(doc.sections)
+                        const sectionsWithContent = Object.entries(convertedSections)
                           .filter(([_, value]) => {
                             if (Array.isArray(value)) return value.length > 0;
                             return typeof value === 'string' && value.trim().length > 0;
                           })
                           .map(([key]) => key);
-                        setExpandedSections(new Set(sectionsWithContent.length > 0 ? sectionsWithContent : ['overview']));
+                        setExpandedSections(new Set(sectionsWithContent.length > 0 ? sectionsWithContent : ['features']));
+                        setSectionInputs({});
                         setShowInputModal(true);
                       }}
                       className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
@@ -680,7 +749,7 @@ export default function ContractsPage() {
                         id: '',
                         title: '',
                         description: '',
-                        type: 'meeting',
+                        type: 'contract', // デフォルトを契約に変更
                         sections: {
                           overview: '',
                           features: [],
@@ -688,11 +757,12 @@ export default function ContractsPage() {
                           procedures: []
                         },
                         tags: [],
-                        priority: 'medium',
+                        priority: 'low', // デフォルトを低に変更
                         createdAt: new Date(),
                         lastUpdated: new Date()
                       });
-                      setExpandedSections(new Set(['overview']));
+                      setExpandedSections(new Set(['features']));
+                      setSectionInputs({});
                     }}
                     className="text-gray-400 hover:text-gray-600"
                   >
@@ -742,7 +812,6 @@ export default function ContractsPage() {
                   {/* 全セクションを縦に並べて表示 */}
                   <div className="space-y-4">
                     {[
-                      { key: 'overview', label: '概要', desc: '文書の全体像を説明', isText: true },
                       { key: 'features', label: '特徴・機能', desc: '主な特徴や機能を箇条書き', isText: false },
                       { key: 'pricing', label: '料金・費用', desc: '料金や費用に関する情報', isText: false },
                       { key: 'procedures', label: '手順・プロセス', desc: '手順やプロセスを箇条書き', isText: false },
@@ -756,12 +825,12 @@ export default function ContractsPage() {
                         ? (newDocument.sections?.overview || '')
                         : section.isQA
                         ? ''
-                        : (Array.isArray(newDocument.sections?.[section.key as keyof typeof newDocument.sections]) 
-                            ? (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]).join('\n')
-                            : '');
+                        : '';
                       const hasContent = section.isQA
                         ? (newDocument.sections?.qa && newDocument.sections.qa.length > 0)
-                        : sectionValue.trim().length > 0;
+                        : Array.isArray(newDocument.sections?.[section.key as keyof typeof newDocument.sections]) 
+                          ? (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]).length > 0
+                          : sectionValue.trim().length > 0;
                       
                       return (
                         <div key={section.key} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -927,66 +996,166 @@ export default function ContractsPage() {
                                 </>
                               ) : (
                                 // 配列セクション（箇条書き）
-                                <div className="space-y-3">
-                                  <div className="space-y-2">
-                                    {Array.isArray(newDocument.sections?.[section.key as keyof typeof newDocument.sections]) 
-                                      ? (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]).map((item, index) => (
-                                          <div key={index} className="flex items-start gap-2">
-                                            <span className="mt-3 text-gray-400">•</span>
-                                            <input
-                                              type="text"
-                                              value={item}
-                                              onChange={(e) => {
-                                                const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]) || [];
-                                                const updatedArray = [...currentArray];
-                                                updatedArray[index] = e.target.value;
-                                                setNewDocument(prev => ({
-                                                  ...prev,
-                                                  sections: {
-                                                    ...prev.sections,
-                                                    [section.key]: updatedArray
-                                                  }
-                                                }));
-                                              }}
-                                              placeholder={`${section.label}の項目 ${index + 1}`}
-                                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
-                                            />
-                                            <button
-                                              onClick={() => {
-                                                const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]) || [];
-                                                const updatedArray = currentArray.filter((_, i) => i !== index);
-                                                setNewDocument(prev => ({
-                                                  ...prev,
-                                                  sections: {
-                                                    ...prev.sections,
-                                                    [section.key]: updatedArray
-                                                  }
-                                                }));
-                                              }}
-                                              className="mt-2 px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                                              title="削除"
-                                            >
-                                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                              </svg>
-                                            </button>
-                                          </div>
-                                        ))
-                                      : null
-                                    }
+                                <div className="space-y-4">
+                                  {/* 入力欄（常に表示） */}
+                                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                                      新しい項目を追加
+                                    </label>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                                          タイトル
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={sectionInputs[section.key]?.title || ''}
+                                          onChange={(e) => {
+                                            setSectionInputs(prev => ({
+                                              ...prev,
+                                              [section.key]: {
+                                                title: e.target.value,
+                                                content: prev[section.key]?.content || ''
+                                              }
+                                            }));
+                                          }}
+                                          placeholder={`${section.label}のタイトルを入力...`}
+                                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                                          本文
+                                        </label>
+                                        <textarea
+                                          value={sectionInputs[section.key]?.content || ''}
+                                          onChange={(e) => {
+                                            setSectionInputs(prev => ({
+                                              ...prev,
+                                              [section.key]: {
+                                                title: prev[section.key]?.title || '',
+                                                content: e.target.value
+                                              }
+                                            }));
+                                          }}
+                                          placeholder={`${section.label}の本文を入力してください...`}
+                                          rows={3}
+                                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base resize-y leading-relaxed"
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
+                                  
+                                  {/* 既存の項目一覧 */}
+                                  {Array.isArray(newDocument.sections?.[section.key as keyof typeof newDocument.sections]) && 
+                                   (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]).length > 0 && (
+                                    <div className="space-y-3">
+                                      <h4 className="text-sm font-medium text-gray-700">追加済みの項目</h4>
+                                      {(newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]).map((item, index) => {
+                                        // 既存データとの互換性：文字列の場合は変換
+                                        const itemData = typeof item === 'string' 
+                                          ? { title: '', content: item }
+                                          : { title: item.title || '', content: item.content || '' };
+                                        
+                                        return (
+                                          <div key={index} className="border border-gray-200 rounded-lg p-4 bg-white">
+                                            <div className="flex items-start justify-between mb-3">
+                                              <span className="text-sm font-medium text-gray-400">項目 {index + 1}</span>
+                                              <button
+                                                onClick={() => {
+                                                  const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]) || [];
+                                                  const updatedArray = currentArray.filter((_, i) => i !== index);
+                                                  setNewDocument(prev => ({
+                                                    ...prev,
+                                                    sections: {
+                                                      ...prev.sections,
+                                                      [section.key]: updatedArray
+                                                    }
+                                                  }));
+                                                }}
+                                                className="px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                                                title="削除"
+                                              >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                              </button>
+                                            </div>
+                                            <div className="space-y-3">
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                                  タイトル
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={itemData.title}
+                                                  onChange={(e) => {
+                                                    const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]) || [];
+                                                    const updatedArray = [...currentArray];
+                                                    updatedArray[index] = { ...itemData, title: e.target.value };
+                                                    setNewDocument(prev => ({
+                                                      ...prev,
+                                                      sections: {
+                                                        ...prev.sections,
+                                                        [section.key]: updatedArray
+                                                      }
+                                                    }));
+                                                  }}
+                                                  placeholder="タイトルを入力..."
+                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                                  本文
+                                                </label>
+                                                <textarea
+                                                  value={itemData.content}
+                                                  onChange={(e) => {
+                                                    const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]) || [];
+                                                    const updatedArray = [...currentArray];
+                                                    updatedArray[index] = { ...itemData, content: e.target.value };
+                                                    setNewDocument(prev => ({
+                                                      ...prev,
+                                                      sections: {
+                                                        ...prev.sections,
+                                                        [section.key]: updatedArray
+                                                      }
+                                                    }));
+                                                  }}
+                                                  placeholder="本文を入力してください..."
+                                                  rows={3}
+                                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-base resize-y leading-relaxed"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  
+                                  {/* 項目を追加ボタン */}
                                   <button
                                     onClick={() => {
-                                      const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as string[]) || [];
-                                      setNewDocument(prev => ({
-                                        ...prev,
-                                        sections: {
-                                          ...prev.sections,
-                                          [section.key]: [...currentArray, '']
-                                        }
-                                      }));
+                                      const inputData = sectionInputs[section.key];
+                                      if (inputData && (inputData.title.trim() || inputData.content.trim())) {
+                                        const currentArray = (newDocument.sections?.[section.key as keyof typeof newDocument.sections] as any[]) || [];
+                                        setNewDocument(prev => ({
+                                          ...prev,
+                                          sections: {
+                                            ...prev.sections,
+                                            [section.key]: [...currentArray, { title: inputData.title.trim(), content: inputData.content.trim() }]
+                                          }
+                                        }));
+                                        setSectionInputs(prev => ({
+                                          ...prev,
+                                          [section.key]: { title: '', content: '' }
+                                        }));
+                                      }
                                     }}
-                                    className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-[#005eb2] hover:text-[#005eb2] transition-colors flex items-center justify-center gap-2"
+                                    disabled={!sectionInputs[section.key]?.title?.trim() && !sectionInputs[section.key]?.content?.trim()}
+                                    className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-[#005eb2] hover:text-[#005eb2] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -994,7 +1163,7 @@ export default function ContractsPage() {
                                     項目を追加
                                   </button>
                                   <p className="text-xs text-gray-500">
-                                    💡 「項目を追加」ボタンで新しい項目を追加できます。各項目は個別に編集・削除できます。
+                                    💡 タイトルと本文を入力して「項目を追加」ボタンをクリックしてください。
                                   </p>
                                 </div>
                               )}
@@ -1009,7 +1178,7 @@ export default function ContractsPage() {
                   <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        setExpandedSections(new Set(['overview', 'features', 'pricing', 'procedures', 'support', 'rules', 'terms', 'qa']));
+                        setExpandedSections(new Set(['features', 'pricing', 'procedures', 'support', 'rules', 'terms', 'qa']));
                       }}
                       className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
                     >
@@ -1028,7 +1197,10 @@ export default function ContractsPage() {
                 
                 <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
                   <button
-                    onClick={() => setShowInputModal(false)}
+                    onClick={() => {
+                      setShowInputModal(false);
+                      setSectionInputs({});
+                    }}
                     className="px-6 py-3 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                   >
                     キャンセル

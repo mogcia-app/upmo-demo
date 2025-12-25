@@ -41,10 +41,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 管理者権限チェック
+    // ユーザー情報を取得
     const userDoc = await db.collection('users').doc(userId).get();
     const userData = userDoc.data();
-    if (!userData || userData.role !== 'admin') {
+    if (!userData) {
+      return NextResponse.json(
+        { error: 'ユーザー情報が見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    // 管理者権限チェック
+    if (userData.role !== 'admin') {
       return NextResponse.json(
         { error: '管理者権限が必要です' },
         { status: 403 }
@@ -52,6 +60,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { email, password, displayName, role = 'user', department, position, companyName } = await request.json();
+    
+    // 管理者のみが任意のroleを設定可能
+    const finalRole = role;
 
     // バリデーション
     if (!email || !password) {
@@ -79,22 +90,28 @@ export async function POST(request: NextRequest) {
     // 作成者のcompanyNameを取得（companyNameが指定されていない場合）
     let finalCompanyName = companyName;
     if (!finalCompanyName) {
-      const creatorDoc = await db.collection('users').doc(userId).get();
-      const creatorData = creatorDoc.data();
-      finalCompanyName = creatorData?.companyName || '';
+      finalCompanyName = userData?.companyName || '';
+    }
+    
+    // 同じcompanyNameのユーザーのみ招待可能（セキュリティ対策）
+    if (finalCompanyName && userData.companyName && finalCompanyName !== userData.companyName) {
+      return NextResponse.json(
+        { error: '同じ会社のユーザーのみ招待できます' },
+        { status: 403 }
+      );
     }
     
     // Firestore にユーザー情報を保存
     await db.collection('users').doc(userRecord.uid).set({
       email,
       displayName: displayName || email.split('@')[0],
-      role,
+      role: finalRole,
       status: 'active',
       department: department || '',
       position: position || '',
       companyName: finalCompanyName,
       createdAt: new Date(),
-      createdBy: 'admin', // 管理者が作成したことを記録
+      createdBy: userId, // 作成者のIDを記録
     });
 
     return NextResponse.json({
@@ -103,7 +120,7 @@ export async function POST(request: NextRequest) {
         uid: userRecord.uid,
         email: userRecord.email,
         displayName: userRecord.displayName,
-        role,
+        role: finalRole,
         status: 'active',
         department: department || '',
         position: position || '',
