@@ -27,8 +27,14 @@ export async function POST(request: NextRequest) {
   try {
     // Firebase Admin SDK が初期化されていない場合はエラーを返す
     if (!auth || !db) {
+      console.error('Firebase Admin SDK が初期化されていません');
+      console.error('環境変数チェック:', {
+        FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? '設定済み' : '未設定',
+        FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL ? '設定済み' : '未設定',
+        FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? '設定済み' : '未設定',
+      });
       return NextResponse.json({ 
-        error: 'Firebase Admin SDK が初期化されていません。環境変数を設定してください。' 
+        error: 'Firebase Admin SDK が初期化されていません。環境変数（FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY）を設定してください。' 
       }, { status: 500 });
     }
 
@@ -71,14 +77,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Firebase Auth でユーザーを作成
-    const userRecord = await auth.createUser({
-      email,
-      password,
-      displayName: displayName || email.split('@')[0],
-      emailVerified: false,
-    });
-
     // 作成者のcompanyNameを取得（companyNameが指定されていない場合）
     let finalCompanyName = companyName;
     if (!finalCompanyName) {
@@ -92,19 +90,77 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // Firebase Auth でユーザーを作成
+    let userRecord;
+    try {
+      console.log('Firebase Auth にユーザーを作成中:', { email, displayName: displayName || email.split('@')[0] });
+      userRecord = await auth.createUser({
+        email,
+        password,
+        displayName: displayName || email.split('@')[0],
+        emailVerified: false,
+      });
+      console.log('Firebase Auth ユーザー作成成功:', { uid: userRecord.uid, email: userRecord.email });
+    } catch (authError: any) {
+      console.error('Firebase Auth ユーザー作成エラー:', authError);
+      // Firebase Auth のエラーハンドリング
+      if (authError.code === 'auth/email-already-exists') {
+        return NextResponse.json(
+          { error: 'このメールアドレスは既に使用されています' },
+          { status: 400 }
+        );
+      }
+      
+      if (authError.code === 'auth/invalid-email') {
+        return NextResponse.json(
+          { error: '無効なメールアドレスです' },
+          { status: 400 }
+        );
+      }
+
+      if (authError.code === 'auth/weak-password') {
+        return NextResponse.json(
+          { error: 'パスワードが弱すぎます' },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json(
+        { error: `Firebase Auth ユーザー作成に失敗しました: ${authError.message || authError.code || '不明なエラー'}` },
+        { status: 500 }
+      );
+    }
     
     // Firestore にユーザー情報を保存
-    await db.collection('users').doc(userRecord.uid).set({
-      email,
-      displayName: displayName || email.split('@')[0],
-      role: finalRole,
-      status: 'active',
-      department: department || '',
-      position: position || '',
-      companyName: finalCompanyName,
-      createdAt: new Date(),
-      createdBy: userId, // 作成者のIDを記録
-    });
+    try {
+      console.log('Firestore にユーザー情報を保存中:', { uid: userRecord.uid });
+      await db.collection('users').doc(userRecord.uid).set({
+        email,
+        displayName: displayName || email.split('@')[0],
+        role: finalRole,
+        status: 'active',
+        department: department || '',
+        position: position || '',
+        companyName: finalCompanyName,
+        createdAt: Timestamp.now(),
+        createdBy: userId, // 作成者のIDを記録
+      });
+      console.log('Firestore ユーザー情報保存成功');
+    } catch (firestoreError: any) {
+      console.error('Firestore ユーザー情報保存エラー:', firestoreError);
+      // Firestore保存に失敗した場合、Firebase Authのユーザーは削除する
+      try {
+        await auth.deleteUser(userRecord.uid);
+        console.log('Firebase Auth ユーザーを削除しました（Firestore保存失敗のため）');
+      } catch (deleteError) {
+        console.error('Firebase Auth ユーザー削除エラー:', deleteError);
+      }
+      return NextResponse.json(
+        { error: `Firestore ユーザー情報保存に失敗しました: ${firestoreError.message || '不明なエラー'}` },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -120,32 +176,15 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('ユーザー作成エラー:', error);
-    
-    // Firebase Auth のエラーハンドリング
-    if (error.code === 'auth/email-already-exists') {
-      return NextResponse.json(
-        { error: 'このメールアドレスは既に使用されています' },
-        { status: 400 }
-      );
-    }
-    
-    if (error.code === 'auth/invalid-email') {
-      return NextResponse.json(
-        { error: '無効なメールアドレスです' },
-        { status: 400 }
-      );
-    }
-
-    if (error.code === 'auth/weak-password') {
-      return NextResponse.json(
-        { error: 'パスワードが弱すぎます' },
-        { status: 400 }
-      );
-    }
+    console.error('ユーザー作成エラー（予期しないエラー）:', error);
+    console.error('エラー詳細:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
 
     return NextResponse.json(
-      { error: 'ユーザー作成に失敗しました' },
+      { error: `ユーザー作成に失敗しました: ${error.message || '不明なエラー'}` },
       { status: 500 }
     );
   }
@@ -317,18 +356,43 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Firebase Auth からユーザーを削除
-    await auth.deleteUser(uid);
+    // Firebase Auth からユーザーを削除（存在する場合のみ）
+    try {
+      // ユーザーが存在するか確認
+      await auth.getUser(uid);
+      // ユーザーが存在する場合は削除
+      await auth.deleteUser(uid);
+      console.log('Firebase Auth からユーザーを削除しました:', uid);
+    } catch (authError: any) {
+      // ユーザーが存在しない場合はスキップ（既に削除されている）
+      if (authError.code === 'auth/user-not-found') {
+        console.log('Firebase Auth にユーザーが存在しないため、削除をスキップしました:', uid);
+      } else {
+        // その他のエラーはログに記録するが、Firestoreの削除は続行
+        console.error('Firebase Auth ユーザー削除エラー:', authError);
+      }
+    }
 
     // Firestore からユーザー情報を削除
-    await db.collection('users').doc(uid).delete();
+    try {
+      await db.collection('users').doc(uid).delete();
+      console.log('Firestore からユーザー情報を削除しました:', uid);
+    } catch (firestoreError: any) {
+      console.error('Firestore ユーザー削除エラー:', firestoreError);
+      // Firestoreの削除に失敗した場合でも、Firebase Authの削除は成功している可能性があるため、
+      // エラーを返す（ただし、Firebase Authの削除が既に成功している場合は、部分的に成功している）
+      return NextResponse.json(
+        { error: `Firestore からのユーザー情報削除に失敗しました: ${firestoreError.message || '不明なエラー'}` },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
 
-  } catch (error) {
-    console.error('ユーザー削除エラー:', error);
+  } catch (error: any) {
+    console.error('ユーザー削除エラー（予期しないエラー）:', error);
     return NextResponse.json(
-      { error: 'ユーザーの削除に失敗しました' },
+      { error: `ユーザーの削除に失敗しました: ${error.message || '不明なエラー'}` },
       { status: 500 }
     );
   }

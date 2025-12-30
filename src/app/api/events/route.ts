@@ -119,26 +119,111 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('Authorization');
     const decodedToken = await verifyAuthToken(authHeader);
 
-    // 自分のイベントを取得（Firebase Admin SDKを使用）
-    const myEventsSnapshot = await adminDb.collection('events')
-      .where('userId', '==', decodedToken.uid)
-      .get();
+    // 現在のユーザーのcompanyNameを取得
+    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const userData = userDoc.data();
+    const currentCompanyName = userData?.companyName || '';
+
+    // 同じcompanyNameのユーザーIDを取得
+    let companyUserIds: string[] = [decodedToken.uid]; // 自分を含める
     
+    if (currentCompanyName) {
+      try {
+        const companyUsersSnapshot = await adminDb.collection('users')
+          .where('companyName', '==', currentCompanyName)
+          .get();
+        
+        companyUserIds = companyUsersSnapshot.docs.map(doc => doc.id);
+      } catch (error) {
+        console.error('同じ会社のユーザー取得エラー:', error);
+        // エラーが発生した場合は自分のIDのみを使用
+      }
+    }
+
     const events: any[] = [];
 
-    myEventsSnapshot.forEach((doc) => {
-      const data = doc.data();
-      events.push({
-        id: doc.id,
-        ...data,
-        date: data.date,
-        time: data.time || '',
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
-        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
-      });
-    });
+    // 同じcompanyNameのユーザー全員のイベントを取得
+    try {
+      // バッチクエリで取得（Firestoreの制限: where句は10個まで）
+      const batchSize = 10;
+      const batches = [];
+      
+      for (let i = 0; i < companyUserIds.length; i += batchSize) {
+        const batch = companyUserIds.slice(i, i + batchSize);
+        batches.push(batch);
+      }
 
-    // 共有されているイベントも取得
+      // 各バッチでクエリを実行
+      for (const batch of batches) {
+        if (batch.length === 1) {
+          // 1つのユーザーのイベントを取得
+          const snapshot = await adminDb.collection('events')
+            .where('userId', '==', batch[0])
+            .get();
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            // 重複チェック
+            if (!events.find(e => e.id === doc.id)) {
+              events.push({
+                id: doc.id,
+                ...data,
+                date: data.date,
+                time: data.time || '',
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+              });
+            }
+          });
+        } else {
+          // 複数のユーザーのイベントを取得（in演算子を使用）
+          const snapshot = await adminDb.collection('events')
+            .where('userId', 'in', batch)
+            .get();
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            // 重複チェック
+            if (!events.find(e => e.id === doc.id)) {
+              events.push({
+                id: doc.id,
+                ...data,
+                date: data.date,
+                time: data.time || '',
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+              });
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('イベント取得エラー:', error);
+      // エラーが発生した場合は自分のイベントのみを取得
+      try {
+        const myEventsSnapshot = await adminDb.collection('events')
+          .where('userId', '==', decodedToken.uid)
+          .get();
+        
+        myEventsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (!events.find(e => e.id === doc.id)) {
+            events.push({
+              id: doc.id,
+              ...data,
+              date: data.date,
+              time: data.time || '',
+              createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+              updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+            });
+          }
+        });
+      } catch (fallbackError) {
+        console.error('フォールバックイベント取得エラー:', fallbackError);
+      }
+    }
+
+    // 共有されているイベントも取得（sharedWithで明示的に共有されたもの）
     try {
       const sharedSnapshot = await adminDb.collection('events')
         .where('sharedWith', 'array-contains', decodedToken.uid)

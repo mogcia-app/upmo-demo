@@ -28,11 +28,15 @@ export default function LoginPage() {
     try {
       // ログイン
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
+      
+      // 認証状態の変更を待つために少し待機
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 強制的にリダイレクト（認証状態が確実に反映されるように）
+      window.location.href = "/";
     } catch (error: unknown) {
       console.error("Authentication error:", error);
       setError(getErrorMessage((error as { code?: string }).code));
-    } finally {
       setLoading(false);
     }
   };

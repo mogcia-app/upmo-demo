@@ -18,6 +18,7 @@ const SimpleCalendarView: React.FC = () => {
     date: string;
     time?: string;
     member: string;
+    userId?: string;
     color: string;
     description?: string;
     location?: string;
@@ -26,6 +27,8 @@ const SimpleCalendarView: React.FC = () => {
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showEventDetailModal, setShowEventDetailModal] = useState(false);
+  const [showDateEventsModal, setShowDateEventsModal] = useState(false);
+  const [selectedDateForEvents, setSelectedDateForEvents] = useState<Date | null>(null);
   const [selectedEventForDetail, setSelectedEventForDetail] = useState<{
     id: string;
     title: string;
@@ -103,7 +106,7 @@ const SimpleCalendarView: React.FC = () => {
   // チーム全員の予定を取得
   useEffect(() => {
     const loadTeamEvents = async () => {
-      if (!user) return;
+      if (!user || teamMembers.length === 0) return; // teamMembersが読み込まれるまで待つ
 
       try {
         const token = await user.getIdToken();
@@ -116,17 +119,26 @@ const SimpleCalendarView: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.events) {
-            setTeamEvents(data.events.map((event: any) => ({
-              id: event.id,
-              title: event.title,
-              date: event.date,
-              time: event.time || '',
-              member: event.member || '自分',
-              color: event.color || '#3B82F6',
-              description: event.description || '',
-              location: event.location || '',
-              attendees: event.attendees || []
-            })));
+            const mappedEvents = data.events.map((event: any) => {
+              // userIdからユーザー名を取得
+              const eventUserId = event.userId || '';
+              const eventUser = teamMembers.find(m => m.id === eventUserId);
+              const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
+              
+              return {
+                id: event.id,
+                title: event.title,
+                date: event.date,
+                time: event.time || '',
+                member: memberName,
+                userId: eventUserId,
+                color: event.color || '#3B82F6',
+                description: event.description || '',
+                location: event.location || '',
+                attendees: event.attendees || []
+              };
+            });
+            setTeamEvents(mappedEvents);
           }
         }
       } catch (error) {
@@ -135,7 +147,7 @@ const SimpleCalendarView: React.FC = () => {
     };
 
     loadTeamEvents();
-  }, [currentDate, user]);
+  }, [currentDate, user, teamMembers]);
 
   // 月の日付を生成
   const generateMonthDays = () => {
@@ -190,6 +202,13 @@ const SimpleCalendarView: React.FC = () => {
       newDate.setMonth(newDate.getMonth() + 1);
     }
     setCurrentDate(newDate);
+  };
+
+  // 日付をクリックしてその日の予定一覧を表示
+  const openDateEventsModal = (date: Date) => {
+    const dateForState = new Date(date.getTime());
+    setSelectedDateForEvents(dateForState);
+    setShowDateEventsModal(true);
   };
 
   // 予定を追加するモーダルを開く
@@ -259,17 +278,25 @@ const SimpleCalendarView: React.FC = () => {
           if (loadResponse.ok) {
             const loadData = await loadResponse.json();
             if (loadData.success && loadData.events) {
-              setTeamEvents(loadData.events.map((event: any) => ({
-                id: event.id,
-                title: event.title,
-                date: event.date,
-                time: event.time || '',
-                member: event.member || '自分',
-                color: event.color || '#3B82F6',
-                description: event.description || '',
-                location: event.location || '',
-                attendees: event.attendees || []
-              })));
+              setTeamEvents(loadData.events.map((event: any) => {
+                // userIdからユーザー名を取得
+                const eventUserId = event.userId || '';
+                const eventUser = teamMembers.find(m => m.id === eventUserId);
+                const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
+                
+                return {
+                  id: event.id,
+                  title: event.title,
+                  date: event.date,
+                  time: event.time || '',
+                  member: memberName,
+                  userId: eventUserId,
+                  color: event.color || '#3B82F6',
+                  description: event.description || '',
+                  location: event.location || '',
+                  attendees: event.attendees || []
+                };
+              }));
             }
           }
           setShowAddEventModal(false);
@@ -331,22 +358,30 @@ const SimpleCalendarView: React.FC = () => {
         'Authorization': `Bearer ${token}`
       }
     });
-    if (loadResponse.ok) {
-      const loadData = await loadResponse.json();
-      if (loadData.success && loadData.events) {
-        setTeamEvents(loadData.events.map((event: any) => ({
-          id: event.id,
-          title: event.title,
-          date: event.date,
-          time: event.time || '',
-          member: event.member || '自分',
-          color: event.color || '#3B82F6',
-          description: event.description || '',
-          location: event.location || '',
-          attendees: event.attendees || []
-        })));
+      if (loadResponse.ok) {
+        const loadData = await loadResponse.json();
+        if (loadData.success && loadData.events) {
+          setTeamEvents(loadData.events.map((event: any) => {
+            // userIdからユーザー名を取得
+            const eventUserId = event.userId || '';
+            const eventUser = teamMembers.find(m => m.id === eventUserId);
+            const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
+            
+            return {
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time || '',
+              member: memberName,
+              userId: eventUserId,
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || '',
+              attendees: event.attendees || []
+            };
+          }));
+        }
       }
-    }
   };
 
   // 予定を保存（追加または更新）
@@ -480,7 +515,7 @@ const SimpleCalendarView: React.FC = () => {
     "1月", "2月", "3月", "4月", "5月", "6月",
     "7月", "8月", "9月", "10月", "11月", "12月"
   ];
-  const dayNames = ["月", "火", "水", "木", "金", "土", "日"];
+  const dayNames = ["日", "月", "火", "水", "木", "金", "土"]; // getDay()の戻り値に合わせて日曜日を最初に
 
   // 今後の予定を取得（今日以降）
   const upcomingEvents = teamEvents
@@ -552,7 +587,11 @@ const SimpleCalendarView: React.FC = () => {
             return (
               <button
                 key={date.toISOString()}
-                onClick={() => openAddEventModal(date)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openDateEventsModal(date);
+                }}
                 className={`aspect-square p-1 flex flex-col items-center justify-center rounded-lg text-sm transition-all ${
                   today 
                     ? 'bg-[#005eb2] text-white font-semibold' 
@@ -594,6 +633,9 @@ const SimpleCalendarView: React.FC = () => {
                     <div className="font-medium text-sm text-gray-900">{event.title}</div>
                     <div className="text-xs text-gray-500 mt-1">
                       {month}月{day}日{event.time && ` ${event.time}`}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {event.member}
                     </div>
                     {event.attendees && event.attendees.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
@@ -994,6 +1036,176 @@ const SimpleCalendarView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 日付の予定一覧モーダル */}
+      {showDateEventsModal && selectedDateForEvents && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={() => {
+            setShowDateEventsModal(false);
+            setSelectedDateForEvents(null);
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {selectedDateForEvents.getFullYear()}年{selectedDateForEvents.getMonth() + 1}月{selectedDateForEvents.getDate()}日の予定
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {dayNames[selectedDateForEvents.getDay()]}曜日
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    openAddEventModal(selectedDateForEvents);
+                    setShowDateEventsModal(false);
+                  }}
+                  className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  予定を追加
+                </button>
+                <button
+                  onClick={() => setShowDateEventsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {(() => {
+                const year = selectedDateForEvents.getFullYear();
+                const month = String(selectedDateForEvents.getMonth() + 1).padStart(2, '0');
+                const day = String(selectedDateForEvents.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                const dayEvents = teamEvents.filter(event => event.date === dateStr);
+
+                if (dayEvents.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">📅</div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">予定がありません</h4>
+                      <p className="text-gray-500 mb-6">この日に予定を追加してみましょう</p>
+                      <button
+                        onClick={() => {
+                          openAddEventModal(selectedDateForEvents);
+                          setShowDateEventsModal(false);
+                        }}
+                        className="px-6 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium"
+                      >
+                        予定を追加
+                      </button>
+                    </div>
+                  );
+                }
+
+                // 利用者ごとにグループ化
+                const eventsByMember = dayEvents.reduce((acc, event) => {
+                  const memberName = event.member || '不明';
+                  if (!acc[memberName]) {
+                    acc[memberName] = [];
+                  }
+                  acc[memberName].push(event);
+                  return acc;
+                }, {} as Record<string, typeof dayEvents>);
+
+                return (
+                  <div className="space-y-6">
+                    {Object.entries(eventsByMember).map(([memberName, events]) => (
+                      <div key={memberName} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          {memberName}
+                        </h4>
+                        <div className="space-y-3 ml-4">
+                          {events
+                            .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+                            .map((event) => (
+                            <div
+                              key={event.id}
+                              className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
+                            >
+                              <div 
+                                className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" 
+                                style={{ backgroundColor: event.color }}
+                              ></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <h5 className="font-medium text-gray-900">{event.title}</h5>
+                                    {event.time && (
+                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {event.time}
+                                      </div>
+                                    )}
+                                    {event.location && (
+                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        {event.location}
+                                      </div>
+                                    )}
+                                    {event.description && (
+                                      <div className="text-xs text-gray-600 mt-1">{event.description}</div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => {
+                                        openEditEventModal(event);
+                                        setShowDateEventsModal(false);
+                                      }}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                      title="編集"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm('この予定を削除しますか？')) {
+                                          handleDeleteEvent(event.id);
+                                        }
+                                      }}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="削除"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1011,6 +1223,9 @@ const CalendarView: React.FC = () => {
     time?: string;
     member: string;
     color: string;
+    description?: string;
+    location?: string;
+    attendees?: string[];
   }>>([]);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -1030,6 +1245,15 @@ const CalendarView: React.FC = () => {
     email: string;
   }>>([]);
   const [showAttendeeDropdown, setShowAttendeeDropdown] = useState(false);
+  const [showDateEventsModal, setShowDateEventsModal] = useState(false);
+  const [selectedDateForEvents, setSelectedDateForEvents] = useState<Date | null>(null);
+
+  // 日付をクリックしてその日の予定一覧を表示
+  const openDateEventsModal = (date: Date) => {
+    const dateForState = new Date(date.getTime());
+    setSelectedDateForEvents(dateForState);
+    setShowDateEventsModal(true);
+  };
 
   // リアルタイムで時刻を更新
   useEffect(() => {
@@ -1052,10 +1276,41 @@ const CalendarView: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // チームメンバーを取得
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (!user) return;
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.users) {
+            const members = data.users.map((u: any) => ({
+              id: u.uid,
+              displayName: u.displayName || u.email,
+              email: u.email
+            }));
+            setTeamMembers(members);
+          }
+        }
+      } catch (error) {
+        console.error('チームメンバーの読み込みエラー:', error);
+      }
+    };
+
+    loadTeamMembers();
+  }, [user]);
+
   // チーム全員の予定を取得
   useEffect(() => {
     const loadTeamEvents = async () => {
-      if (!user) return;
+      if (!user || teamMembers.length === 0) return; // teamMembersが読み込まれるまで待つ
 
       try {
         const token = await user.getIdToken();
@@ -1068,17 +1323,26 @@ const CalendarView: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.events) {
-            setTeamEvents(data.events.map((event: any) => ({
-              id: event.id,
-              title: event.title,
-              date: event.date,
-              time: event.time || '',
-              member: event.member || '自分',
-              color: event.color || '#3B82F6',
-              description: event.description || '',
-              location: event.location || '',
-              attendees: event.attendees || []
-            })));
+            const mappedEvents = data.events.map((event: any) => {
+              // userIdからユーザー名を取得
+              const eventUserId = event.userId || '';
+              const eventUser = teamMembers.find(m => m.id === eventUserId);
+              const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
+              
+              return {
+                id: event.id,
+                title: event.title,
+                date: event.date,
+                time: event.time || '',
+                member: memberName,
+                userId: eventUserId,
+                color: event.color || '#3B82F6',
+                description: event.description || '',
+                location: event.location || '',
+                attendees: event.attendees || []
+              };
+            });
+            setTeamEvents(mappedEvents);
           }
         }
       } catch (error) {
@@ -1087,7 +1351,7 @@ const CalendarView: React.FC = () => {
     };
 
     loadTeamEvents();
-  }, [currentDate, user]);
+  }, [currentDate, user, teamMembers]);
 
   // 月の日付を生成
   const generateMonthDays = () => {
@@ -1295,14 +1559,25 @@ const CalendarView: React.FC = () => {
           if (loadResponse.ok) {
             const loadData = await loadResponse.json();
             if (loadData.success && loadData.events) {
-              setTeamEvents(loadData.events.map((event: any) => ({
-                id: event.id,
-                title: event.title,
-                date: event.date,
-                time: event.time || '',
-                member: event.member || '自分',
-                color: event.color || '#3B82F6'
-              })));
+              setTeamEvents(loadData.events.map((event: any) => {
+                // userIdからユーザー名を取得
+                const eventUserId = event.userId || '';
+                const eventUser = teamMembers.find(m => m.id === eventUserId);
+                const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
+                
+                return {
+                  id: event.id,
+                  title: event.title,
+                  date: event.date,
+                  time: event.time || '',
+                  member: memberName,
+                  userId: eventUserId,
+                  color: event.color || '#3B82F6',
+                  description: event.description || '',
+                  location: event.location || '',
+                  attendees: event.attendees || []
+                };
+              }));
             }
           }
           setShowAddEventModal(false);
@@ -1501,7 +1776,11 @@ const CalendarView: React.FC = () => {
             return (
               <div
                 key={date.toISOString()}
-                onClick={() => openAddEventModal(date)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openDateEventsModal(date);
+                }}
                 className={`aspect-square p-2 border-2 border-gray-200 flex flex-col cursor-pointer ${
                   today 
                     ? 'bg-blue-50 border-blue-300' 
@@ -1525,7 +1804,8 @@ const CalendarView: React.FC = () => {
                       }}
                       title={`${event.title} - ${event.member}`}
                     >
-                      {event.title}
+                      <div className="truncate">{event.title}</div>
+                      <div className="text-[9px] opacity-90 truncate">{event.member}</div>
                     </div>
                   ))}
                   {dayEvents.length > 2 && (
@@ -1677,6 +1957,176 @@ const CalendarView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 日付の予定一覧モーダル */}
+      {showDateEventsModal && selectedDateForEvents && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={() => {
+            setShowDateEventsModal(false);
+            setSelectedDateForEvents(null);
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {selectedDateForEvents.getFullYear()}年{selectedDateForEvents.getMonth() + 1}月{selectedDateForEvents.getDate()}日の予定
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {dayNames[selectedDateForEvents.getDay()]}曜日
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    openAddEventModal(selectedDateForEvents);
+                    setShowDateEventsModal(false);
+                  }}
+                  className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  予定を追加
+                </button>
+                <button
+                  onClick={() => setShowDateEventsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {(() => {
+                const year = selectedDateForEvents.getFullYear();
+                const month = String(selectedDateForEvents.getMonth() + 1).padStart(2, '0');
+                const day = String(selectedDateForEvents.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                const dayEvents = teamEvents.filter(event => event.date === dateStr);
+
+                if (dayEvents.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">📅</div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">予定がありません</h4>
+                      <p className="text-gray-500 mb-6">この日に予定を追加してみましょう</p>
+                      <button
+                        onClick={() => {
+                          openAddEventModal(selectedDateForEvents);
+                          setShowDateEventsModal(false);
+                        }}
+                        className="px-6 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium"
+                      >
+                        予定を追加
+                      </button>
+                    </div>
+                  );
+                }
+
+                // 利用者ごとにグループ化
+                const eventsByMember = dayEvents.reduce((acc, event) => {
+                  const memberName = event.member || '不明';
+                  if (!acc[memberName]) {
+                    acc[memberName] = [];
+                  }
+                  acc[memberName].push(event);
+                  return acc;
+                }, {} as Record<string, typeof dayEvents>);
+
+                return (
+                  <div className="space-y-6">
+                    {Object.entries(eventsByMember).map(([memberName, events]) => (
+                      <div key={memberName} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          {memberName}
+                        </h4>
+                        <div className="space-y-3 ml-4">
+                          {events
+                            .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+                            .map((event) => (
+                            <div
+                              key={event.id}
+                              className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
+                            >
+                              <div 
+                                className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" 
+                                style={{ backgroundColor: event.color }}
+                              ></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <h5 className="font-medium text-gray-900">{event.title}</h5>
+                                    {event.time && (
+                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {event.time}
+                                      </div>
+                                    )}
+                                    {event.location && (
+                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        {event.location}
+                                      </div>
+                                    )}
+                                    {event.description && (
+                                      <div className="text-xs text-gray-600 mt-1">{event.description}</div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => {
+                                        openEditEventModal(event);
+                                        setShowDateEventsModal(false);
+                                      }}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                      title="編集"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm('この予定を削除しますか？')) {
+                                          handleDeleteEvent(event.id);
+                                        }
+                                      }}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="削除"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1704,10 +2154,46 @@ const TodayEventsView: React.FC = () => {
     description?: string;
     location?: string;
   } | null>(null);
+  const [teamMembers, setTeamMembers] = useState<Array<{
+    id: string;
+    displayName: string;
+    email: string;
+  }>>([]);
+
+  // チームメンバーを取得
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (!user) return;
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.users) {
+            const members = data.users.map((u: any) => ({
+              id: u.uid,
+              displayName: u.displayName || u.email,
+              email: u.email
+            }));
+            setTeamMembers(members);
+          }
+        }
+      } catch (error) {
+        console.error('チームメンバーの読み込みエラー:', error);
+      }
+    };
+
+    loadTeamMembers();
+  }, [user]);
 
   useEffect(() => {
     const loadTodayEvents = async () => {
-      if (!user) return;
+      if (!user || teamMembers.length === 0) return; // teamMembersが読み込まれるまで待つ
       
       try {
         const today = new Date().toISOString().split('T')[0];
@@ -1721,16 +2207,24 @@ const TodayEventsView: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.events) {
-            setTodayEvents(data.events.map((event: any) => ({
-              id: event.id,
-              title: event.title,
-              date: event.date,
-              time: event.time || '',
-              member: event.member || '自分',
-              color: event.color || '#3B82F6',
-              description: event.description || '',
-              location: event.location || ''
-            })));
+            setTodayEvents(data.events.map((event: any) => {
+              // userIdからユーザー名を取得
+              const eventUserId = event.userId || '';
+              const eventUser = teamMembers.find(m => m.id === eventUserId);
+              const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
+              
+              return {
+                id: event.id,
+                title: event.title,
+                date: event.date,
+                time: event.time || '',
+                member: memberName,
+                userId: eventUserId,
+                color: event.color || '#3B82F6',
+                description: event.description || '',
+                location: event.location || ''
+              };
+            }));
           } else {
             setTodayEvents([]);
           }

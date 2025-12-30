@@ -192,11 +192,16 @@ export default function UsersPage() {
         });
         alert('ユーザーが正常に作成されました');
       } else {
-        alert(`エラー: ${data.error}`);
+        console.error('ユーザー作成APIエラー:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: data.error
+        });
+        alert(`エラー: ${data.error || 'ユーザー作成に失敗しました'}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('ユーザー作成エラー:', error);
-      alert('ユーザー作成に失敗しました');
+      alert(`ユーザー作成に失敗しました: ${error.message || '不明なエラー'}`);
     } finally {
       setIsCreating(false);
     }
@@ -221,8 +226,6 @@ export default function UsersPage() {
         body: JSON.stringify({
           uid: updatedUser.id,
           role: updatedUser.role,
-          department: updatedUser.department,
-          position: updatedUser.position,
         }),
       });
 
@@ -589,29 +592,6 @@ export default function UsersPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">部署</label>
-                      <input
-                        type="text"
-                        value={selectedUser.department || ''}
-                        onChange={(e) => setSelectedUser({...selectedUser, department: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="部署名を入力"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">役職</label>
-                      <input
-                        type="text"
-                        value={selectedUser.position || ''}
-                        onChange={(e) => setSelectedUser({...selectedUser, position: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="役職を入力"
-                      />
-                    </div>
-                  </div>
 
                   {/* パスワード変更セクション */}
                   <div className="pt-4 border-t border-gray-200">

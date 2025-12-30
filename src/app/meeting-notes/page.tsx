@@ -39,6 +39,10 @@ interface MeetingNote {
     deadline: string;
   }>;
   notes: string;
+  summary?: string; // AI生成の要約
+  category?: string; // カテゴリ（AI自動分類）
+  tags?: string[]; // タグ
+  status: 'draft' | 'completed'; // 下書き or 完了
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +57,7 @@ export default function MeetingNotesPage() {
   const [showAttendeeDropdown, setShowAttendeeDropdown] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomerForNote, setSelectedCustomerForNote] = useState<Customer | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [formData, setFormData] = useState<Omit<MeetingNote, 'id' | 'createdAt' | 'updatedAt'>>({
     title: '',
     meetingDate: '',
@@ -61,8 +66,15 @@ export default function MeetingNotesPage() {
     attendees: [],
     assignee: '',
     actionItems: [],
-    notes: ''
+    notes: '',
+    summary: '',
+    category: '',
+    tags: [],
+    status: 'draft'
   });
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isCategorizing, setIsCategorizing] = useState(false);
+  const [tagInput, setTagInput] = useState('');
   const [actionItemInput, setActionItemInput] = useState({ item: '', assignee: '', deadline: '' });
 
   useEffect(() => {
@@ -132,7 +144,15 @@ export default function MeetingNotesPage() {
     if (!user) return;
     try {
       const token = await user.getIdToken();
-      // TODO: API実装後に接続
+      const response = await fetch('/api/meeting-notes', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setNotes(data.notes || []);
+      }
     } catch (error) {
       console.error('議事録の読み込みエラー:', error);
     }
@@ -151,27 +171,25 @@ export default function MeetingNotesPage() {
         customerId: selectedCustomerForNote?.id || undefined
       };
       
-      // TODO: API実装後に接続
-      // const url = editingNote 
-      //   ? '/api/meeting-notes'
-      //   : '/api/meeting-notes';
-      // const method = editingNote ? 'PUT' : 'POST';
-      // const body = editingNote
-      //   ? { id: editingNote.id, ...payload }
-      //   : payload;
-      // 
-      // const response = await fetch(url, {
-      //   method,
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${token}`
-      //   },
-      //   body: JSON.stringify(body)
-      // });
-      // 
-      // if (!response.ok) {
-      //   throw new Error('議事録の保存に失敗しました');
-      // }
+      const url = '/api/meeting-notes';
+      const method = editingNote ? 'PUT' : 'POST';
+      const body = editingNote
+        ? { id: editingNote.id, ...payload }
+        : payload;
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '議事録の保存に失敗しました');
+      }
 
       setShowModal(false);
       setEditingNote(null);
@@ -184,7 +202,11 @@ export default function MeetingNotesPage() {
         attendees: [],
         assignee: '',
         actionItems: [],
-        notes: ''
+        notes: '',
+        summary: '',
+        category: '',
+        tags: [],
+        status: 'draft'
       });
       setShowAttendeeDropdown(false);
       setShowCustomerDropdown(false);
@@ -199,11 +221,22 @@ export default function MeetingNotesPage() {
     if (!user || !confirm('この議事録を削除しますか？')) return;
     try {
       const token = await user.getIdToken();
-      // TODO: API実装後に接続
+      const response = await fetch(`/api/meeting-notes?id=${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '議事録の削除に失敗しました');
+      }
+      
       loadNotes();
     } catch (error) {
       console.error('議事録の削除エラー:', error);
-      alert('議事録の削除に失敗しました');
+      alert(error instanceof Error ? error.message : '議事録の削除に失敗しました');
     }
   };
 
@@ -237,7 +270,24 @@ export default function MeetingNotesPage() {
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900">議事録管理</h1>
-            <button
+            <div className="flex items-center gap-4">
+              {/* カテゴリフィルター */}
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">すべてのカテゴリ</option>
+                <option value="営業・商談">営業・商談</option>
+                <option value="プロジェクト管理">プロジェクト管理</option>
+                <option value="人事・採用">人事・採用</option>
+                <option value="経営・戦略">経営・戦略</option>
+                <option value="技術・開発">技術・開発</option>
+                <option value="顧客対応">顧客対応</option>
+                <option value="その他">その他</option>
+                <option value="未分類">未分類</option>
+              </select>
+              <button
               onClick={() => {
                 setEditingNote(null);
                 setSelectedCustomerForNote(null);
@@ -249,7 +299,11 @@ export default function MeetingNotesPage() {
                   attendees: [],
                   assignee: '',
                   actionItems: [],
-                  notes: ''
+                  notes: '',
+                  summary: '',
+                  category: '',
+                  tags: [],
+                  status: 'draft'
                 });
                 setShowAttendeeDropdown(false);
                 setShowCustomerDropdown(false);
@@ -259,6 +313,7 @@ export default function MeetingNotesPage() {
             >
               議事録を追加
             </button>
+            </div>
           </div>
 
           {notes.length === 0 ? (
@@ -268,11 +323,17 @@ export default function MeetingNotesPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow border-l-4 border-blue-500 p-6 relative"
-                >
+              {notes
+                .filter(note => {
+                  if (categoryFilter === 'all') return true;
+                  if (categoryFilter === '未分類') return !note.category || note.category === '';
+                  return note.category === categoryFilter;
+                })
+                .map((note) => (
+                  <div
+                    key={note.id}
+                    className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow border-l-4 border-blue-500 p-6 relative"
+                  >
                   {/* ヘッダー */}
                   <div className="mb-4">
                     <div className="flex items-start justify-between mb-2">
@@ -292,7 +353,11 @@ export default function MeetingNotesPage() {
                               attendees: note.attendees,
                               assignee: note.assignee || '',
                               actionItems: note.actionItems,
-                              notes: note.notes
+                              notes: note.notes,
+                              summary: note.summary || '',
+                              category: note.category || '',
+                              tags: note.tags || [],
+                              status: note.status || 'completed'
                             });
                             setShowAttendeeDropdown(false);
                             setShowCustomerDropdown(false);
@@ -395,10 +460,48 @@ export default function MeetingNotesPage() {
                     </div>
                   )}
 
+                  {/* 要約 */}
+                  {note.summary && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-xs font-medium text-blue-600">AI要約</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{note.summary}</p>
+                    </div>
+                  )}
+
                   {/* 備考 */}
                   {note.notes && (
                     <div className="mb-4">
                       <p className="text-sm text-gray-700 line-clamp-3">{note.notes}</p>
+                    </div>
+                  )}
+
+                  {/* カテゴリ・タグ */}
+                  {(note.category || (note.tags && note.tags.length > 0)) && (
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {note.category && (
+                        <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
+                          {note.category}
+                        </span>
+                      )}
+                      {note.tags && note.tags.map((tag, index) => (
+                        <span key={index} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ステータス */}
+                  {note.status === 'draft' && (
+                    <div className="mb-2">
+                      <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">
+                        下書き
+                      </span>
                     </div>
                   )}
 
@@ -637,13 +740,207 @@ export default function MeetingNotesPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">備考</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!formData.notes.trim()) {
+                              alert('要約する内容を入力してください');
+                              return;
+                            }
+                            setIsGeneratingSummary(true);
+                            try {
+                              const token = await user?.getIdToken();
+                              const response = await fetch('/api/meeting-notes/summarize', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                  notes: formData.notes,
+                                  title: formData.title,
+                                  actionItems: formData.actionItems
+                                })
+                              });
+                              if (response.ok) {
+                                const data = await response.json();
+                                setFormData({ ...formData, summary: data.summary });
+                              } else {
+                                alert('要約の生成に失敗しました');
+                              }
+                            } catch (error) {
+                              console.error('要約生成エラー:', error);
+                              alert('要約の生成に失敗しました');
+                            } finally {
+                              setIsGeneratingSummary(false);
+                            }
+                          }}
+                          disabled={isGeneratingSummary || !formData.notes.trim()}
+                          className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isGeneratingSummary ? '生成中...' : '🤖 AI要約生成'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!formData.notes.trim() && !formData.title.trim()) {
+                              alert('分類する内容を入力してください');
+                              return;
+                            }
+                            setIsCategorizing(true);
+                            try {
+                              const token = await user?.getIdToken();
+                              const response = await fetch('/api/meeting-notes/classify', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                  notes: formData.notes,
+                                  title: formData.title
+                                })
+                              });
+                              if (response.ok) {
+                                const data = await response.json();
+                                setFormData({ ...formData, category: data.category });
+                              } else {
+                                alert('分類に失敗しました');
+                              }
+                            } catch (error) {
+                              console.error('分類エラー:', error);
+                              alert('分類に失敗しました');
+                            } finally {
+                              setIsCategorizing(false);
+                            }
+                          }}
+                          disabled={isCategorizing || (!formData.notes.trim() && !formData.title.trim())}
+                          className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isCategorizing ? '分類中...' : '🤖 AI分類'}
+                        </button>
+                      </div>
+                    </div>
                     <textarea
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows={4}
+                      rows={6}
+                      placeholder="会議中のポイントをバーっと書いてください。後でAIに要約・分類してもらえます。"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                  </div>
+
+                  {/* AI要約表示 */}
+                  {formData.summary && (
+                    <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="text-xs font-medium text-blue-600">AI要約</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, summary: '' })}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          削除
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-700">{formData.summary}</p>
+                    </div>
+                  )}
+
+                  {/* カテゴリ選択 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
+                    <select
+                      value={formData.category || ''}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">カテゴリを選択</option>
+                      <option value="営業・商談">営業・商談</option>
+                      <option value="プロジェクト管理">プロジェクト管理</option>
+                      <option value="人事・採用">人事・採用</option>
+                      <option value="経営・戦略">経営・戦略</option>
+                      <option value="技術・開発">技術・開発</option>
+                      <option value="顧客対応">顧客対応</option>
+                      <option value="その他">その他</option>
+                    </select>
+                  </div>
+
+                  {/* タグ入力 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">タグ</label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && tagInput.trim()) {
+                            e.preventDefault();
+                            if (!formData.tags?.includes(tagInput.trim())) {
+                              setFormData({ ...formData, tags: [...(formData.tags || []), tagInput.trim()] });
+                            }
+                            setTagInput('');
+                          }
+                        }}
+                        placeholder="タグを入力してEnter"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tagInput.trim() && !formData.tags?.includes(tagInput.trim())) {
+                            setFormData({ ...formData, tags: [...(formData.tags || []), tagInput.trim()] });
+                            setTagInput('');
+                          }
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        追加
+                      </button>
+                    </div>
+                    {formData.tags && formData.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700"
+                          >
+                            #{tag}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, tags: formData.tags?.filter((_, i) => i !== index) });
+                              }}
+                              className="ml-2 text-gray-500 hover:text-gray-700"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ステータス選択 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'completed' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="draft">下書き</option>
+                      <option value="completed">完了</option>
+                    </select>
                   </div>
                 </div>
                 <div className="mt-6 flex justify-end gap-3">
@@ -660,7 +957,11 @@ export default function MeetingNotesPage() {
                         attendees: [],
                         assignee: '',
                         actionItems: [],
-                        notes: ''
+                        notes: '',
+                        summary: '',
+                        category: '',
+                        tags: [],
+                        status: 'draft'
                       });
                     }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"

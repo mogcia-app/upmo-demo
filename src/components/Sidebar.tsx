@@ -90,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           <div className="mb-4">
             <button
               onClick={() => setIsCommonMenuExpanded(!isCommonMenuExpanded)}
-              className="w-full flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-2 text-white/90 text-sm lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
             >
               <div className="flex items-center">
                 <span>メインメニュー</span>
@@ -106,22 +106,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                 </svg>
               </button>
             {isCommonMenuExpanded && (
-              <ul className="space-y-2 mt-2">
+              <ul className="space-y-1 mt-2">
                 {commonMenuItems.map((item) => (
                   <li key={item.id}>
                     <a
                       href={item.href}
+                      onClick={onClose}
                       className="
-                        flex flex-col lg:flex-row items-center justify-center lg:justify-start px-2 lg:px-4 py-3 lg:py-2 rounded-xl lg:rounded-lg text-white hover:bg-white/20
+                        flex items-center px-3 lg:px-4 py-2.5 lg:py-2 rounded-lg text-white hover:bg-white/20
                         transition-all duration-200 ease-in-out
-                        group text-xs lg:text-sm
+                        group text-sm lg:text-sm
                       "
                       title={item.name}
                     >
-                      <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
+                      <span className="text-lg lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
                         {item.icon}
                       </span>
-                      <span className={`font-medium ${isOpen ? 'inline' : 'hidden lg:inline'}`}>{item.name}</span>
+                      <span className="font-medium">{item.name}</span>
                     </a>
                   </li>
                 ))}
@@ -159,7 +160,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                       <div key={category} className="mb-2">
                       <button
                           onClick={() => toggleCategory(category)}
-                          className="w-full flex items-center justify-between px-2 lg:px-4 py-2 text-white/80 text-xs lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
+                          className="w-full flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-2 text-white/90 text-sm lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
                         >
                           <div className="flex items-center">
                             <span>{CATEGORY_NAMES[category]}</span>
@@ -175,22 +176,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                         </svg>
                       </button>
                         {isExpanded && (
-                          <ul className="space-y-2 mt-2">
+                          <ul className="space-y-1 mt-1 ml-2 border-l-2 border-white/20 pl-2">
                             {items.map((item) => (
                               <li key={item.id}>
                                 <a
                                   href={item.href}
+                                  onClick={onClose}
                                   className="
-                                    flex flex-col lg:flex-row items-center justify-center lg:justify-start px-2 lg:px-4 py-3 lg:py-2 rounded-xl lg:rounded-lg text-white hover:bg-white/20
+                                    flex items-center px-3 lg:px-4 py-2 lg:py-2 rounded-lg text-white/90 hover:bg-white/20 hover:text-white
                                     transition-all duration-200 ease-in-out
-                                    group text-xs lg:text-sm
+                                    group text-sm lg:text-sm
                                   "
                                   title={item.name}
                                 >
-                                  <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
+                                  <span className="text-base lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
                                     {item.icon}
                                   </span>
-                                  <span className={`font-medium ${isOpen ? 'inline' : 'hidden lg:inline'}`}>{item.name}</span>
+                                  <span className="font-medium">{item.name}</span>
                                 </a>
                               </li>
                             ))}
@@ -215,22 +217,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                 </div>
               </div>
               
-              <ul className="space-y-2 mb-4">
+              <ul className="space-y-1 mb-4">
                 {adminMenuItems.map((item) => (
                   <li key={item.id}>
                     <a
                       href={item.href}
+                      onClick={onClose}
                       className="
-                        flex flex-col lg:flex-row items-center justify-center lg:justify-start px-2 lg:px-4 py-3 lg:py-2 rounded-xl lg:rounded-lg text-white hover:bg-white/20
+                        flex items-center px-3 lg:px-4 py-2.5 lg:py-2 rounded-lg text-white hover:bg-white/20
                         transition-all duration-200 ease-in-out
-                        group text-xs lg:text-sm
+                        group text-sm lg:text-sm
                       "
                       title={item.name}
                     >
-                      <span className="text-xl lg:text-base mb-1 lg:mb-0 lg:mr-3 group-hover:scale-110 transition-transform duration-200">
+                      <span className="text-lg lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
                         {item.icon}
                       </span>
-                      <span className={`font-medium ${isOpen ? 'inline' : 'hidden lg:inline'}`}>{item.name}</span>
+                      <span className="font-medium">{item.name}</span>
                     </a>
                   </li>
                 ))}
