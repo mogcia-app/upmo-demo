@@ -16,61 +16,57 @@ const firebaseConfig = {
 
 // Validate Firebase configuration
 const validateConfig = () => {
-  const requiredEnvVars = [
-    'NEXT_PUBLIC_FIREBASE_API_KEY',
-    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-    'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-    'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-    'NEXT_PUBLIC_FIREBASE_APP_ID',
-  ];
+  // firebaseConfigの値を直接チェック（process.envではなく）
+  // Next.jsではNEXT_PUBLIC_変数はビルド時に埋め込まれるため、
+  // 実行時のprocess.envチェックでは検出できない場合がある
+  const configValues = {
+    apiKey: firebaseConfig.apiKey,
+    authDomain: firebaseConfig.authDomain,
+    projectId: firebaseConfig.projectId,
+    storageBucket: firebaseConfig.storageBucket,
+    messagingSenderId: firebaseConfig.messagingSenderId,
+    appId: firebaseConfig.appId,
+  };
 
-  // デバッグ: 環境変数の状態を確認（開発環境・本番環境ともに）
-  if (typeof window !== 'undefined') {
-    const envStatus = requiredEnvVars.map(varName => ({
-      name: varName,
-      exists: !!process.env[varName],
-      length: process.env[varName]?.length || 0,
-      value: process.env[varName] ? `${process.env[varName]?.substring(0, 10)}...` : 'undefined'
-    }));
-    console.log('🔍 Firebase environment variables status:', envStatus);
-    console.log('🔍 Environment:', process.env.NODE_ENV);
+  const missingFields: string[] = [];
+  if (!configValues.apiKey || configValues.apiKey.trim() === '') {
+    missingFields.push('NEXT_PUBLIC_FIREBASE_API_KEY');
+  }
+  if (!configValues.authDomain || configValues.authDomain.trim() === '') {
+    missingFields.push('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN');
+  }
+  if (!configValues.projectId || configValues.projectId.trim() === '') {
+    missingFields.push('NEXT_PUBLIC_FIREBASE_PROJECT_ID');
+  }
+  if (!configValues.storageBucket || configValues.storageBucket.trim() === '') {
+    missingFields.push('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+  }
+  if (!configValues.messagingSenderId || configValues.messagingSenderId.trim() === '') {
+    missingFields.push('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID');
+  }
+  if (!configValues.appId || configValues.appId.trim() === '') {
+    missingFields.push('NEXT_PUBLIC_FIREBASE_APP_ID');
   }
 
-  const missingVars = requiredEnvVars.filter(
-    (varName) => !process.env[varName] || process.env[varName]?.trim() === ''
-  );
-
-  if (missingVars.length > 0) {
-    // 開発環境・本番環境ともに警告のみ表示し、エラーをスローしない
-    // （本番環境でも環境変数が設定されていない場合、アプリがクラッシュしないようにする）
-    console.warn(
-      '⚠️ Missing Firebase environment variables:',
-      missingVars.join(', ')
-    );
-    
+  if (missingFields.length > 0) {
+    // 開発環境でのみ詳細な警告を表示
     if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        '⚠️ Missing Firebase environment variables:',
+        missingFields.join(', ')
+      );
       console.warn(
         'Please create a .env.local file in the project root with the following variables:'
       );
       console.warn(
-        requiredEnvVars.map(v => `${v}=your_value_here`).join('\n')
+        missingFields.map(v => `${v}=your_value_here`).join('\n')
       );
       console.warn(
         'Note: After updating .env.local, you need to restart the Next.js development server.'
       );
-    } else {
-      console.warn(
-        'Please set the following environment variables in your deployment platform (Vercel, etc.):'
-      );
-      console.warn(
-        requiredEnvVars.map(v => `${v}=your_value_here`).join('\n')
-      );
     }
-    
-    console.warn(
-      'The app will continue to run, but Firebase features will not work until these are set.'
-    );
+    // 本番環境では警告を出さない（環境変数が正しく設定されていても
+    // ビルド時の埋め込みによりprocess.envで検出できない場合があるため）
     return false;
   }
 
