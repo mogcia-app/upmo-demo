@@ -40,9 +40,6 @@ interface MeetingNote {
   }>;
   notes: string;
   summary?: string; // AI生成の要約
-  category?: string; // カテゴリ（AI自動分類）
-  tags?: string[]; // タグ
-  status: 'draft' | 'completed'; // 下書き or 完了
   createdAt: string;
   updatedAt: string;
 }
@@ -57,7 +54,6 @@ export default function MeetingNotesPage() {
   const [showAttendeeDropdown, setShowAttendeeDropdown] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomerForNote, setSelectedCustomerForNote] = useState<Customer | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [formData, setFormData] = useState<Omit<MeetingNote, 'id' | 'createdAt' | 'updatedAt'>>({
     title: '',
     meetingDate: '',
@@ -67,14 +63,9 @@ export default function MeetingNotesPage() {
     assignee: '',
     actionItems: [],
     notes: '',
-    summary: '',
-    category: '',
-    tags: [],
-    status: 'draft'
+    summary: ''
   });
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  const [isCategorizing, setIsCategorizing] = useState(false);
-  const [tagInput, setTagInput] = useState('');
   const [actionItemInput, setActionItemInput] = useState({ item: '', assignee: '', deadline: '' });
 
   useEffect(() => {
@@ -203,10 +194,7 @@ export default function MeetingNotesPage() {
         assignee: '',
         actionItems: [],
         notes: '',
-        summary: '',
-        category: '',
-        tags: [],
-        status: 'draft'
+        summary: ''
       });
       setShowAttendeeDropdown(false);
       setShowCustomerDropdown(false);
@@ -271,22 +259,6 @@ export default function MeetingNotesPage() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900">議事録管理</h1>
             <div className="flex items-center gap-4">
-              {/* カテゴリフィルター */}
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">すべてのカテゴリ</option>
-                <option value="営業・商談">営業・商談</option>
-                <option value="プロジェクト管理">プロジェクト管理</option>
-                <option value="人事・採用">人事・採用</option>
-                <option value="経営・戦略">経営・戦略</option>
-                <option value="技術・開発">技術・開発</option>
-                <option value="顧客対応">顧客対応</option>
-                <option value="その他">その他</option>
-                <option value="未分類">未分類</option>
-              </select>
               <button
               onClick={() => {
                 setEditingNote(null);
@@ -300,10 +272,7 @@ export default function MeetingNotesPage() {
                   assignee: '',
                   actionItems: [],
                   notes: '',
-                  summary: '',
-                  category: '',
-                  tags: [],
-                  status: 'draft'
+                  summary: ''
                 });
                 setShowAttendeeDropdown(false);
                 setShowCustomerDropdown(false);
@@ -323,13 +292,7 @@ export default function MeetingNotesPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {notes
-                .filter(note => {
-                  if (categoryFilter === 'all') return true;
-                  if (categoryFilter === '未分類') return !note.category || note.category === '';
-                  return note.category === categoryFilter;
-                })
-                .map((note) => (
+              {notes.map((note) => (
                   <div
                     key={note.id}
                     className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow border-l-4 border-blue-500 p-6 relative"
@@ -354,10 +317,7 @@ export default function MeetingNotesPage() {
                               assignee: note.assignee || '',
                               actionItems: note.actionItems,
                               notes: note.notes,
-                              summary: note.summary || '',
-                              category: note.category || '',
-                              tags: note.tags || [],
-                              status: note.status || 'completed'
+                              summary: note.summary || ''
                             });
                             setShowAttendeeDropdown(false);
                             setShowCustomerDropdown(false);
@@ -477,31 +437,6 @@ export default function MeetingNotesPage() {
                   {note.notes && (
                     <div className="mb-4">
                       <p className="text-sm text-gray-700 line-clamp-3">{note.notes}</p>
-                    </div>
-                  )}
-
-                  {/* カテゴリ・タグ */}
-                  {(note.category || (note.tags && note.tags.length > 0)) && (
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {note.category && (
-                        <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
-                          {note.category}
-                        </span>
-                      )}
-                      {note.tags && note.tags.map((tag, index) => (
-                        <span key={index} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ステータス */}
-                  {note.status === 'draft' && (
-                    <div className="mb-2">
-                      <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">
-                        下書き
-                      </span>
                     </div>
                   )}
 
@@ -783,52 +718,13 @@ export default function MeetingNotesPage() {
                         >
                           {isGeneratingSummary ? '生成中...' : '🤖 AI要約生成'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!formData.notes.trim() && !formData.title.trim()) {
-                              alert('分類する内容を入力してください');
-                              return;
-                            }
-                            setIsCategorizing(true);
-                            try {
-                              const token = await user?.getIdToken();
-                              const response = await fetch('/api/meeting-notes/classify', {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${token}`
-                                },
-                                body: JSON.stringify({
-                                  notes: formData.notes,
-                                  title: formData.title
-                                })
-                              });
-                              if (response.ok) {
-                                const data = await response.json();
-                                setFormData({ ...formData, category: data.category });
-                              } else {
-                                alert('分類に失敗しました');
-                              }
-                            } catch (error) {
-                              console.error('分類エラー:', error);
-                              alert('分類に失敗しました');
-                            } finally {
-                              setIsCategorizing(false);
-                            }
-                          }}
-                          disabled={isCategorizing || (!formData.notes.trim() && !formData.title.trim())}
-                          className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {isCategorizing ? '分類中...' : '🤖 AI分類'}
-                        </button>
                       </div>
                     </div>
                     <textarea
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows={6}
-                      placeholder="会議中のポイントをバーっと書いてください。後でAIに要約・分類してもらえます。"
+                      placeholder="会議の内容、議題、決定事項などを記入してください。AIによる要約機能をご利用いただけます。"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -855,93 +751,6 @@ export default function MeetingNotesPage() {
                     </div>
                   )}
 
-                  {/* カテゴリ選択 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
-                    <select
-                      value={formData.category || ''}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">カテゴリを選択</option>
-                      <option value="営業・商談">営業・商談</option>
-                      <option value="プロジェクト管理">プロジェクト管理</option>
-                      <option value="人事・採用">人事・採用</option>
-                      <option value="経営・戦略">経営・戦略</option>
-                      <option value="技術・開発">技術・開発</option>
-                      <option value="顧客対応">顧客対応</option>
-                      <option value="その他">その他</option>
-                    </select>
-                  </div>
-
-                  {/* タグ入力 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">タグ</label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && tagInput.trim()) {
-                            e.preventDefault();
-                            if (!formData.tags?.includes(tagInput.trim())) {
-                              setFormData({ ...formData, tags: [...(formData.tags || []), tagInput.trim()] });
-                            }
-                            setTagInput('');
-                          }
-                        }}
-                        placeholder="タグを入力してEnter"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (tagInput.trim() && !formData.tags?.includes(tagInput.trim())) {
-                            setFormData({ ...formData, tags: [...(formData.tags || []), tagInput.trim()] });
-                            setTagInput('');
-                          }
-                        }}
-                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        追加
-                      </button>
-                    </div>
-                    {formData.tags && formData.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {formData.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700"
-                          >
-                            #{tag}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormData({ ...formData, tags: formData.tags?.filter((_, i) => i !== index) });
-                              }}
-                              className="ml-2 text-gray-500 hover:text-gray-700"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ステータス選択 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'completed' })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="draft">下書き</option>
-                      <option value="completed">完了</option>
-                    </select>
-                  </div>
                 </div>
                 <div className="mt-6 flex justify-end gap-3">
                   <button
@@ -956,13 +765,10 @@ export default function MeetingNotesPage() {
                         location: '',
                         attendees: [],
                         assignee: '',
-                        actionItems: [],
-                        notes: '',
-                        summary: '',
-                        category: '',
-                        tags: [],
-                        status: 'draft'
-                      });
+                  actionItems: [],
+                  notes: '',
+                  summary: ''
+                });
                     }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                   >
