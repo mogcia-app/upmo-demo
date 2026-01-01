@@ -93,9 +93,8 @@ export async function GET(request: NextRequest) {
         updatedAt = new Date();
       }
       
-      return {
+      const note: any = {
         id: doc.id,
-        customerId: data.customerId || undefined,
         title: data.title || '',
         meetingDate: data.meetingDate || '',
         meetingTime: data.meetingTime || '',
@@ -104,10 +103,21 @@ export async function GET(request: NextRequest) {
         assignee: data.assignee || '',
         actionItems: data.actionItems || [],
         notes: data.notes || '',
-        summary: data.summary || undefined,
         createdAt: createdAt.toISOString(),
         updatedAt: updatedAt.toISOString()
       };
+
+      // customerIdが存在する場合のみ追加
+      if (data.customerId) {
+        note.customerId = data.customerId;
+      }
+
+      // summaryが存在する場合のみ追加
+      if (data.summary) {
+        note.summary = data.summary;
+      }
+
+      return note;
     });
 
     return NextResponse.json({ notes });
@@ -154,8 +164,7 @@ export async function POST(request: NextRequest) {
 
     const now = Timestamp.now();
     
-    const noteData = {
-      customerId: customerId || undefined,
+    const noteData: any = {
       title,
       meetingDate: meetingDate || '',
       meetingTime: meetingTime || '',
@@ -164,12 +173,21 @@ export async function POST(request: NextRequest) {
       assignee: assignee || '',
       actionItems: actionItems || [],
       notes: notes || '',
-      summary: summary || undefined,
       userId,
       companyName: userCompanyName,
       createdAt: now,
       updatedAt: now
     };
+
+    // customerIdが存在する場合のみ追加（undefinedの場合はフィールドを含めない）
+    if (customerId) {
+      noteData.customerId = customerId;
+    }
+
+    // summaryが存在する場合のみ追加（undefinedの場合はフィールドを含めない）
+    if (summary) {
+      noteData.summary = summary;
+    }
 
     const docRef = await db.collection('meetingNotes').add(noteData);
 
@@ -328,9 +346,17 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    updateData.updatedAt = Timestamp.now();
+    // undefinedの値をフィルタリング（Firestoreはundefinedを保存できない）
+    const cleanedUpdateData: any = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      if (value !== undefined) {
+        cleanedUpdateData[key] = value;
+      }
+    }
 
-    await db.collection('meetingNotes').doc(id).update(updateData);
+    cleanedUpdateData.updatedAt = Timestamp.now();
+
+    await db.collection('meetingNotes').doc(id).update(cleanedUpdateData);
 
     // 更新後のデータを取得
     const updatedDoc = await db.collection('meetingNotes').doc(id).get();

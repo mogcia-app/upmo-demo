@@ -157,10 +157,14 @@ export default function MeetingNotesPage() {
     }
     try {
       const token = await user.getIdToken();
-      const payload = {
-        ...formData,
-        customerId: selectedCustomerForNote?.id || undefined
+      const payload: any = {
+        ...formData
       };
+      
+      // customerIdが存在する場合のみ追加（undefinedの場合はフィールドを含めない）
+      if (selectedCustomerForNote?.id) {
+        payload.customerId = selectedCustomerForNote.id;
+      }
       
       const url = '/api/meeting-notes';
       const method = editingNote ? 'PUT' : 'POST';
