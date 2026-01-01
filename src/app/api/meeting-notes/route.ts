@@ -155,6 +155,8 @@ export async function POST(request: NextRequest) {
     const userData = userDoc.data();
     const userCompanyName = userData?.companyName || '';
 
+    const now = Timestamp.now();
+    
     const noteData = {
       customerId: customerId || undefined,
       title,
@@ -171,8 +173,8 @@ export async function POST(request: NextRequest) {
       status: status || 'completed',
       userId,
       companyName: userCompanyName,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: now,
+      updatedAt: now
     };
 
     const docRef = await db.collection('meetingNotes').add(noteData);
@@ -182,15 +184,20 @@ export async function POST(request: NextRequest) {
       note: {
         id: docRef.id,
         ...noteData,
-        createdAt: noteData.createdAt.toISOString(),
-        updatedAt: noteData.updatedAt.toISOString()
+        createdAt: now.toDate().toISOString(),
+        updatedAt: now.toDate().toISOString()
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('議事録作成エラー:', error);
+    console.error('エラー詳細:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
     return NextResponse.json(
-      { error: '議事録の作成に失敗しました' },
+      { error: error.message || '議事録の作成に失敗しました' },
       { status: 500 }
     );
   }
@@ -246,7 +253,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    updateData.updatedAt = new Date();
+    updateData.updatedAt = Timestamp.now();
 
     await db.collection('meetingNotes').doc(id).update(updateData);
 
