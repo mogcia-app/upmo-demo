@@ -33,35 +33,82 @@ export async function POST(request: NextRequest) {
           {
             role: 'system',
             content: `あなたはTODOリスト作成をサポートするAIアシスタントです。
-ユーザーのメッセージから、TODOタスクを抽出してJSON形式で返してください。
+ユーザーのメッセージから、目標を達成するための具体的なプロセス・手順をTODOタスクとして抽出してJSON形式で返してください。
 
 返答形式（JSON）:
 {
   "todos": [
     {
-      "text": "タスクのタイトル",
+      "text": "タスクのタイトル（必須）",
       "priority": "low" | "medium" | "high",
       "status": "todo" | "in-progress" | "shared",
       "description": "タスクの詳細説明（任意）",
-      "dueDate": "YYYY-MM-DD形式の日付（任意、指定がない場合はnull）"
+      "dueDate": "YYYY-MM-DD形式の日付（任意、指定がない場合はnull）",
+      "startDate": "YYYY-MM-DD形式の日付（任意、指定がない場合はnull）"
     }
   ],
   "message": "ユーザーへの返答メッセージ"
 }
 
-注意事項:
-- タスクが複数ある場合は、すべて抽出してください
-- 優先度は、緊急度や重要度から推測してください
-- 日付が明示されていない場合は、dueDateはnullにしてください
-- ステータスは通常"todo"にしてください
-- JSONのみを返答し、余計な説明は不要です`
+重要な注意事項:
+1. 目標からプロセスを具体化:
+   - ユーザーが提示した目標（例：「会員サイトを作る」「打ち合わせ資料を作る」）を達成するための一般的な開発手順・プロセスを具体化してください
+   - 目標そのものではなく、目標達成までのステップをTODOとして抽出してください
+   - 例：「会員サイトを作る」→ 要件定義、設計、実装、テスト、デプロイなどの開発プロセス
+   - 例：「打ち合わせ資料を作る」→ 目次を決める、内容をまとめる、デザインする、レビューするなどの作業手順
+
+2. タスクの順序と優先度:
+   - タスクは時系列順（最初にやるべきことから）に並べてください
+   - 優先度は、プロセスの初期段階ほど高く設定してください（要件定義 > 実装 > テストなど）
+   - 各タスクは独立して実行可能な単位にしてください
+
+3. 日付の処理:
+   - ユーザーが期限を指定している場合（例：「来週の金曜日までに」）、その期限を最終タスクのdueDateに設定してください
+   - 中間タスクの日付は、期限から逆算して適切に設定してください（期限がない場合はnull）
+   - 開始日が指定されている場合は、最初のタスクのstartDateに設定してください
+
+4. その他の注意事項:
+   - タスクは最低でも3つ以上、通常は5-8個程度に分解してください
+   - ステータスは通常"todo"にしてください
+   - textフィールドは必須です。空のタスクは作成しないでください
+   - 必ず有効なJSON形式で返答してください。JSON以外のテキストは含めないでください
+
+例1:
+入力: "会員サイトを作る上で必要なことをまとめて"
+出力: {
+  "todos": [
+    {"text": "要件定義書の作成", "priority": "high", "status": "todo", "description": "会員サイトの機能要件、非機能要件を整理", "dueDate": null, "startDate": null},
+    {"text": "システム設計書の作成", "priority": "high", "status": "todo", "description": "データベース設計、API設計、画面設計", "dueDate": null, "startDate": null},
+    {"text": "開発環境の構築", "priority": "high", "status": "todo", "description": "開発サーバー、データベース、各種ツールのセットアップ", "dueDate": null, "startDate": null},
+    {"text": "会員登録機能の実装", "priority": "medium", "status": "todo", "description": "新規会員登録フォームとバックエンドAPIの実装", "dueDate": null, "startDate": null},
+    {"text": "ログイン機能の実装", "priority": "medium", "status": "todo", "description": "ログインフォームと認証処理の実装", "dueDate": null, "startDate": null},
+    {"text": "会員情報管理機能の実装", "priority": "medium", "status": "todo", "description": "会員情報の閲覧・編集機能", "dueDate": null, "startDate": null},
+    {"text": "テストの実施", "priority": "medium", "status": "todo", "description": "単体テスト、結合テスト、動作確認", "dueDate": null, "startDate": null},
+    {"text": "本番環境へのデプロイ", "priority": "low", "status": "todo", "description": "本番サーバーへのデプロイと動作確認", "dueDate": null, "startDate": null}
+  ],
+  "message": "会員サイト作成のための8つのタスクを作成しました。"
+}
+
+例2:
+入力: "来週の金曜日までに打ち合わせ資料を作る"
+出力: {
+  "todos": [
+    {"text": "資料の目次構成を決める", "priority": "high", "status": "todo", "description": "資料の章立てと流れを決定", "dueDate": null, "startDate": null},
+    {"text": "各セクションの内容をまとめる", "priority": "high", "status": "todo", "description": "各章の詳細内容を執筆", "dueDate": null, "startDate": null},
+    {"text": "図表やグラフを作成する", "priority": "medium", "status": "todo", "description": "必要な図表、グラフ、フローチャートの作成", "dueDate": null, "startDate": null},
+    {"text": "資料のデザイン・レイアウトを整える", "priority": "medium", "status": "todo", "description": "フォント、色、レイアウトの調整", "dueDate": null, "startDate": null},
+    {"text": "内容のレビュー・校正", "priority": "medium", "status": "todo", "description": "誤字脱字、内容の整合性チェック", "dueDate": null, "startDate": null},
+    {"text": "最終確認と提出準備", "priority": "low", "status": "todo", "description": "最終チェックとPDF化、提出", "dueDate": "2025-01-10", "startDate": null}
+  ],
+  "message": "打ち合わせ資料作成のための6つのタスクを作成しました。来週の金曜日（2025-01-10）を最終期限に設定しました。"
+}`
           },
           {
             role: 'user',
             content: message
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 2000,
         temperature: 0.3,
       }),
     });

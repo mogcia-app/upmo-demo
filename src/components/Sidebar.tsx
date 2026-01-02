@@ -69,9 +69,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               upmo
             </Link>
             {!isOpen && (
-              <Link href="/" className="text-2xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer lg:hidden">
-                U
-              </Link>
+            <Link href="/" className="text-2xl font-bold text-white hover:text-blue-100 transition-colors cursor-pointer lg:hidden">
+              U
+            </Link>
             )}
             <button
               onClick={onClose}

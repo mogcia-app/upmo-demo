@@ -201,23 +201,23 @@ export async function GET(request: NextRequest) {
       console.error('イベント取得エラー:', error);
       // エラーが発生した場合は自分のイベントのみを取得
       try {
-        const myEventsSnapshot = await adminDb.collection('events')
-          .where('userId', '==', decodedToken.uid)
-          .get();
-        
-        myEventsSnapshot.forEach((doc) => {
-          const data = doc.data();
+    const myEventsSnapshot = await adminDb.collection('events')
+      .where('userId', '==', decodedToken.uid)
+      .get();
+
+    myEventsSnapshot.forEach((doc) => {
+      const data = doc.data();
           if (!events.find(e => e.id === doc.id)) {
-            events.push({
-              id: doc.id,
-              ...data,
-              date: data.date,
-              time: data.time || '',
-              createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
-              updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
-            });
+      events.push({
+        id: doc.id,
+        ...data,
+        date: data.date,
+        time: data.time || '',
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()),
+      });
           }
-        });
+    });
       } catch (fallbackError) {
         console.error('フォールバックイベント取得エラー:', fallbackError);
       }

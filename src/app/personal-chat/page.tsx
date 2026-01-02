@@ -357,9 +357,19 @@ export default function PersonalChatPage() {
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
+    // AIアシスタントの場合、入力が「について教えて」で終わっていない場合は自動的に追加
+    let finalMessage = inputText.trim();
+    if (activeChat === "ai-assistant") {
+      const suffix = "について教えて";
+      // 既に「について教えて」で終わっている場合は追加しない
+      if (!finalMessage.endsWith(suffix) && !finalMessage.endsWith("について") && !finalMessage.endsWith("教えて")) {
+        finalMessage = `${finalMessage}${suffix}`;
+      }
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: inputText.trim(),
+      text: finalMessage,
       sender: "user",
       timestamp: new Date()
     };
@@ -388,7 +398,7 @@ export default function PersonalChatPage() {
         await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
         
         // AIで回答を生成（LLM使用、文書管理の内容があればそれも参照）
-        const aiResponse = await generateAIResponse(inputText.trim());
+        const aiResponse = await generateAIResponse(finalMessage);
         
         // ローディングメッセージを削除してAI回答を追加
         const finalMessages = newMessages.concat({
@@ -731,7 +741,7 @@ export default function PersonalChatPage() {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyPress={handleKeyPress}
-                  placeholder={activeChat === "ai-assistant" ? "メッセージを入力..." : "メッセージを入力..."}
+                  placeholder={activeChat === "ai-assistant" ? "例: 顧客管理、営業案件、TODOリスト..." : "メッセージを入力..."}
                   className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                   disabled={isLoading}
                 />

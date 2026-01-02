@@ -133,7 +133,7 @@ async function searchByIntent(
   const queryWords = searchQuery.split(/\s+/).filter(w => w.length > 0);
   
   // 一般的な質問を検出（「一覧」「見たい」「教えて」など）
-  const generalQueryKeywords = ['一覧', '見たい', '教えて', '確認', '見る', '全部', 'すべて', '全て'];
+  const generalQueryKeywords = ['一覧', '見たい', '教えて', '確認', '見る', '全部', 'すべて', '全て', '何がある', '何があるの', '何が', 'どんな', 'リスト', '全部見せて'];
   const isGeneralQuery = generalQueryKeywords.some(keyword => searchQuery.includes(keyword));
 
   try {
@@ -454,24 +454,55 @@ async function searchByIntent(
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
         
-        // まず全タスクを取得（「今日」のクエリでも、フォールバック用に全件取得）
-        const allTodosSnapshot = await adminDb.collection('todos')
+        // 自分のTODOと共有されたTODOを取得
+        const myTodosSnapshot = await adminDb.collection('todos')
           .where('userId', '==', userId)
+          .limit(50)
+          .get();
+        
+        const sharedTodosSnapshot = await adminDb.collection('todos')
+          .where('sharedWith', 'array-contains', userId)
           .limit(50)
           .get();
         
         const relevantTodos: any[] = [];
         const allTodos: any[] = [];
+        const todoIds = new Set<string>();
         
-        allTodosSnapshot.forEach((doc) => {
+        // 自分のTODOを追加
+        myTodosSnapshot.forEach((doc) => {
           const data = doc.data();
-          allTodos.push({
-            title: data.title,
-            description: data.description,
-            status: data.status,
-            priority: data.priority,
-            dueDate: data.dueDate
-          });
+          if (!todoIds.has(doc.id)) {
+            todoIds.add(doc.id);
+            allTodos.push({
+              id: doc.id,
+              text: data.text,
+              description: data.description,
+              status: data.status,
+              priority: data.priority,
+              dueDate: data.dueDate,
+              startDate: data.startDate,
+              completed: data.completed || false
+            });
+          }
+        });
+        
+        // 共有されたTODOを追加
+        sharedTodosSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (!todoIds.has(doc.id)) {
+            todoIds.add(doc.id);
+            allTodos.push({
+              id: doc.id,
+              text: data.text,
+              description: data.description,
+              status: data.status,
+              priority: data.priority,
+              dueDate: data.dueDate,
+              startDate: data.startDate,
+              completed: data.completed || false
+            });
+          }
         });
         
         if (isTodayQuery) {
@@ -502,19 +533,19 @@ async function searchByIntent(
           if (isGeneralQuery) {
             relevantTodos.push(...allTodos.slice(0, 20));
           } else {
-            // 通常の検索：タイトルや説明でマッチング
+            // 通常の検索：テキストや説明でマッチング
             const queryLower = searchQuery.toLowerCase();
             const queryWords = queryLower.split(/\s+/).filter(w => w.length > 0);
             
             allTodos.forEach(todo => {
-              const titleMatch = todo.title?.toLowerCase().includes(queryLower);
+              const textMatch = todo.text?.toLowerCase().includes(queryLower);
               const descriptionMatch = todo.description?.toLowerCase().includes(queryLower);
               const wordMatch = queryWords.some(word => 
-                todo.title?.toLowerCase().includes(word) || 
+                todo.text?.toLowerCase().includes(word) || 
                 todo.description?.toLowerCase().includes(word)
               );
               
-              if (titleMatch || descriptionMatch || wordMatch) {
+              if (textMatch || descriptionMatch || wordMatch) {
                 relevantTodos.push(todo);
               }
             });
@@ -523,7 +554,14 @@ async function searchByIntent(
         
         // 結果が0件の場合でも、適切なメッセージを返す
         if (relevantTodos.length === 0) {
-          if (isTodayQuery) {
+          if (allTodos.length === 0) {
+            // TODOが全く存在しない場合
+            return {
+              type: 'todo',
+              items: [],
+              formatted: '【TODOリスト】\n\n現在、登録されているタスクはありません。\n\n[✅ タスク管理ページへ移動](/todo)で新しいタスクを作成できます。'
+            };
+          } else if (isTodayQuery) {
             return {
               type: 'todo',
               items: [],
@@ -533,19 +571,32 @@ async function searchByIntent(
             return {
               type: 'todo',
               items: [],
-              formatted: '【TODOリスト】\n\nタスクが見つかりませんでした。\n\n別のキーワードで検索していただくか、タスク名・説明で検索してみてください。'
+              formatted: `【TODOリスト】\n\n検索条件に一致するタスクが見つかりませんでした。\n\n現在、${allTodos.length}件のタスクが登録されています。\n\n別のキーワードで検索していただくか、タスク名・説明で検索してみてください。`
             };
           }
         }
         
         const todoTexts = relevantTodos.map(t => {
-          let text = `タスク: ${t.title}`;
+          let text = `タスク: ${t.text || '（タイトルなし）'}`;
           if (t.description) text += `\n説明: ${t.description}`;
-          if (t.status) text += `\nステータス: ${getTodoStatusLabel(t.status)}`;
+          if (t.status) {
+            const statusLabels: Record<string, string> = {
+              'shared': '共有事項',
+              'todo': 'ToDoリスト',
+              'in-progress': '進行中',
+              'completed': '完了'
+            };
+            text += `\nステータス: ${statusLabels[t.status] || t.status}`;
+          }
           if (t.priority) text += `\n優先度: ${getPriorityLabel(t.priority)}`;
+          if (t.completed) text += `\n完了: はい`;
           if (t.dueDate) {
             const dueDate = t.dueDate instanceof Timestamp ? t.dueDate.toDate() : new Date(t.dueDate);
             text += `\n期限: ${dueDate.toLocaleDateString('ja-JP')}`;
+          }
+          if (t.startDate) {
+            const startDate = t.startDate instanceof Timestamp ? t.startDate.toDate() : new Date(t.startDate);
+            text += `\n開始日: ${startDate.toLocaleDateString('ja-JP')}`;
           }
           return text;
         });

@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
                 completed: false,
                 createdAt: Timestamp.now(),
                 priority: 'medium' as const,
-                status: 'todo' as const,
+                status: 'shared' as const,
                 assignee: assignee,
                 description: `議事録「${title}」からのアクション項目`,
                 userId: assignee, // 担当者のTODOとして作成
@@ -441,6 +441,7 @@ export async function DELETE(request: NextRequest) {
 
     const noteData = noteDoc.data();
     const companyName = noteData?.companyName || '';
+    const noteTitle = noteData?.title || '';
 
     // 同じcompanyNameのユーザーまたは所有者のみ削除可能
     const userDoc = await db.collection('users').doc(userId).get();
@@ -452,6 +453,24 @@ export async function DELETE(request: NextRequest) {
         { error: 'この議事録を削除する権限がありません' },
         { status: 403 }
       );
+    }
+
+    // 議事録から作成されたTODOを削除
+    try {
+      const todoDescriptionPattern = `議事録「${noteTitle}」からのアクション項目`;
+      const todosSnapshot = await db.collection('todos')
+        .where('description', '==', todoDescriptionPattern)
+        .get();
+      
+      const deletePromises = todosSnapshot.docs.map(doc => doc.ref.delete());
+      await Promise.all(deletePromises);
+      
+      if (todosSnapshot.docs.length > 0) {
+        console.log(`議事録「${noteTitle}」から作成されたTODO ${todosSnapshot.docs.length}件を削除しました`);
+      }
+    } catch (todoDeleteError) {
+      console.error('関連TODOの削除エラー:', todoDeleteError);
+      // TODO削除に失敗しても議事録の削除は続行
     }
 
     await db.collection('meetingNotes').doc(id).delete();

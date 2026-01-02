@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
 
     const prompt = `以下の議事録を要約してください。
 
-議事録タイトル: ${title || 'タイトルなし'}
 議事録内容:
 ${notes}${actionItemsText}
 

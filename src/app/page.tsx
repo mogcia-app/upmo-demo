@@ -126,16 +126,16 @@ const SimpleCalendarView: React.FC = () => {
               const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
               
               return {
-                id: event.id,
-                title: event.title,
-                date: event.date,
-                time: event.time || '',
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time || '',
                 member: memberName,
                 userId: eventUserId,
-                color: event.color || '#3B82F6',
-                description: event.description || '',
-                location: event.location || '',
-                attendees: event.attendees || []
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || '',
+              attendees: event.attendees || []
               };
             });
             setTeamEvents(mappedEvents);
@@ -285,16 +285,16 @@ const SimpleCalendarView: React.FC = () => {
                 const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
                 
                 return {
-                  id: event.id,
-                  title: event.title,
-                  date: event.date,
-                  time: event.time || '',
+                id: event.id,
+                title: event.title,
+                date: event.date,
+                time: event.time || '',
                   member: memberName,
                   userId: eventUserId,
-                  color: event.color || '#3B82F6',
-                  description: event.description || '',
-                  location: event.location || '',
-                  attendees: event.attendees || []
+                color: event.color || '#3B82F6',
+                description: event.description || '',
+                location: event.location || '',
+                attendees: event.attendees || []
                 };
               }));
             }
@@ -358,9 +358,9 @@ const SimpleCalendarView: React.FC = () => {
         'Authorization': `Bearer ${token}`
       }
     });
-      if (loadResponse.ok) {
-        const loadData = await loadResponse.json();
-        if (loadData.success && loadData.events) {
+    if (loadResponse.ok) {
+      const loadData = await loadResponse.json();
+      if (loadData.success && loadData.events) {
           setTeamEvents(loadData.events.map((event: any) => {
             // userIdからユーザー名を取得
             const eventUserId = event.userId || '';
@@ -368,20 +368,20 @@ const SimpleCalendarView: React.FC = () => {
             const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
             
             return {
-              id: event.id,
-              title: event.title,
-              date: event.date,
-              time: event.time || '',
+          id: event.id,
+          title: event.title,
+          date: event.date,
+          time: event.time || '',
               member: memberName,
               userId: eventUserId,
-              color: event.color || '#3B82F6',
-              description: event.description || '',
-              location: event.location || '',
-              attendees: event.attendees || []
+          color: event.color || '#3B82F6',
+          description: event.description || '',
+          location: event.location || '',
+          attendees: event.attendees || []
             };
           }));
-        }
       }
+    }
   };
 
   // 予定を保存（追加または更新）
@@ -1330,16 +1330,16 @@ const CalendarView: React.FC = () => {
               const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
               
               return {
-                id: event.id,
-                title: event.title,
-                date: event.date,
-                time: event.time || '',
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time || '',
                 member: memberName,
                 userId: eventUserId,
-                color: event.color || '#3B82F6',
-                description: event.description || '',
-                location: event.location || '',
-                attendees: event.attendees || []
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || '',
+              attendees: event.attendees || []
               };
             });
             setTeamEvents(mappedEvents);
@@ -1566,10 +1566,10 @@ const CalendarView: React.FC = () => {
                 const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
                 
                 return {
-                  id: event.id,
-                  title: event.title,
-                  date: event.date,
-                  time: event.time || '',
+                id: event.id,
+                title: event.title,
+                date: event.date,
+                time: event.time || '',
                   member: memberName,
                   userId: eventUserId,
                   color: event.color || '#3B82F6',
@@ -2214,15 +2214,15 @@ const TodayEventsView: React.FC = () => {
               const memberName = eventUser ? eventUser.displayName : (event.member || '自分');
               
               return {
-                id: event.id,
-                title: event.title,
-                date: event.date,
-                time: event.time || '',
+              id: event.id,
+              title: event.title,
+              date: event.date,
+              time: event.time || '',
                 member: memberName,
                 userId: eventUserId,
-                color: event.color || '#3B82F6',
-                description: event.description || '',
-                location: event.location || ''
+              color: event.color || '#3B82F6',
+              description: event.description || '',
+              location: event.location || ''
               };
             }));
           } else {

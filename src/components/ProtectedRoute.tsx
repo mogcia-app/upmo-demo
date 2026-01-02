@@ -34,7 +34,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminO
       }
       if (userRole?.role !== 'admin') {
         console.warn('ProtectedRoute: User does not have admin role. Current role:', userRole?.role);
-        router.push("/");
+      router.push("/");
       } else {
         console.log('ProtectedRoute: User has admin role, allowing access');
       }

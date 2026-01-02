@@ -16,10 +16,12 @@ interface TodoItem {
   status: 'shared' | 'todo' | 'in-progress';
   assignee?: string;
   dueDate?: Date;
+  startDate?: Date;
   tags?: string[];
   description?: string;
   userId: string;
   sharedWith?: string[]; // 共有先のユーザーIDの配列
+  completionMemo?: string; // 完了時のメモ
 }
 
 interface TeamMember {
@@ -33,18 +35,26 @@ export default function TodoPage() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [newTodo, setNewTodo] = useState('');
+  const [newTodoAssignee, setNewTodoAssignee] = useState('');
+  const [newTodoDescription, setNewTodoDescription] = useState('');
+  const [hasPeriod, setHasPeriod] = useState(false);
+  const [newTodoStartDate, setNewTodoStartDate] = useState('');
+  const [newTodoEndDate, setNewTodoEndDate] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [status, setStatus] = useState<'shared' | 'todo' | 'in-progress'>('todo');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [viewMode, setViewMode] = useState<'board' | 'gantt'>('board');
   const [sharingTodoId, setSharingTodoId] = useState<string | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [allUsers, setAllUsers] = useState<TeamMember[]>([]); // 全ユーザー情報（ID、名前、メール）
   const [aiMessage, setAiMessage] = useState('');
   const [aiMessages, setAiMessages] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([]);
   const [isAILoading, setIsAILoading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date()); // 選択中の月
+  const [showCompletionMemoModal, setShowCompletionMemoModal] = useState(false);
+  const [completingTodoId, setCompletingTodoId] = useState<string | null>(null);
+  const [completionMemo, setCompletionMemo] = useState('');
 
   // チームメンバーと全ユーザー情報を取得
   useEffect(() => {
@@ -138,10 +148,12 @@ export default function TodoPage() {
               status: data.status || 'todo',
               assignee: data.assignee,
               dueDate: data.dueDate?.toDate(),
+              startDate: data.startDate?.toDate(),
               tags: data.tags || [],
               description: data.description || '',
               userId: data.userId,
-              sharedWith: data.sharedWith || []
+              sharedWith: data.sharedWith || [],
+              completionMemo: data.completionMemo || undefined
             } as TodoItem;
           })
           .sort((a, b) => {
@@ -169,19 +181,27 @@ export default function TodoPage() {
   const addTodo = async () => {
     if (newTodo.trim() && user) {
       try {
-        const todoData = {
+        const todoData: any = {
           userId: user.uid,
           text: newTodo.trim(),
           completed: false,
           createdAt: new Date(),
           priority,
           status,
-          assignee: user.displayName || user.email || 'Unknown',
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1週間後
-          tags: [priority === 'high' ? '優先度:高' : priority === 'medium' ? '優先度:中' : '優先度:低'],
-          description: '',
+          assignee: newTodoAssignee || user.displayName || user.email || 'Unknown',
+          description: newTodoDescription || '',
           sharedWith: [] // 初期状態では共有なし
         };
+
+        // 期間がある場合のみ日付を設定
+        if (hasPeriod) {
+          if (newTodoStartDate) {
+            todoData.startDate = new Date(newTodoStartDate);
+          }
+          if (newTodoEndDate) {
+            todoData.dueDate = new Date(newTodoEndDate);
+          }
+        }
 
         const docRef = await addDoc(collection(db, 'todos'), todoData);
         const newTodoItem: TodoItem = {
@@ -193,6 +213,11 @@ export default function TodoPage() {
         const updatedTodos = [newTodoItem, ...todos];
         setTodos(updatedTodos);
         setNewTodo('');
+        setNewTodoAssignee('');
+        setNewTodoDescription('');
+        setHasPeriod(false);
+        setNewTodoStartDate('');
+        setNewTodoEndDate('');
         setShowAddForm(false);
       } catch (error) {
         console.error('Error adding todo:', error);
@@ -314,7 +339,16 @@ export default function TodoPage() {
         body: JSON.stringify({ message: userMessage }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
+        setAiMessages(prev => [...prev, { role: 'ai', content: 'エラーが発生しました。もう一度お試しください。' }]);
+        setIsAILoading(false);
+        return;
+      }
+
       const data = await response.json();
+      console.log('AI Response Data:', data);
 
       if (data.error) {
         setAiMessages(prev => [...prev, { role: 'ai', content: data.error }]);
@@ -327,25 +361,33 @@ export default function TodoPage() {
       setAiMessages(prev => [...prev, { role: 'ai', content: aiResponse }]);
 
       // TODOを作成
-      if (data.todos && data.todos.length > 0) {
+      if (data.todos && Array.isArray(data.todos) && data.todos.length > 0) {
+        console.log('Creating TODOs from AI response:', data.todos);
         for (const todoData of data.todos) {
-          const dueDate = todoData.dueDate 
-            ? new Date(todoData.dueDate) 
-            : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // デフォルトは1週間後
+          if (!todoData.text || !todoData.text.trim()) {
+            console.warn('Skipping todo with empty text:', todoData);
+            continue;
+          }
 
-          const todoItem = {
+          const todoItem: any = {
             userId: user.uid,
-            text: todoData.text,
+            text: todoData.text.trim(),
             completed: false,
             createdAt: new Date(),
             priority: todoData.priority || 'medium',
             status: todoData.status || 'todo',
-            assignee: user.displayName || user.email || 'Unknown',
-            dueDate: dueDate,
-            tags: [todoData.priority === 'high' ? '優先度:高' : todoData.priority === 'medium' ? '優先度:中' : '優先度:低'],
-            description: todoData.description || '',
+            assignee: todoData.assignee || user.uid,
+            description: (todoData.description || '') + (todoData.description ? ' ' : '') + '[AI生成]',
             sharedWith: []
           };
+
+          // 期間がある場合のみ日付を設定
+          if (todoData.startDate) {
+            todoItem.startDate = new Date(todoData.startDate);
+          }
+          if (todoData.dueDate) {
+            todoItem.dueDate = new Date(todoData.dueDate);
+          }
 
           const docRef = await addDoc(collection(db, 'todos'), todoItem);
           const newTodoItem: TodoItem = {
@@ -354,6 +396,9 @@ export default function TodoPage() {
           };
           setTodos(prev => [newTodoItem, ...prev]);
         }
+      } else {
+        console.warn('No todos found in AI response:', data);
+        setAiMessages(prev => [...prev, { role: 'ai', content: 'TODOを抽出できませんでした。もう少し具体的に記述してください。' }]);
       }
     } catch (error) {
       console.error('AI TODO作成エラー:', error);
@@ -363,9 +408,103 @@ export default function TodoPage() {
     }
   };
 
+  // 選択した月のTODOをフィルタリング
+  const getFilteredTodos = () => {
+    const year = selectedMonth.getFullYear();
+    const month = selectedMonth.getMonth();
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    
+    return todos.filter(todo => {
+      const todoDate = todo.createdAt instanceof Date ? todo.createdAt : new Date(todo.createdAt);
+      return todoDate >= startDate && todoDate <= endDate;
+    });
+  };
+
   // ステータス別にTODOを分類
   const getTodosByStatus = (status: 'shared' | 'todo' | 'in-progress') => {
-    return todos.filter(todo => todo.status === status);
+    const filtered = getFilteredTodos();
+    return filtered.filter(todo => todo.status === status && !todo.completed);
+  };
+
+  // 完了したTODOを取得
+  const getCompletedTodos = () => {
+    const filtered = getFilteredTodos();
+    return filtered.filter(todo => todo.completed);
+  };
+
+  // 月を変更
+  const changeMonth = (direction: 'prev' | 'next') => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev);
+      if (direction === 'prev') {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else {
+        newDate.setMonth(newDate.getMonth() + 1);
+      }
+      return newDate;
+    });
+  };
+
+  // 現在の月に戻る
+  const goToCurrentMonth = () => {
+    setSelectedMonth(new Date());
+  };
+
+  // TODOの完了状態を切り替え
+  const toggleComplete = async (id: string) => {
+    try {
+      const todo = todos.find(t => t.id === id);
+      if (!todo) return;
+
+      // 未完了から完了にする場合、メモ入力モーダルを表示
+      if (!todo.completed) {
+        setCompletingTodoId(id);
+        setCompletionMemo('');
+        setShowCompletionMemoModal(true);
+        return;
+      }
+
+      // 完了から未完了に戻す場合
+      await updateDoc(doc(db, 'todos', id), {
+        completed: false,
+        completionMemo: null
+      });
+      
+      const updatedTodos = todos.map(t =>
+        t.id === id ? { ...t, completed: false, completionMemo: undefined } : t
+      );
+      setTodos(updatedTodos);
+    } catch (error) {
+      console.error('Error toggling todo completion:', error);
+      alert('完了状態の更新に失敗しました。');
+    }
+  };
+
+  // 完了メモを保存
+  const saveCompletionMemo = async () => {
+    if (!completingTodoId) return;
+
+    try {
+      await updateDoc(doc(db, 'todos', completingTodoId), {
+        completed: true,
+        completionMemo: completionMemo.trim() || null
+      });
+      
+      const updatedTodos = todos.map(t =>
+        t.id === completingTodoId 
+          ? { ...t, completed: true, completionMemo: completionMemo.trim() || undefined } 
+          : t
+      );
+      setTodos(updatedTodos);
+      
+      setShowCompletionMemoModal(false);
+      setCompletingTodoId(null);
+      setCompletionMemo('');
+    } catch (error) {
+      console.error('Error saving completion memo:', error);
+      alert('完了メモの保存に失敗しました。');
+    }
   };
 
   // タグの色を取得
@@ -409,240 +548,24 @@ export default function TodoPage() {
     }
   };
 
-  // ガントチャート用のデータを生成（Firestoreから取得したTODOデータを使用）
-  const getGanttData = () => {
-    return todos.map(todo => {
-      // 開始日は作成日
-      const startDate = todo.createdAt instanceof Date ? todo.createdAt : new Date(todo.createdAt);
-      
-      // 終了日は期限日、なければ作成日から7日後
-      const endDate = todo.dueDate 
-        ? (todo.dueDate instanceof Date ? todo.dueDate : new Date(todo.dueDate))
-        : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-      
-      // 進捗率をステータスから計算
-      let progress = 0;
-      if (todo.status === 'shared') {
-        progress = 0;
-      } else if (todo.status === 'todo') {
-        progress = 0;
-      } else if (todo.status === 'in-progress') {
-        progress = 50;
-      } else if (todo.completed) {
-        progress = 100;
-      }
-
-      return {
-        ...todo,
-        startDate,
-        endDate,
-        progress
-      };
-    });
-  };
-
-  // ガントチャートコンポーネント
-  const GanttChart = () => {
-    const ganttData = getGanttData();
-    const today = new Date();
-    
-    // データがある場合は、開始日と終了日を動的に計算
-    let startDate = new Date(today);
-    let endDate = new Date(today);
-    
-    if (ganttData.length > 0) {
-      // すべてのタスクの開始日と終了日から範囲を計算
-      const allStartDates = ganttData.map(task => task.startDate.getTime());
-      const allEndDates = ganttData.map(task => task.endDate.getTime());
-      const minStartDate = Math.min(...allStartDates);
-      const maxEndDate = Math.max(...allEndDates);
-      
-      startDate = new Date(minStartDate);
-      startDate.setDate(startDate.getDate() - 7); // 1週間前から表示
-      endDate = new Date(maxEndDate);
-      endDate.setDate(endDate.getDate() + 7); // 1週間後まで表示
-    } else {
-      // データがない場合はデフォルト範囲
-      startDate.setDate(startDate.getDate() - 14);
-      endDate.setDate(endDate.getDate() + 21);
-    }
-    
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const dayWidth = 40; // 1日の幅（px）
-
-    const getDatePosition = (date: Date) => {
-      const diffDays = Math.ceil((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      return diffDays * dayWidth;
-    };
-
-    const getTaskWidth = (task: any) => {
-      const duration = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
-      return Math.max(duration * dayWidth, 100);
-    };
-
-    const getStatusColor = (status: string) => {
-      switch (status) {
-        case 'shared': return 'bg-blue-500';
-        case 'todo': return 'bg-green-500';
-        case 'in-progress': return 'bg-pink-500';
-        default: return 'bg-gray-500';
-      }
-    };
-
-    const getPriorityColor = (priority: string) => {
-      switch (priority) {
-        case 'high': return 'border-l-4 border-red-500';
-        case 'medium': return 'border-l-4 border-yellow-500';
-        case 'low': return 'border-l-4 border-green-500';
-        default: return 'border-l-4 border-gray-500';
-      }
-    };
-
-    // 日付ラベルの生成
-    const dateLabels = [];
-    for (let i = 0; i <= days; i += 7) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      dateLabels.push(date);
-    }
-
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 overflow-hidden">
-        <div className="mb-3 sm:mb-4">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">ガントチャート</h2>
-          <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-500 rounded"></div>
-              <span>共有事項</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-500 rounded"></div>
-              <span>ToDo</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-pink-500 rounded"></div>
-              <span>進行中</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative overflow-x-auto -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6">
-          {/* 日付ヘッダー */}
-          <div className="flex border-b border-gray-200 mb-3 sm:mb-4 sticky top-0 bg-white z-20" style={{ minWidth: `${days * dayWidth}px` }}>
-            {dateLabels.map((date, index) => (
-              <div
-                key={index}
-                className="flex-shrink-0 text-xs text-gray-600 border-r border-gray-200 px-1 sm:px-2 py-2"
-                style={{ width: `${7 * dayWidth}px` }}
-              >
-                <div className="font-medium text-xs">{date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}</div>
-                <div className="text-gray-400 text-xs hidden sm:block">{date.toLocaleDateString('ja-JP', { weekday: 'short' })}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* タスクバー */}
-          <div className="relative space-y-4" style={{ minWidth: `${days * dayWidth}px` }}>
-            {/* 今日のマーカー */}
-            {today >= startDate && today <= endDate && (
-              <div
-                className="absolute w-0.5 bg-red-500 z-10 pointer-events-none"
-                style={{
-                  left: `${getDatePosition(today)}px`,
-                  top: '0',
-                  height: `${Math.max(ganttData.length * 100 + 40, 200)}px`
-                }}
-              >
-                <div className="absolute -top-6 -left-8 bg-red-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                  今日
-                </div>
-              </div>
-            )}
-
-            {ganttData.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-4xl mb-2">📊</div>
-                <p className="text-sm">ガントチャートに表示するTODOがありません</p>
-                <p className="text-xs mt-2">TODOを作成すると、ここに表示されます</p>
-              </div>
-            ) : (
-              ganttData.map((task, index) => {
-              const left = getDatePosition(task.startDate);
-              const width = getTaskWidth(task);
-              const isPast = task.endDate < today;
-              const isCurrent = task.startDate <= today && task.endDate >= today;
-
-              return (
-                <div key={task.id} className={`relative ${getPriorityColor(task.priority)} bg-white border border-gray-200 rounded p-2 sm:p-3 hover:shadow-md transition-shadow mb-3 sm:mb-4`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-2 sm:mb-3">
-                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                      <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${getStatusColor(task.status)}`}></div>
-                      <h3 className="font-medium text-gray-900 text-sm sm:text-base break-words">{task.text}</h3>
-                      {(() => {
-                        const creator = allUsers.find(u => u.id === task.userId);
-                        const isShared = task.userId !== user?.uid;
-                        return (
-                          <div className="flex items-center gap-1.5 sm:gap-2">
-                            <span className="text-xs text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                              {creator?.displayName || task.assignee || 'Unknown'}
-                            </span>
-                            {isShared && (
-                              <span className="text-xs text-blue-600 bg-blue-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                                共有
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    <div className="text-xs text-gray-500 whitespace-nowrap">
-                      {task.startDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })} - {task.endDate.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                    </div>
-                  </div>
-                  
-                  <div className="relative" style={{ height: '32px', background: '#f3f4f6', borderRadius: '4px', overflow: 'visible' }}>
-                    {/* タスクバー */}
-                    <div
-                      className={`absolute top-0 h-full ${getStatusColor(task.status)} rounded flex items-center justify-center text-white text-xs font-medium shadow-sm`}
-                      style={{
-                        left: `${left}px`,
-                        width: `${width}px`,
-                        opacity: isPast ? 0.6 : isCurrent ? 1 : 0.8,
-                        minWidth: '60px'
-                      }}
-                    >
-                      {task.progress > 0 && (
-                        <div className="absolute inset-0 bg-black bg-opacity-20 rounded" style={{ width: `${task.progress}%` }}></div>
-                      )}
-                      <span className="relative z-10 px-1 sm:px-2 truncate font-medium text-xs">{task.text}</span>
-                    </div>
-                  </div>
-                  
-                  {task.description && (
-                    <p className="text-xs text-gray-600 mt-2 sm:mt-3">{task.description}</p>
-                  )}
-                </div>
-              );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // TaskCardコンポーネント
-  const TaskCard = ({ todo, index, onEdit, onDelete, onStatusChange }: {
+  const TaskCard = ({ todo, index, onEdit, onDelete, onStatusChange, onToggleComplete }: {
     todo: TodoItem;
     index: number;
     onEdit: (id: string, text: string) => void;
     onDelete: (id: string) => void;
     onStatusChange: (id: string, status: 'shared' | 'todo' | 'in-progress') => void;
+    onToggleComplete?: (id: string) => void;
   }) => {
     const isEditing = editingId === todo.id;
     const isOwner = todo.userId === user?.uid;
     const isSharedWithMe = todo.sharedWith && todo.sharedWith.includes(user?.uid || '');
     const isShared = todo.sharedWith && todo.sharedWith.length > 0;
+    // 議事録から作成されたTODOの場合、担当者または同じ会社のメンバーが削除可能
+    const isFromMeetingNote = todo.description?.includes('議事録');
+    const isAssignee = todo.assignee === user?.uid;
+    const isCompanyMember = allUsers.some(u => u.id === user?.uid);
+    const canDelete = isOwner || (isFromMeetingNote && (isAssignee || isCompanyMember));
     
     return (
       <div
@@ -657,7 +580,9 @@ export default function TodoPage() {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-gray-900 text-xs sm:text-sm leading-tight break-words">
-                <span className="hidden sm:inline">#{todo.id.slice(-2)} </span>
+                {!todo.description?.includes('議事録') && !todo.description?.includes('[AI生成]') && (
+                  <span className="hidden sm:inline">#{todo.id.slice(-2)} </span>
+                )}
                 {todo.text}
               </h3>
               {!isOwner && (
@@ -705,7 +630,7 @@ export default function TodoPage() {
                   </svg>
                 </button>
               )}
-              {isOwner && (
+              {canDelete && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -729,53 +654,109 @@ export default function TodoPage() {
             </p>
           )}
 
+          {/* 完了メモ */}
+          {todo.completed && todo.completionMemo && (
+            <div className="bg-green-50 border-l-4 border-green-500 p-2 sm:p-3 rounded">
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-green-800 mb-1">完了メモ</p>
+                  <p className="text-xs text-green-700 leading-relaxed">{todo.completionMemo}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 担当者アバター */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* 作成者 */}
             {(() => {
-              const creator = allUsers.find(u => u.id === todo.userId);
-              return (
-                <div
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
-                  title={creator?.displayName || todo.assignee || '作成者'}
-                >
-                  {creator?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
-                </div>
-              );
+              // 議事録から作成されたTODOの場合は担当者のみを表示
+              const isFromMeetingNote = todo.description?.includes('議事録');
+              
+              if (isFromMeetingNote && todo.assignee) {
+                // 担当者を表示
+                const assigneeUser = allUsers.find(u => u.id === todo.assignee);
+                return (
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-xs text-gray-500">担当者:</span>
+                    <div
+                      className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
+                      title={assigneeUser?.displayName || todo.assignee || '担当者'}
+                    >
+                      {assigneeUser?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    {assigneeUser && (
+                      <span className="text-xs text-gray-700">{assigneeUser.displayName}</span>
+                    )}
+                  </div>
+                );
+              } else {
+                // 通常のTODOの場合は作成者と共有先を表示
+                const creator = allUsers.find(u => u.id === todo.userId);
+                return (
+                  <>
+                    {/* 作成者 */}
+                    <div
+                      className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
+                      title={creator?.displayName || todo.assignee || '作成者'}
+                    >
+                      {creator?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    {/* 共有先のユーザー */}
+                    {todo.sharedWith && todo.sharedWith.length > 0 && todo.sharedWith.slice(0, 2).map((sharedUserId, index) => {
+                      const sharedUser = allUsers.find(u => u.id === sharedUserId);
+                      const colors = ['bg-green-500', 'bg-purple-500', 'bg-pink-500'];
+                      if (!sharedUser) return null;
+                      return (
+                        <div
+                          key={sharedUserId}
+                          className={`w-5 h-5 sm:w-6 sm:h-6 ${colors[index % colors.length]} rounded-full border border-white flex items-center justify-center text-white text-xs font-medium`}
+                          title={sharedUser.displayName}
+                        >
+                          {sharedUser.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      );
+                    })}
+                    {todo.sharedWith && todo.sharedWith.length > 2 && (
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-400 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium">
+                        +{todo.sharedWith.length - 2}
+                      </div>
+                    )}
+                  </>
+                );
+              }
             })()}
-            {/* 共有先のユーザー */}
-            {todo.sharedWith && todo.sharedWith.length > 0 && todo.sharedWith.slice(0, 2).map((sharedUserId, index) => {
-              const sharedUser = allUsers.find(u => u.id === sharedUserId);
-              const colors = ['bg-green-500', 'bg-purple-500', 'bg-pink-500'];
-              if (!sharedUser) return null;
-              return (
-                <div
-                  key={sharedUserId}
-                  className={`w-5 h-5 sm:w-6 sm:h-6 ${colors[index % colors.length]} rounded-full border border-white flex items-center justify-center text-white text-xs font-medium`}
-                  title={sharedUser.displayName}
-                >
-                  {sharedUser.displayName.charAt(0).toUpperCase()}
-                </div>
-              );
-            })}
-            {todo.sharedWith && todo.sharedWith.length > 2 && (
-              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-400 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium">
-                +{todo.sharedWith.length - 2}
-              </div>
-            )}
           </div>
 
           {/* 日付とタグ */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-0">
-            <div className="text-xs text-gray-500 whitespace-nowrap">
-              {todo.createdAt.toLocaleDateString('ja-JP', {
-                month: '2-digit',
-                day: '2-digit'
-              })} - {todo.dueDate?.toLocaleDateString('ja-JP', {
-                month: '2-digit',
-                day: '2-digit'
-              })}
-            </div>
+            {(todo.startDate || todo.dueDate) && (
+              <div className="text-xs text-gray-500 whitespace-nowrap">
+                {todo.startDate && todo.dueDate ? (
+                  <>
+                    {todo.startDate.toLocaleDateString('ja-JP', {
+                      month: '2-digit',
+                      day: '2-digit'
+                    })} - {todo.dueDate.toLocaleDateString('ja-JP', {
+                      month: '2-digit',
+                      day: '2-digit'
+                    })}
+                  </>
+                ) : todo.startDate ? (
+                  <>開始: {todo.startDate.toLocaleDateString('ja-JP', {
+                    month: '2-digit',
+                    day: '2-digit'
+                  })}</>
+                ) : todo.dueDate ? (
+                  <>終了: {todo.dueDate.toLocaleDateString('ja-JP', {
+                    month: '2-digit',
+                    day: '2-digit'
+                  })}</>
+                ) : null}
+              </div>
+            )}
             <div className="flex gap-1 flex-wrap">
               {todo.tags?.map((tag, tagIndex) => (
                 <span
@@ -788,7 +769,7 @@ export default function TodoPage() {
             </div>
           </div>
 
-          {/* ステータス変更ボタン */}
+          {/* ステータス変更ボタンと完了ボタン */}
           <div className="flex gap-1.5 sm:gap-2 pt-2 border-t border-gray-100 flex-wrap">
             {(['shared', 'todo', 'in-progress'] as const).map((status) => {
               const statusStyle = getStatusStyle(status);
@@ -807,6 +788,23 @@ export default function TodoPage() {
                 </button>
               );
             })}
+            {onToggleComplete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleComplete(todo.id);
+                }}
+                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  todo.completed
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={todo.completed ? '未完了に戻す' : '完了にする'}
+              >
+                <span className="hidden sm:inline">✅ </span>
+                完了
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -822,28 +820,47 @@ export default function TodoPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900">TODOリスト</h1>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setViewMode('board')}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base font-medium transition-colors ${
-                      viewMode === 'board'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    ボード
-                  </button>
-                  <button
-                    onClick={() => setViewMode('gantt')}
-                    className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base font-medium transition-colors ${
-                      viewMode === 'gantt'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    ガント
-                  </button>
+              </div>
+              {/* 月切り替えコントロール */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => changeMonth('prev')}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="前月"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="month"
+                    value={`${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`}
+                    onChange={(e) => {
+                      const [year, month] = e.target.value.split('-').map(Number);
+                      setSelectedMonth(new Date(year, month - 1));
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {selectedMonth.getFullYear() !== new Date().getFullYear() || selectedMonth.getMonth() !== new Date().getMonth() ? (
+                    <button
+                      onClick={goToCurrentMonth}
+                      className="px-3 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="今月に戻る"
+                    >
+                      今月
+                    </button>
+                  ) : null}
                 </div>
+                <button
+                  onClick={() => changeMonth('next')}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="次月"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
               <div className="flex items-center gap-4">
                 {/* チームメンバーアバター */}
@@ -890,7 +907,7 @@ export default function TodoPage() {
                     }
                   }}
                   placeholder="自然言語でTODOを作成..."
-                  className="w-full px-4 py-3 pl-12 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 pl-12 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={isAILoading}
                 />
                 <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -900,7 +917,7 @@ export default function TodoPage() {
               <button
                 onClick={handleAISubmit}
                 disabled={!aiMessage.trim() || isAILoading}
-                className="px-4 sm:px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
+                className="px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
               >
                 {isAILoading ? (
                   <>
@@ -920,15 +937,12 @@ export default function TodoPage() {
             </div>
           </div>
 
-          {/* カンバンボードまたはガントチャート */}
+          {/* カンバンボード */}
           <div className="p-2 sm:p-4 lg:p-6">
-            {viewMode === 'gantt' ? (
-              <GanttChart />
-            ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* 共有事項 */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full"></div>
                     <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
@@ -944,22 +958,26 @@ export default function TodoPage() {
                     <span className="sm:hidden">+</span>
                   </button>
                 </div>
-                <div className="p-2 sm:p-3 lg:p-4 space-y-2 sm:space-y-3 lg:space-y-4 min-h-[200px] sm:min-h-[300px] lg:min-h-[400px]">
-                  {getTodosByStatus('shared').map((todo, index) => (
-                    <TaskCard key={todo.id} todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} />
-                  ))}
-                  {getTodosByStatus('shared').length === 0 && (
-                    <div className="text-center py-6 sm:py-8 text-gray-500">
-                      <div className="text-3xl sm:text-4xl mb-2">📋</div>
-                      <p className="text-xs sm:text-sm">共有事項がありません</p>
-                    </div>
-                  )}
+                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                  <div className="flex gap-3 sm:gap-4 min-w-max">
+                    {getTodosByStatus('shared').map((todo, index) => (
+                      <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
+                        <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
+                      </div>
+                    ))}
+                    {getTodosByStatus('shared').length === 0 && (
+                      <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
+                        <div className="text-3xl sm:text-4xl mb-2">📋</div>
+                        <p className="text-xs sm:text-sm">共有事項がありません</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* ToDoリスト */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>
                     <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
@@ -975,22 +993,26 @@ export default function TodoPage() {
                     <span className="sm:hidden">+</span>
                   </button>
                 </div>
-                <div className="p-2 sm:p-3 lg:p-4 space-y-2 sm:space-y-3 lg:space-y-4 min-h-[200px] sm:min-h-[300px] lg:min-h-[400px]">
-                  {getTodosByStatus('todo').map((todo, index) => (
-                    <TaskCard key={todo.id} todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} />
-                  ))}
-                  {getTodosByStatus('todo').length === 0 && (
-                    <div className="text-center py-6 sm:py-8 text-gray-500">
-                      <div className="text-3xl sm:text-4xl mb-2">📝</div>
-                      <p className="text-xs sm:text-sm">ToDoがありません</p>
-                    </div>
-                  )}
+                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                  <div className="flex gap-3 sm:gap-4 min-w-max">
+                    {getTodosByStatus('todo').map((todo, index) => (
+                      <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
+                        <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
+                      </div>
+                    ))}
+                    {getTodosByStatus('todo').length === 0 && (
+                      <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
+                        <div className="text-3xl sm:text-4xl mb-2">📝</div>
+                        <p className="text-xs sm:text-sm">ToDoがありません</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* 進行中 */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 sm:w-3 sm:h-3 bg-pink-500 rounded-full"></div>
                     <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
@@ -1006,20 +1028,51 @@ export default function TodoPage() {
                     <span className="sm:hidden">+</span>
                   </button>
                 </div>
-                <div className="p-2 sm:p-3 lg:p-4 space-y-2 sm:space-y-3 lg:space-y-4 min-h-[200px] sm:min-h-[300px] lg:min-h-[400px]">
-                  {getTodosByStatus('in-progress').map((todo, index) => (
-                    <TaskCard key={todo.id} todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} />
-                  ))}
-                  {getTodosByStatus('in-progress').length === 0 && (
-                    <div className="text-center py-6 sm:py-8 text-gray-500">
-                      <div className="text-3xl sm:text-4xl mb-2">🚀</div>
-                      <p className="text-xs sm:text-sm">進行中のタスクがありません</p>
-                    </div>
-                  )}
+                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                  <div className="flex gap-3 sm:gap-4 min-w-max">
+                    {getTodosByStatus('in-progress').map((todo, index) => (
+                      <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
+                        <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
+                      </div>
+                    ))}
+                    {getTodosByStatus('in-progress').length === 0 && (
+                      <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
+                        <div className="text-3xl sm:text-4xl mb-2">🚀</div>
+                        <p className="text-xs sm:text-sm">進行中のタスクがありません</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 完了 */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-500 rounded-full"></div>
+                    <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
+                      <span className="hidden sm:inline">完了</span>
+                      <span className="sm:hidden">完了</span> {getCompletedTodos().length}
+                    </h2>
+                  </div>
+                </div>
+                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                  <div className="flex gap-3 sm:gap-4 min-w-max">
+                    {getCompletedTodos().map((todo, index) => (
+                      <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
+                        <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
+                      </div>
+                    ))}
+                    {getCompletedTodos().length === 0 && (
+                      <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
+                        <div className="text-3xl sm:text-4xl mb-2">✅</div>
+                        <p className="text-xs sm:text-sm">完了したタスクがありません</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-            )}
           </div>
 
           {/* タスク追加フォーム */}
@@ -1028,32 +1081,73 @@ export default function TodoPage() {
               <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">新しいタスクを追加</h3>
                 <div className="space-y-3 sm:space-y-4">
-                  <input
-                    type="text"
-                    value={newTodo}
-                    onChange={(e) => setNewTodo(e.target.value)}
-                    placeholder="タスクのタイトルを入力..."
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+                    <input
+                      type="text"
+                      value={newTodo}
+                      onChange={(e) => setNewTodo(e.target.value)}
+                      placeholder="タスクのタイトルを入力..."
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">担当者</label>
                     <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as 'shared' | 'todo' | 'in-progress')}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={newTodoAssignee}
+                      onChange={(e) => setNewTodoAssignee(e.target.value)}
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="shared">共有事項</option>
-                      <option value="todo">ToDoリスト</option>
-                      <option value="in-progress">進行中</option>
+                      <option value="">選択してください</option>
+                      {allUsers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.displayName}
+                        </option>
+                      ))}
                     </select>
-                    <select
-                      value={priority}
-                      onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="low">優先度: 低</option>
-                      <option value="medium">優先度: 中</option>
-                      <option value="high">優先度: 高</option>
-                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">内容</label>
+                    <textarea
+                      value={newTodoDescription}
+                      onChange={(e) => setNewTodoDescription(e.target.value)}
+                      placeholder="タスクの詳細を入力..."
+                      rows={4}
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={hasPeriod}
+                        onChange={(e) => setHasPeriod(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">期間を設定する</span>
+                    </label>
+                    {hasPeriod && (
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">開始日</label>
+                          <input
+                            type="date"
+                            value={newTodoStartDate}
+                            onChange={(e) => setNewTodoStartDate(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">終了日</label>
+                          <input
+                            type="date"
+                            value={newTodoEndDate}
+                            onChange={(e) => setNewTodoEndDate(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3">
                     <button
@@ -1064,7 +1158,15 @@ export default function TodoPage() {
                       追加
                     </button>
                     <button
-                      onClick={() => setShowAddForm(false)}
+                      onClick={() => {
+                        setShowAddForm(false);
+                        setNewTodo('');
+                        setNewTodoAssignee('');
+                        setNewTodoDescription('');
+                        setHasPeriod(false);
+                        setNewTodoStartDate('');
+                        setNewTodoEndDate('');
+                      }}
                       className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
                     >
                       キャンセル
@@ -1080,7 +1182,7 @@ export default function TodoPage() {
             <div className="fixed bottom-2 sm:bottom-4 right-2 sm:right-4 left-2 sm:left-auto bg-white rounded-lg shadow-lg border border-gray-200 p-3 sm:p-4 max-w-md z-50 animate-slide-up">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <h4 className="font-semibold text-gray-900 text-sm sm:text-base">TODOを作成しました</h4>
@@ -1163,6 +1265,61 @@ export default function TodoPage() {
                         setSelectedMembers([]);
                       }}
                       className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 完了メモ入力モーダル */}
+          {showCompletionMemoModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold">タスク完了</h3>
+                  <button
+                    onClick={() => {
+                      setShowCompletionMemoModal(false);
+                      setCompletingTodoId(null);
+                      setCompletionMemo('');
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      チームへのメモ（任意）
+                    </label>
+                    <textarea
+                      value={completionMemo}
+                      onChange={(e) => setCompletionMemo(e.target.value)}
+                      placeholder="完了した内容や結果をチームに伝えたいことがあれば記入してください..."
+                      rows={5}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={saveCompletionMemo}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      完了する
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCompletionMemoModal(false);
+                        setCompletingTodoId(null);
+                        setCompletionMemo('');
+                      }}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
                     >
                       キャンセル
                     </button>

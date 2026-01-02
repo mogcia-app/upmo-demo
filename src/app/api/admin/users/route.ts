@@ -135,17 +135,17 @@ export async function POST(request: NextRequest) {
     // Firestore にユーザー情報を保存
     try {
       console.log('Firestore にユーザー情報を保存中:', { uid: userRecord.uid });
-      await db.collection('users').doc(userRecord.uid).set({
-        email,
-        displayName: displayName || email.split('@')[0],
-        role: finalRole,
-        status: 'active',
-        department: department || '',
-        position: position || '',
-        companyName: finalCompanyName,
+    await db.collection('users').doc(userRecord.uid).set({
+      email,
+      displayName: displayName || email.split('@')[0],
+      role: finalRole,
+      status: 'active',
+      department: department || '',
+      position: position || '',
+      companyName: finalCompanyName,
         createdAt: Timestamp.now(),
-        createdBy: userId, // 作成者のIDを記録
-      });
+      createdBy: userId, // 作成者のIDを記録
+    });
       console.log('Firestore ユーザー情報保存成功');
     } catch (firestoreError: any) {
       console.error('Firestore ユーザー情報保存エラー:', firestoreError);
@@ -361,7 +361,7 @@ export async function DELETE(request: NextRequest) {
       // ユーザーが存在するか確認
       await auth.getUser(uid);
       // ユーザーが存在する場合は削除
-      await auth.deleteUser(uid);
+    await auth.deleteUser(uid);
       console.log('Firebase Auth からユーザーを削除しました:', uid);
     } catch (authError: any) {
       // ユーザーが存在しない場合はスキップ（既に削除されている）
@@ -375,7 +375,7 @@ export async function DELETE(request: NextRequest) {
 
     // Firestore からユーザー情報を削除
     try {
-      await db.collection('users').doc(uid).delete();
+    await db.collection('users').doc(uid).delete();
       console.log('Firestore からユーザー情報を削除しました:', uid);
     } catch (firestoreError: any) {
       console.error('Firestore ユーザー削除エラー:', firestoreError);

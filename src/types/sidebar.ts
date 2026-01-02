@@ -155,36 +155,16 @@ export const AVAILABLE_MENU_ITEMS: AvailableMenuItem[] = [
     order: 4,
   },
   
-  // ===== ドキュメント管理 =====
-  {
-    id: 'template-management',
-    name: 'テンプレート管理',
-    icon: '📄',
-    href: '/templates',
-    category: 'document',
-    description: '文書テンプレートの作成と管理',
-    order: 1,
-  },
+  // ===== その他 =====
   {
     id: 'meeting-notes',
     name: '議事録管理',
     icon: '📝',
     href: '/meeting-notes',
-    category: 'document',
+    category: 'other',
     description: '会議議事録・打ち合わせ記録',
-    order: 2,
+    order: 1,
   },
-  {
-    id: 'document-management',
-    name: 'ドキュメント管理',
-    icon: '📚',
-    href: '/documents',
-    category: 'document',
-    description: '文書の保管・共有・検索',
-    order: 3,
-  },
-  
-  // ===== その他 =====
   {
     id: 'calendar',
     name: 'カレンダー',
@@ -192,7 +172,7 @@ export const AVAILABLE_MENU_ITEMS: AvailableMenuItem[] = [
     href: '/calendar',
     category: 'other',
     description: 'スケジュール管理',
-    order: 1,
+    order: 2,
   },
   {
     id: 'reports',

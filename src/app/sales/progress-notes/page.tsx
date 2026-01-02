@@ -234,9 +234,24 @@ export default function ProgressNotesPage() {
         <div className="min-h-screen bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 py-8">
             {/* ヘッダー */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">メモ</h1>
-              <p className="text-gray-600">自由にメモを管理できます</p>
+            <div className="mb-6">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 p-4 sm:p-6 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">自由にメモを管理できます</h2>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      営業活動や商談の進捗、重要な情報などを記録・管理できます。検索機能で素早く目的のメモを見つけられます。
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* 検索バー */}
