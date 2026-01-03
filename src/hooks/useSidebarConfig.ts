@@ -151,18 +151,30 @@ export const useSidebarConfig = () => {
 
   // リアルタイムでサイドバー設定を監視
   useEffect(() => {
-    if (!db || !companyName) {
+    if (!db) {
       setLoading(false);
       return;
     }
 
-    const configDocRef = doc(db, "sidebarConfig", companyName);
+    // companyNameが取得されるまで待つ（初期値の"default"でも動作する）
+    const configDocId = companyName || "default";
+    console.log('[useSidebarConfig] Setting up snapshot for companyName:', companyName, 'docId:', configDocId);
+    const configDocRef = doc(db, "sidebarConfig", configDocId);
+    const defaultDocRef = doc(db, "sidebarConfig", "default");
     
+    // まず会社名のドキュメントを取得
     const unsubscribe = onSnapshot(
       configDocRef,
-      (snapshot) => {
+      async (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
+          console.log('[useSidebarConfig] Firestore data (company):', {
+            id: snapshot.id,
+            enabledMenuItems: data.enabledMenuItems,
+            enabledMenuItemsLength: data.enabledMenuItems?.length || 0,
+            commonMenuItemsLength: data.commonMenuItems?.length || 0,
+            adminMenuItemsLength: data.adminMenuItems?.length || 0,
+          });
           
           // contractsがadminMenuItemsにある場合はcommonMenuItemsに移動
           // commonMenuItemsが空の配列の場合はデフォルトを使用
@@ -211,18 +223,118 @@ export const useSidebarConfig = () => {
             }
           }
           
-          setConfig({
+          // enabledMenuItemsが空の場合、defaultドキュメントから取得を試みる
+          let enabledMenuItems = data.enabledMenuItems || [];
+          if (enabledMenuItems.length === 0 && configDocId !== "default") {
+            getDoc(defaultDocRef).then((defaultDoc) => {
+              if (defaultDoc.exists()) {
+                const defaultData = defaultDoc.data();
+                enabledMenuItems = defaultData.enabledMenuItems || [];
+                console.log('[useSidebarConfig] Fallback to default enabledMenuItems:', enabledMenuItems);
+              }
+              
+              const configData = {
+                id: snapshot.id,
+                commonMenuItems: commonMenuItems,
+                adminMenuItems: adminMenuItems,
+                enabledMenuItems: enabledMenuItems,
+                updatedAt: data.updatedAt?.toDate() || new Date(),
+                updatedBy: data.updatedBy || "",
+              };
+              console.log('[useSidebarConfig] Setting config (with fallback):', {
+                enabledMenuItems: configData.enabledMenuItems,
+                enabledMenuItemsLength: configData.enabledMenuItems.length,
+              });
+              setConfig(configData);
+              setLoading(false);
+              setError(null);
+            }).catch((err) => {
+              console.error('[useSidebarConfig] Error fetching default config:', err);
+              const configData = {
+                id: snapshot.id,
+                commonMenuItems: commonMenuItems,
+                adminMenuItems: adminMenuItems,
+                enabledMenuItems: enabledMenuItems,
+                updatedAt: data.updatedAt?.toDate() || new Date(),
+                updatedBy: data.updatedBy || "",
+              };
+              setConfig(configData);
+              setLoading(false);
+              setError(null);
+            });
+            return; // 非同期処理中はここで終了
+          }
+          
+          const configData = {
             id: snapshot.id,
             commonMenuItems: commonMenuItems,
             adminMenuItems: adminMenuItems,
-            enabledMenuItems: data.enabledMenuItems || [],
+            enabledMenuItems: enabledMenuItems,
             updatedAt: data.updatedAt?.toDate() || new Date(),
             updatedBy: data.updatedBy || "",
+          };
+          console.log('[useSidebarConfig] Setting config:', {
+            enabledMenuItems: configData.enabledMenuItems,
+            enabledMenuItemsLength: configData.enabledMenuItems.length,
           });
+          setConfig(configData);
         } else {
+          // 会社名のドキュメントが存在しない場合、defaultドキュメントを取得
+          if (configDocId !== "default") {
+            getDoc(defaultDocRef).then((defaultDoc) => {
+              if (defaultDoc.exists()) {
+                const defaultData = defaultDoc.data();
+                console.log('[useSidebarConfig] Using default config:', {
+                  enabledMenuItems: defaultData.enabledMenuItems,
+                  enabledMenuItemsLength: defaultData.enabledMenuItems?.length || 0,
+                });
+                
+                const commonMenuItems = (defaultData.commonMenuItems && defaultData.commonMenuItems.length > 0) 
+                  ? defaultData.commonMenuItems 
+                  : DEFAULT_COMMON_MENU_ITEMS;
+                const adminMenuItems = defaultData.adminMenuItems || DEFAULT_ADMIN_MENU_ITEMS;
+                
+                setConfig({
+                  id: "default",
+                  commonMenuItems: commonMenuItems,
+                  adminMenuItems: adminMenuItems,
+                  enabledMenuItems: defaultData.enabledMenuItems || [],
+                  updatedAt: defaultData.updatedAt?.toDate() || new Date(),
+                  updatedBy: defaultData.updatedBy || "",
+                });
+              } else {
+                // デフォルト設定を使用
+                setConfig({
+                  id: configDocId,
+                  commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
+                  adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
+                  enabledMenuItems: [],
+                  updatedAt: new Date(),
+                  updatedBy: "",
+                });
+              }
+              setLoading(false);
+              setError(null);
+            }).catch((err) => {
+              console.error('[useSidebarConfig] Error fetching default config:', err);
+              // デフォルト設定を使用
+              setConfig({
+                id: configDocId,
+                commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
+                adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
+                enabledMenuItems: [],
+                updatedAt: new Date(),
+                updatedBy: "",
+              });
+              setLoading(false);
+              setError(null);
+            });
+            return; // 非同期処理中はここで終了
+          }
+          
           // デフォルト設定を使用
           setConfig({
-            id: companyName,
+            id: configDocId,
             commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
             adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
             enabledMenuItems: [],
@@ -238,7 +350,7 @@ export const useSidebarConfig = () => {
         setError(err);
         // エラー時もデフォルト設定を使用
         setConfig({
-          id: companyName,
+          id: configDocId,
           commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
           adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
           enabledMenuItems: [],
@@ -251,13 +363,6 @@ export const useSidebarConfig = () => {
 
     return () => unsubscribe();
   }, [companyName]);
-
-  // companyNameが変更されたときに設定を再取得
-  useEffect(() => {
-    if (companyName) {
-      fetchSidebarConfig();
-    }
-  }, [companyName, fetchSidebarConfig]);
 
   // 有効なメニューアイテムのみを取得（order順にソート）
   const getEnabledCommonMenuItems = useCallback((): SidebarMenuItem[] => {
@@ -310,12 +415,21 @@ export const useSidebarConfig = () => {
 
   // 有効化された追加メニュー項目を取得（候補プールから）
   const getEnabledAdditionalMenuItems = useCallback((): AvailableMenuItem[] => {
-    if (!config || !config.enabledMenuItems || config.enabledMenuItems.length === 0) {
+    if (!config) {
+      console.log('[useSidebarConfig] config is null');
       return [];
     }
     
+    if (!config.enabledMenuItems || config.enabledMenuItems.length === 0) {
+      console.log('[useSidebarConfig] enabledMenuItems is empty:', config.enabledMenuItems);
+      return [];
+    }
+    
+    console.log('[useSidebarConfig] enabledMenuItems:', config.enabledMenuItems);
+    console.log('[useSidebarConfig] AVAILABLE_MENU_ITEMS count:', AVAILABLE_MENU_ITEMS.length);
+    
     // 有効化されたIDリストに基づいて、候補プールから該当する項目を取得
-    return AVAILABLE_MENU_ITEMS
+    const filtered = AVAILABLE_MENU_ITEMS
       .filter((item: any) => config.enabledMenuItems.includes(item.id))
       .sort((a, b) => {
         // カテゴリ順、次にorder順でソート
@@ -324,6 +438,9 @@ export const useSidebarConfig = () => {
         if (categoryDiff !== 0) return categoryDiff;
         return (a.order || 0) - (b.order || 0);
       });
+    
+    console.log('[useSidebarConfig] filtered items count:', filtered.length);
+    return filtered;
   }, [config]);
 
   return {
