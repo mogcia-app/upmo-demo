@@ -107,28 +107,27 @@ export default function TodoPage() {
     loadTeamMembers();
   }, [user]);
 
-  // FirestoreからTODOを読み込み（自分のTODO + 共有されたTODO）
+  // FirestoreからTODOを読み込み（同じ会社の全員のTODO）
   useEffect(() => {
     const loadTodos = async () => {
-      if (!user) return;
+      if (!user || allUsers.length === 0) return;
       
       try {
-        // 自分のTODOを取得
-        const myTodosQuery = query(
-          collection(db, 'todos'),
-          where('userId', '==', user.uid)
-        );
-        const myTodosSnapshot = await getDocs(myTodosQuery);
+        // 同じ会社の全員のユーザーIDを取得
+        const companyUserIds = allUsers.map(u => u.id);
         
-        // 共有されたTODOを取得
-        const sharedTodosQuery = query(
-          collection(db, 'todos'),
-          where('sharedWith', 'array-contains', user.uid)
+        // 各ユーザーのTODOを取得（並列処理）
+        const todoPromises = companyUserIds.map(userId => 
+          getDocs(query(
+            collection(db, 'todos'),
+            where('userId', '==', userId)
+          ))
         );
-        const sharedTodosSnapshot = await getDocs(sharedTodosQuery);
         
-        // 両方の結果をマージ
-        const allDocs = [...myTodosSnapshot.docs, ...sharedTodosSnapshot.docs];
+        const todoSnapshots = await Promise.all(todoPromises);
+        
+        // 全てのTODOをマージ
+        const allDocs = todoSnapshots.flatMap(snapshot => snapshot.docs);
         
         // 重複を除去（同じIDのTODOが複数ある場合）
         const uniqueDocs = Array.from(
@@ -175,14 +174,17 @@ export default function TodoPage() {
     };
 
     loadTodos();
-  }, [user]);
+  }, [user, allUsers]);
 
   // 新しいTODOを追加
   const addTodo = async () => {
     if (newTodo.trim() && user) {
       try {
-        const todoData: any = {
-          userId: user.uid,
+        // 同じ会社の全員のユーザーIDを取得（自分を含む）
+        const companyUserIds = allUsers.map(u => u.id);
+        
+        // 基本のTODOデータ
+        const baseTodoData: any = {
           text: newTodo.trim(),
           completed: false,
           createdAt: new Date(),
@@ -190,28 +192,43 @@ export default function TodoPage() {
           status,
           assignee: newTodoAssignee || user.displayName || user.email || 'Unknown',
           description: newTodoDescription || '',
-          sharedWith: [] // 初期状態では共有なし
+          sharedWith: [] // 個別のTODOなので共有は不要
         };
 
         // 期間がある場合のみ日付を設定
         if (hasPeriod) {
           if (newTodoStartDate) {
-            todoData.startDate = new Date(newTodoStartDate);
+            baseTodoData.startDate = new Date(newTodoStartDate);
           }
           if (newTodoEndDate) {
-            todoData.dueDate = new Date(newTodoEndDate);
+            baseTodoData.dueDate = new Date(newTodoEndDate);
           }
         }
 
-        const docRef = await addDoc(collection(db, 'todos'), todoData);
-        const newTodoItem: TodoItem = {
-          id: docRef.id,
-          ...todoData,
-          sharedWith: []
-        };
+        // 同じ会社の全員に対して、それぞれのTODOを作成
+        const createdTodos: TodoItem[] = [];
+        for (const userId of companyUserIds) {
+          const todoData = {
+            ...baseTodoData,
+            userId: userId
+          };
+          
+          const docRef = await addDoc(collection(db, 'todos'), todoData);
+          const newTodoItem: TodoItem = {
+            id: docRef.id,
+            ...todoData,
+            sharedWith: []
+          };
+          createdTodos.push(newTodoItem);
+        }
         
-        const updatedTodos = [newTodoItem, ...todos];
-        setTodos(updatedTodos);
+        // 自分のTODOのみを表示に追加
+        const myTodo = createdTodos.find(t => t.userId === user.uid);
+        if (myTodo) {
+          const updatedTodos = [myTodo, ...todos];
+          setTodos(updatedTodos);
+        }
+        
         setNewTodo('');
         setNewTodoAssignee('');
         setNewTodoDescription('');
@@ -424,13 +441,32 @@ export default function TodoPage() {
   // ステータス別にTODOを分類
   const getTodosByStatus = (status: 'shared' | 'todo' | 'in-progress') => {
     const filtered = getFilteredTodos();
-    return filtered.filter(todo => todo.status === status && !todo.completed);
+    if (status === 'shared') {
+      // 共有事項: 自分のTODOでstatus='shared'のもの + 他人のTODO（全て）
+      return filtered.filter(todo => {
+        if (todo.completed) return false;
+        const isMyTodo = todo.userId === user?.uid;
+        if (isMyTodo) {
+          return todo.status === 'shared';
+        } else {
+          // 他人のTODOは全て共有事項に表示
+          return true;
+        }
+      });
+    } else {
+      // ToDo、進行中: 自分のTODOのみ
+      return filtered.filter(todo => 
+        todo.userId === user?.uid && 
+        todo.status === status && 
+        !todo.completed
+      );
+    }
   };
 
-  // 完了したTODOを取得
+  // 完了したTODOを取得（自分のTODOのみ）
   const getCompletedTodos = () => {
     const filtered = getFilteredTodos();
-    return filtered.filter(todo => todo.completed);
+    return filtered.filter(todo => todo.userId === user?.uid && todo.completed);
   };
 
   // 月を変更
@@ -585,11 +621,15 @@ export default function TodoPage() {
                 )}
                 {todo.text}
               </h3>
-              {!isOwner && (
-                <p className="text-xs text-gray-500 mt-1">
-                  共有されたタスク
-                </p>
-              )}
+              {!isOwner && (() => {
+                const todoOwner = allUsers.find(u => u.id === todo.userId);
+                const ownerName = todoOwner?.displayName || todoOwner?.email || '不明';
+                return (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {ownerName}のタスク
+                  </p>
+                );
+              })()}
               {isShared && (
                 <div className="flex items-center gap-1 mt-1">
                   <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

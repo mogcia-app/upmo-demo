@@ -30,16 +30,25 @@ interface MeetingNote {
   updatedAt: string;
 }
 
+interface Note {
+  id?: string;
+  text: string;
+  createdAt: Date | string;
+  createdBy?: string;
+}
+
 interface Customer {
   id: string;
   name: string;
   email: string;
   company: string;
   phone: string;
+  website?: string;
   status: 'active' | 'inactive' | 'prospect';
   priority: 'low' | 'medium' | 'high';
   lastContact: string | Date;
-  notes: string;
+  contractDate?: string | Date;
+  notes: Note[] | string; // 後方互換性のためstringも許可
   createdAt: string | Date;
 }
 
@@ -50,8 +59,6 @@ export default function CustomersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerDetail, setShowCustomerDetail] = useState(false);
   const [meetingNotes, setMeetingNotes] = useState<MeetingNote[]>([]);
@@ -70,6 +77,9 @@ export default function CustomersPage() {
     notes: ''
   });
   const [actionItemInput, setActionItemInput] = useState({ item: '', assignee: '', deadline: '' });
+  const [newNoteText, setNewNoteText] = useState('');
+  const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
 
   // チームメンバーを取得
   useEffect(() => {
@@ -123,7 +133,8 @@ export default function CustomersPage() {
         const customersData = data.customers.map((c: any) => ({
           ...c,
           lastContact: new Date(c.lastContact),
-          createdAt: new Date(c.createdAt)
+          createdAt: new Date(c.createdAt),
+          contractDate: c.contractDate ? new Date(c.contractDate) : undefined
         }));
         setCustomers(customersData);
       } else {
@@ -291,19 +302,20 @@ export default function CustomersPage() {
     email: "",
     company: "",
     phone: "",
+    website: "",
     status: "prospect",
     priority: "medium",
     lastContact: new Date(),
-    notes: ""
+    contractDate: undefined,
+    notes: []
   });
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          customer.company.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || customer.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const handleAddCustomer = async () => {
@@ -329,9 +341,11 @@ export default function CustomersPage() {
         email: "",
         company: "",
         phone: "",
+        website: "",
         status: "prospect",
         priority: "medium",
         lastContact: new Date(),
+        contractDate: undefined,
         notes: ""
       });
       setShowAddModal(false);
@@ -348,9 +362,11 @@ export default function CustomersPage() {
       email: customer.email,
       company: customer.company,
       phone: customer.phone,
+      website: customer.website || "",
       status: customer.status,
       priority: customer.priority,
       lastContact: customer.lastContact,
+      contractDate: customer.contractDate,
       notes: customer.notes
     });
     setShowAddModal(true);
@@ -360,21 +376,43 @@ export default function CustomersPage() {
     if (!user || !editingCustomer) return;
     try {
       const token = await user.getIdToken();
+      
+      // contractDateを適切にシリアライズ
+      const updateData: any = {
+        id: editingCustomer.id,
+        name: newCustomer.name,
+        email: newCustomer.email,
+        company: newCustomer.company,
+        phone: newCustomer.phone,
+        status: newCustomer.status,
+        priority: newCustomer.priority,
+        notes: newCustomer.notes
+      };
+
+      if (newCustomer.website) {
+        updateData.website = newCustomer.website;
+      }
+      
+      if (newCustomer.contractDate) {
+        updateData.contractDate = newCustomer.contractDate instanceof Date 
+          ? newCustomer.contractDate.toISOString()
+          : newCustomer.contractDate;
+      } else {
+        updateData.contractDate = null; // 削除する場合
+      }
+
       const response = await fetch('/api/customers', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          id: editingCustomer.id,
-          ...newCustomer,
-          lastContact: new Date()
-        })
+        body: JSON.stringify(updateData)
       });
 
       if (!response.ok) {
-        throw new Error('顧客の更新に失敗しました');
+        const errorData = await response.json();
+        throw new Error(errorData.error || '顧客の更新に失敗しました');
       }
 
       await fetchCustomers();
@@ -384,15 +422,17 @@ export default function CustomersPage() {
         email: "",
         company: "",
         phone: "",
+        website: "",
         status: "prospect",
         priority: "medium",
         lastContact: new Date(),
-        notes: ""
+        contractDate: undefined,
+        notes: []
       });
       setShowAddModal(false);
     } catch (error) {
       console.error('顧客更新エラー:', error);
-      alert('顧客の更新に失敗しました');
+      alert(error instanceof Error ? error.message : '顧客の更新に失敗しました');
     }
   };
 
@@ -412,9 +452,158 @@ export default function CustomersPage() {
       }
 
       await fetchCustomers();
+      if (selectedCustomer?.id === id) {
+        setShowCustomerDetail(false);
+        setSelectedCustomer(null);
+      }
     } catch (error) {
       console.error('顧客削除エラー:', error);
       alert('顧客の削除に失敗しました');
+    }
+  };
+
+  // メモを追加
+  const handleAddNote = async () => {
+    if (!user || !selectedCustomer || !newNoteText.trim()) return;
+    
+    try {
+      const token = await user.getIdToken();
+      const currentNotes = Array.isArray(selectedCustomer.notes) 
+        ? selectedCustomer.notes 
+        : (selectedCustomer.notes && typeof selectedCustomer.notes === 'string' 
+            ? [{ text: selectedCustomer.notes, createdAt: new Date() }] 
+            : []);
+      
+      const newNote: Note = {
+        text: newNoteText.trim(),
+        createdAt: new Date(),
+        createdBy: user.displayName || user.email || user.uid
+      };
+      
+      const updatedNotes = [...currentNotes, newNote];
+      
+      const response = await fetch('/api/customers', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          id: selectedCustomer.id,
+          notes: updatedNotes.map(n => ({
+            ...n,
+            createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : n.createdAt
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('メモの追加に失敗しました');
+      }
+
+      await fetchCustomers();
+      // 選択中の顧客を更新
+      const updatedCustomer = { ...selectedCustomer, notes: updatedNotes };
+      setSelectedCustomer(updatedCustomer);
+      setNewNoteText('');
+    } catch (error) {
+      console.error('メモ追加エラー:', error);
+      alert('メモの追加に失敗しました');
+    }
+  };
+
+  // メモを編集
+  const handleEditNote = (index: number) => {
+    if (!selectedCustomer) return;
+    const currentNotes = Array.isArray(selectedCustomer.notes) 
+      ? selectedCustomer.notes 
+      : [];
+    setEditingNoteIndex(index);
+    setEditingNoteText(currentNotes[index]?.text || '');
+  };
+
+  // メモの更新を保存
+  const handleSaveNote = async () => {
+    if (!user || !selectedCustomer || editingNoteIndex === null || !editingNoteText.trim()) return;
+    
+    try {
+      const token = await user.getIdToken();
+      const currentNotes = Array.isArray(selectedCustomer.notes) 
+        ? [...selectedCustomer.notes] 
+        : [];
+      
+      currentNotes[editingNoteIndex] = {
+        ...currentNotes[editingNoteIndex],
+        text: editingNoteText.trim()
+      };
+      
+      const response = await fetch('/api/customers', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          id: selectedCustomer.id,
+          notes: currentNotes.map(n => ({
+            ...n,
+            createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : (typeof n.createdAt === 'string' ? n.createdAt : new Date().toISOString())
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('メモの更新に失敗しました');
+      }
+
+      await fetchCustomers();
+      const updatedCustomer = { ...selectedCustomer, notes: currentNotes };
+      setSelectedCustomer(updatedCustomer);
+      setEditingNoteIndex(null);
+      setEditingNoteText('');
+    } catch (error) {
+      console.error('メモ更新エラー:', error);
+      alert('メモの更新に失敗しました');
+    }
+  };
+
+  // メモを削除
+  const handleDeleteNote = async (index: number) => {
+    if (!user || !selectedCustomer || !confirm('このメモを削除しますか？')) return;
+    
+    try {
+      const token = await user.getIdToken();
+      const currentNotes = Array.isArray(selectedCustomer.notes) 
+        ? [...selectedCustomer.notes] 
+        : [];
+      
+      currentNotes.splice(index, 1);
+      
+      const response = await fetch('/api/customers', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          id: selectedCustomer.id,
+          notes: currentNotes.map(n => ({
+            ...n,
+            createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : (typeof n.createdAt === 'string' ? n.createdAt : new Date().toISOString())
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('メモの削除に失敗しました');
+      }
+
+      await fetchCustomers();
+      const updatedCustomer = { ...selectedCustomer, notes: currentNotes };
+      setSelectedCustomer(updatedCustomer);
+    } catch (error) {
+      console.error('メモ削除エラー:', error);
+      alert('メモの削除に失敗しました');
     }
   };
 
@@ -458,30 +647,32 @@ export default function CustomersPage() {
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
-          {/* ヘッダー */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">顧客管理</h1>
-              <p className="text-sm sm:text-base text-gray-600">顧客情報の管理と追跡</p>
-            </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm sm:text-base"
-            >
-              <span className="flex items-center">
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                顧客を追加
-              </span>
-            </button>
-          </div>
-
-          {/* フィルター */}
+          {/* ヘッダーと検索 */}
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* ヘッダー */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">検索</label>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">顧客管理</h1>
+                <p className="text-sm sm:text-base text-gray-600">顧客情報の管理と追跡</p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm sm:text-base"
+              >
+                <span className="flex items-center">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  顧客を追加
+                </span>
+              </button>
+            </div>
+
+            {/* フィルター */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">検索</label>
                 <input
                   type="text"
                   placeholder="名前、メール、会社名で検索..."
@@ -490,24 +681,10 @@ export default function CustomersPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ステータス</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
-                >
-                  <option value="all">すべて</option>
-                  <option value="active">アクティブ</option>
-                  <option value="prospect">見込み客</option>
-                  <option value="inactive">非アクティブ</option>
-                </select>
-              </div>
               <div className="flex items-end">
                 <button
                   onClick={() => {
                     setSearchTerm("");
-                    setStatusFilter("all");
                   }}
                   className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                 >
@@ -515,6 +692,7 @@ export default function CustomersPage() {
                 </button>
               </div>
             </div>
+          </div>
           </div>
 
           {/* 顧客一覧 */}
@@ -538,56 +716,69 @@ export default function CustomersPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">顧客情報</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">会社</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">最終連絡</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">連絡先</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">契約日</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">メモ</th>
                       <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wider">操作</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredCustomers.map((customer) => (
                       <tr key={customer.id} className="hover:bg-gray-50">
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4">
                           <div>
                             <div className="text-sm font-medium text-gray-900">{customer.name}</div>
-                            <div className="text-sm text-gray-500">{customer.email}</div>
-                            <div className="text-sm text-gray-500">{customer.phone}</div>
+                            <div className="text-sm text-gray-500">{customer.company}</div>
                           </div>
                         </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{customer.company}</div>
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="space-y-1">
+                            {customer.email && (
+                              <div className="text-sm text-gray-900">
+                                <a href={`mailto:${customer.email}`} className="text-[#005eb2] hover:underline">
+                                  {customer.email}
+                                </a>
+                              </div>
+                            )}
+                            {customer.phone && (
+                              <div className="text-sm text-gray-900">
+                                <a href={`tel:${customer.phone}`} className="text-[#005eb2] hover:underline">
+                                  {customer.phone}
+                                </a>
+                              </div>
+                            )}
+                            {customer.website && (
+                              <div className="text-sm text-gray-900">
+                                <a href={customer.website.startsWith('http') ? customer.website : `https://${customer.website}`} target="_blank" rel="noopener noreferrer" className="text-[#005eb2] hover:underline">
+                                  {customer.website}
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(customer.status)}`}>
-                            {getStatusText(customer.status)}
-                          </span>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {customer.contractDate 
+                            ? (customer.contractDate instanceof Date 
+                                ? customer.contractDate.toLocaleDateString('ja-JP')
+                                : new Date(customer.contractDate).toLocaleDateString('ja-JP'))
+                            : '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {customer.lastContact instanceof Date 
-                            ? customer.lastContact.toLocaleDateString('ja-JP')
-                            : new Date(customer.lastContact).toLocaleDateString('ja-JP')}
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="text-sm text-gray-700">
+                            {Array.isArray(customer.notes) && customer.notes.length > 0
+                              ? `${customer.notes.length}件のメモ`
+                              : typeof customer.notes === 'string' && customer.notes
+                                ? '1件のメモ'
+                                : '-'}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleOpenCustomerDetail(customer)}
-                              className="text-[#005eb2] hover:text-[#004a96]"
-                            >
-                              詳細
-                            </button>
-                            <button
-                              onClick={() => handleEditCustomer(customer)}
-                              className="text-[#005eb2] hover:text-[#004a96]"
-                            >
-                              編集
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCustomer(customer.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              削除
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleOpenCustomerDetail(customer)}
+                            className="text-[#005eb2] hover:text-[#004a96]"
+                          >
+                            詳細
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -599,12 +790,14 @@ export default function CustomersPage() {
 
           {/* 追加/編集モーダル */}
           {showAddModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  {editingCustomer ? '顧客を編集' : '顧客を追加'}
-                </h3>
-                <div className="space-y-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b border-gray-200 flex-shrink-0">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {editingCustomer ? '顧客を編集' : '顧客を追加'}
+                  </h3>
+                </div>
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">会社名</label>
                     <input
@@ -642,41 +835,61 @@ export default function CustomersPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-                    <textarea
-                      value={newCustomer.notes}
-                      onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
-                      rows={3}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">HPのURL</label>
+                    <input
+                      type="url"
+                      value={newCustomer.website || ""}
+                      onChange={(e) => setNewCustomer({...newCustomer, website: e.target.value})}
+                      placeholder="https://example.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">契約日</label>
+                    <input
+                      type="date"
+                      value={newCustomer.contractDate instanceof Date 
+                        ? newCustomer.contractDate.toISOString().split('T')[0]
+                        : newCustomer.contractDate 
+                          ? (typeof newCustomer.contractDate === 'string' 
+                              ? newCustomer.contractDate.split('T')[0]
+                              : new Date(newCustomer.contractDate).toISOString().split('T')[0])
+                          : ''}
+                      onChange={(e) => setNewCustomer({...newCustomer, contractDate: e.target.value ? new Date(e.target.value) : undefined})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
                     />
                   </div>
                 </div>
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setEditingCustomer(null);
-                      setNewCustomer({
-                        name: "",
-                        email: "",
-                        company: "",
-                        phone: "",
-                        status: "prospect",
-                        priority: "medium",
-                        lastContact: new Date(),
-                        notes: ""
-                      });
-                    }}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    onClick={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
-                    className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
-                  >
-                    {editingCustomer ? '更新' : '追加'}
-                  </button>
+                <div className="p-6 border-t border-gray-200 flex-shrink-0">
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={() => {
+                        setShowAddModal(false);
+                        setEditingCustomer(null);
+                        setNewCustomer({
+                          name: "",
+                          email: "",
+                          company: "",
+                          phone: "",
+                          website: "",
+                          status: "prospect",
+                          priority: "medium",
+                          lastContact: new Date(),
+                          contractDate: undefined,
+                          notes: []
+                        });
+                      }}
+                      className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
+                      className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
+                    >
+                      {editingCustomer ? '更新' : '追加'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -685,52 +898,197 @@ export default function CustomersPage() {
           {/* 顧客詳細モーダル */}
           {showCustomerDetail && selectedCustomer && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-200">
+              <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b border-gray-200 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900">{selectedCustomer.name}</h2>
                       <p className="text-sm text-gray-600 mt-1">{selectedCustomer.company}</p>
                     </div>
-                    <button
-                      onClick={() => {
-                        setShowCustomerDetail(false);
-                        setSelectedCustomer(null);
-                        setMeetingNotes([]);
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          handleEditCustomer(selectedCustomer);
+                          setShowCustomerDetail(false);
+                        }}
+                        className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCustomerDetail(false);
+                          setSelectedCustomer(null);
+                          setMeetingNotes([]);
+                          setNewNoteText('');
+                          setEditingNoteIndex(null);
+                          setEditingNoteText('');
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-6 overflow-y-auto flex-1">
                   {/* 顧客情報 */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">顧客情報</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">メール</label>
-                        <p className="text-sm text-gray-900 mt-1">{selectedCustomer.email}</p>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {selectedCustomer.email ? (
+                            <a href={`mailto:${selectedCustomer.email}`} className="text-[#005eb2] hover:underline">
+                              {selectedCustomer.email}
+                            </a>
+                          ) : '-'}
+                        </p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700">電話</label>
-                        <p className="text-sm text-gray-900 mt-1">{selectedCustomer.phone}</p>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {selectedCustomer.phone ? (
+                            <a href={`tel:${selectedCustomer.phone}`} className="text-[#005eb2] hover:underline">
+                              {selectedCustomer.phone}
+                            </a>
+                          ) : '-'}
+                        </p>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">ステータス</label>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${getStatusColor(selectedCustomer.status)}`}>
-                          {getStatusText(selectedCustomer.status)}
-                        </span>
+                        <label className="block text-sm font-medium text-gray-700">HPのURL</label>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {selectedCustomer.website ? (
+                            <a href={selectedCustomer.website.startsWith('http') ? selectedCustomer.website : `https://${selectedCustomer.website}`} target="_blank" rel="noopener noreferrer" className="text-[#005eb2] hover:underline">
+                              {selectedCustomer.website}
+                            </a>
+                          ) : '-'}
+                        </p>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">優先度</label>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${getPriorityColor(selectedCustomer.priority)}`}>
-                          {getPriorityText(selectedCustomer.priority)}
-                        </span>
+                        <label className="block text-sm font-medium text-gray-700">契約日</label>
+                        <p className="text-sm text-gray-900 mt-1">
+                          {selectedCustomer.contractDate 
+                            ? (selectedCustomer.contractDate instanceof Date 
+                                ? selectedCustomer.contractDate.toLocaleDateString('ja-JP')
+                                : new Date(selectedCustomer.contractDate).toLocaleDateString('ja-JP'))
+                            : '-'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* メモ */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">メモ</h3>
+                      <button
+                        onClick={() => handleDeleteCustomer(selectedCustomer.id)}
+                        className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        顧客を削除
+                      </button>
+                    </div>
+                    
+                    {/* メモ一覧 */}
+                    <div className="space-y-3 mb-4">
+                      {(() => {
+                        const notes = Array.isArray(selectedCustomer.notes) 
+                          ? selectedCustomer.notes 
+                          : (selectedCustomer.notes && typeof selectedCustomer.notes === 'string'
+                              ? [{ text: selectedCustomer.notes, createdAt: new Date() }]
+                              : []);
+                        
+                        if (notes.length === 0) {
+                          return (
+                            <div className="text-center py-8 bg-gray-50 rounded-lg">
+                              <p className="text-gray-500">メモがありません</p>
+                            </div>
+                          );
+                        }
+                        
+                        return notes.map((note, index) => (
+                          <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            {editingNoteIndex === index ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  rows={3}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={handleSaveNote}
+                                    className="px-3 py-1.5 text-sm bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors"
+                                  >
+                                    保存
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingNoteIndex(null);
+                                      setEditingNoteText('');
+                                    }}
+                                    className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                                  >
+                                    キャンセル
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="flex items-start justify-between">
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{note.text}</p>
+                                  <div className="flex gap-2 ml-4">
+                                    <button
+                                      onClick={() => handleEditNote(index)}
+                                      className="text-[#005eb2] hover:text-[#004a96] text-sm"
+                                    >
+                                      編集
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteNote(index)}
+                                      className="text-red-600 hover:text-red-900 text-sm"
+                                    >
+                                      削除
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="mt-2 text-xs text-gray-500">
+                                  {note.createdAt instanceof Date 
+                                    ? note.createdAt.toLocaleString('ja-JP')
+                                    : new Date(note.createdAt).toLocaleString('ja-JP')}
+                                  {note.createdBy && ` by ${note.createdBy}`}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    
+                    {/* メモ追加フォーム */}
+                    <div className="border-t border-gray-200 pt-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">新しいメモを追加</label>
+                        <textarea
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                          placeholder="メモを入力..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm"
+                        />
+                        <button
+                          onClick={handleAddNote}
+                          disabled={!newNoteText.trim()}
+                          className="px-4 py-2 bg-[#005eb2] text-white rounded-md hover:bg-[#004a96] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          メモを追加
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1052,3 +1410,4 @@ export default function CustomersPage() {
     </ProtectedRoute>
   );
 }
+

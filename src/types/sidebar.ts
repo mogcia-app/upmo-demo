@@ -58,6 +58,15 @@ export const AVAILABLE_MENU_ITEMS: AvailableMenuItem[] = [
     description: '顧客情報の管理',
     order: 1,
   },
+  {
+    id: 'customer-list',
+    name: 'リスト',
+    icon: '📋',
+    href: '/customers/list',
+    category: 'customer',
+    description: '顧客リストの表示',
+    order: 2,
+  },
   
   // ===== 在庫・発注管理 =====
   {

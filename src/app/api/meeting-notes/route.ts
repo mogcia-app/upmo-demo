@@ -194,24 +194,62 @@ export async function POST(request: NextRequest) {
     // アクション項目を処理：TODOまたはカレンダーに自動追加
     if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
       try {
-        // チームメンバー情報を取得（担当者IDから名前を取得するため）
+        // チームメンバー情報を取得（担当者名からIDを取得するため）
         const usersSnapshot = await db.collection('users')
           .where('companyName', '==', userCompanyName)
           .get();
-        const usersMap = new Map();
+        const usersMapById = new Map();
+        const usersMapByName = new Map();
+        const usersMapByEmail = new Map();
         usersSnapshot.forEach(doc => {
           const userData = doc.data();
-          usersMap.set(doc.id, userData);
+          usersMapById.set(doc.id, userData);
+          // 名前で検索できるようにマップを作成
+          if (userData.displayName) {
+            usersMapByName.set(userData.displayName, { id: doc.id, ...userData });
+          }
+          if (userData.email) {
+            usersMapByEmail.set(userData.email, { id: doc.id, ...userData });
+          }
         });
+
+        // 同じ会社の全ユーザーIDを取得（共有設定用）
+        const companyUserIds = usersSnapshot.docs.map(doc => doc.id);
 
         for (const actionItem of actionItems) {
           const { item, assignee, deadline } = actionItem;
           
           if (!item || !item.trim()) continue; // 項目が空の場合はスキップ
           
-          // 担当者IDからユーザー情報を取得
-          const assigneeUser = assignee ? usersMap.get(assignee) : null;
-          const assigneeName = assigneeUser?.displayName || assigneeUser?.email || assignee || '未指定';
+          // 担当者名またはIDからユーザー情報を取得
+          let assigneeUserId: string | null = null;
+          let assigneeName: string = '未指定';
+          
+          if (assignee && assignee.trim()) {
+            // まずIDとして検索
+            const assigneeUserById = usersMapById.get(assignee);
+            if (assigneeUserById) {
+              assigneeUserId = assignee;
+              assigneeName = assigneeUserById.displayName || assigneeUserById.email || assignee;
+            } else {
+              // IDで見つからない場合は名前として検索
+              const assigneeUserByName = usersMapByName.get(assignee);
+              if (assigneeUserByName) {
+                assigneeUserId = assigneeUserByName.id;
+                assigneeName = assigneeUserByName.displayName || assigneeUserByName.email || assignee;
+              } else {
+                // 名前でも見つからない場合は、テキストとして扱う
+                assigneeName = assignee;
+                // 担当者が指定されていてもIDが見つからない場合は、議事録作成者をデフォルトとする
+                assigneeUserId = userId;
+              }
+            }
+          } else {
+            // 担当者が未指定の場合は、議事録作成者をデフォルトとする
+            assigneeUserId = userId;
+            const currentUser = usersMapById.get(userId);
+            assigneeName = currentUser?.displayName || currentUser?.email || '未指定';
+          }
 
           if (deadline && deadline.trim()) {
             // 日付がある場合：カレンダーに追加
@@ -225,41 +263,42 @@ export async function POST(request: NextRequest) {
                 location: '',
                 color: '#3B82F6',
                 member: assigneeName,
-                userId: assignee || userId, // 担当者が指定されている場合はそのユーザー、なければ議事録作成者
-                attendees: assignee ? [assignee] : [],
+                userId: assigneeUserId || userId,
+                attendees: assigneeUserId ? [assigneeUserId] : [],
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now()
               };
               
               await db.collection('events').add(eventData);
-              console.log(`カレンダーにイベントを追加: ${item} (${deadline})`);
+              console.log(`カレンダーにイベントを追加: ${item} (${deadline}, 担当者: ${assigneeName})`);
             } catch (eventError) {
               console.error('カレンダーへの追加エラー:', eventError);
               // エラーが発生しても議事録の保存は続行
             }
-          } else if (assignee) {
-            // 日付がないが担当者がある場合：TODOに追加
+          } else {
+            // 日付がない場合：TODOに追加（担当者のTODOとして作成、担当者が未指定の場合は全員に作成）
             try {
-              // 同じ会社の全ユーザーIDを取得して共有設定
-              const companyUsersSnapshot = await db.collection('users')
-                .where('companyName', '==', userCompanyName)
-                .get();
-              const companyUserIds = companyUsersSnapshot.docs.map(doc => doc.id);
+              const targetUserIds = assigneeUserId 
+                ? [assigneeUserId] // 担当者が指定されている場合は担当者のみ
+                : companyUserIds; // 担当者が未指定の場合は全員
               
-              const todoData = {
-                text: item,
-                completed: false,
-                createdAt: Timestamp.now(),
-                priority: 'medium' as const,
-                status: 'shared' as const,
-                assignee: assignee,
-                description: `議事録「${title}」からのアクション項目`,
-                userId: assignee, // 担当者のTODOとして作成
-                sharedWith: companyUserIds.filter(id => id !== assignee) // 担当者以外の全員と共有
-              };
-              
-              await db.collection('todos').add(todoData);
-              console.log(`TODOに追加: ${item} (担当者: ${assigneeName}, 共有: ${todoData.sharedWith.length}人)`);
+              // 対象ユーザーに対して、それぞれのTODOを作成
+              for (const targetUserId of targetUserIds) {
+                const todoData = {
+                  text: item,
+                  completed: false,
+                  createdAt: Timestamp.now(),
+                  priority: 'medium' as const,
+                  status: 'shared' as const,
+                  assignee: assigneeName, // 担当者名を保存
+                  description: `議事録「${title}」からのアクション項目`,
+                  userId: targetUserId, // 担当者のTODOとして作成
+                  sharedWith: [] // 個別のTODOなので共有は不要
+                };
+                
+                await db.collection('todos').add(todoData);
+              }
+              console.log(`TODOに追加: ${item} (担当者: ${assigneeName}, ${targetUserIds.length}人分のTODOを作成)`);
             } catch (todoError) {
               console.error('TODOへの追加エラー:', todoError);
               // エラーが発生しても議事録の保存は続行
@@ -357,6 +396,132 @@ export async function PUT(request: NextRequest) {
     cleanedUpdateData.updatedAt = Timestamp.now();
 
     await db.collection('meetingNotes').doc(id).update(cleanedUpdateData);
+
+    // アクション項目が更新された場合、TODOに追加
+    if (cleanedUpdateData.actionItems && Array.isArray(cleanedUpdateData.actionItems)) {
+      try {
+        // チームメンバー情報を取得（担当者名からIDを取得するため）
+        const usersSnapshot = await db.collection('users')
+          .where('companyName', '==', userCompanyName)
+          .get();
+        const usersMapById = new Map();
+        const usersMapByName = new Map();
+        const usersMapByEmail = new Map();
+        usersSnapshot.forEach(doc => {
+          const userData = doc.data();
+          usersMapById.set(doc.id, userData);
+          // 名前で検索できるようにマップを作成
+          if (userData.displayName) {
+            usersMapByName.set(userData.displayName, { id: doc.id, ...userData });
+          }
+          if (userData.email) {
+            usersMapByEmail.set(userData.email, { id: doc.id, ...userData });
+          }
+        });
+
+        // 同じ会社の全ユーザーIDを取得（共有設定用）
+        const companyUserIds = usersSnapshot.docs.map(doc => doc.id);
+        const title = cleanedUpdateData.title || noteData?.title || '';
+
+        // 既存のTODOを確認（重複を避けるため）
+        const existingTodosSnapshot = await db.collection('todos')
+          .where('description', '==', `議事録「${title}」からのアクション項目`)
+          .get();
+        const existingTodoTexts = new Set(existingTodosSnapshot.docs.map(doc => doc.data().text));
+
+        for (const actionItem of cleanedUpdateData.actionItems) {
+          const { item, assignee, deadline } = actionItem;
+          
+          if (!item || !item.trim()) continue; // 項目が空の場合はスキップ
+          
+          // 既にTODOに追加されている場合はスキップ
+          if (existingTodoTexts.has(item)) continue;
+          
+          // 担当者名またはIDからユーザー情報を取得
+          let assigneeUserId: string | null = null;
+          let assigneeName: string = '未指定';
+          
+          if (assignee && assignee.trim()) {
+            // まずIDとして検索
+            const assigneeUserById = usersMapById.get(assignee);
+            if (assigneeUserById) {
+              assigneeUserId = assignee;
+              assigneeName = assigneeUserById.displayName || assigneeUserById.email || assignee;
+            } else {
+              // IDで見つからない場合は名前として検索
+              const assigneeUserByName = usersMapByName.get(assignee);
+              if (assigneeUserByName) {
+                assigneeUserId = assigneeUserByName.id;
+                assigneeName = assigneeUserByName.displayName || assigneeUserByName.email || assignee;
+              } else {
+                // 名前でも見つからない場合は、テキストとして扱う
+                assigneeName = assignee;
+                // 担当者が指定されていてもIDが見つからない場合は、議事録作成者をデフォルトとする
+                assigneeUserId = userId;
+              }
+            }
+          } else {
+            // 担当者が未指定の場合は、議事録作成者をデフォルトとする
+            assigneeUserId = userId;
+            const currentUser = usersMapById.get(userId);
+            assigneeName = currentUser?.displayName || currentUser?.email || '未指定';
+          }
+
+          if (deadline && deadline.trim()) {
+            // 日付がある場合：カレンダーに追加
+            try {
+              const eventData = {
+                title: item,
+                date: deadline,
+                time: '',
+                description: `議事録「${title}」からのアクション項目`,
+                location: '',
+                color: '#3B82F6',
+                member: assigneeName,
+                userId: assigneeUserId || userId,
+                attendees: assigneeUserId ? [assigneeUserId] : [],
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now()
+              };
+              
+              await db.collection('events').add(eventData);
+              console.log(`カレンダーにイベントを追加: ${item} (${deadline}, 担当者: ${assigneeName})`);
+            } catch (eventError) {
+              console.error('カレンダーへの追加エラー:', eventError);
+            }
+          } else {
+            // 日付がない場合：TODOに追加（担当者のTODOとして作成、担当者が未指定の場合は全員に作成）
+            try {
+              const targetUserIds = assigneeUserId 
+                ? [assigneeUserId] // 担当者が指定されている場合は担当者のみ
+                : companyUserIds; // 担当者が未指定の場合は全員
+              
+              // 対象ユーザーに対して、それぞれのTODOを作成
+              for (const targetUserId of targetUserIds) {
+                const todoData = {
+                  text: item,
+                  completed: false,
+                  createdAt: Timestamp.now(),
+                  priority: 'medium' as const,
+                  status: 'shared' as const,
+                  assignee: assigneeName,
+                  description: `議事録「${title}」からのアクション項目`,
+                  userId: targetUserId, // 担当者のTODOとして作成
+                  sharedWith: [] // 個別のTODOなので共有は不要
+                };
+                
+                await db.collection('todos').add(todoData);
+              }
+              console.log(`TODOに追加: ${item} (担当者: ${assigneeName}, ${targetUserIds.length}人分のTODOを作成)`);
+            } catch (todoError) {
+              console.error('TODOへの追加エラー:', todoError);
+            }
+          }
+        }
+      } catch (actionItemsError) {
+        console.error('アクション項目処理エラー:', actionItemsError);
+      }
+    }
 
     // 更新後のデータを取得
     const updatedDoc = await db.collection('meetingNotes').doc(id).get();

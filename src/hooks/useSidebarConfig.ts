@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { useAuth } from "../contexts/AuthContext";
 import { AVAILABLE_MENU_ITEMS, AvailableMenuItem, SidebarConfig, SidebarMenuItem } from "../types/sidebar";
 
 // 型を再エクスポート（後方互換性のため）
@@ -19,19 +20,46 @@ const DEFAULT_ADMIN_MENU_ITEMS: SidebarMenuItem[] = [
 ];
 
 export const useSidebarConfig = () => {
+  const { user } = useAuth();
   const [config, setConfig] = useState<SidebarConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [companyName, setCompanyName] = useState<string>("default");
+
+  // ユーザーのcompanyNameを取得
+  useEffect(() => {
+    const fetchCompanyName = async () => {
+      if (!user || !db) {
+        setCompanyName("default");
+        return;
+      }
+
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setCompanyName(userData?.companyName || "default");
+        } else {
+          setCompanyName("default");
+        }
+      } catch (err) {
+        console.error("Error fetching company name:", err);
+        setCompanyName("default");
+      }
+    };
+
+    fetchCompanyName();
+  }, [user]);
 
   // サイドバー設定を取得
   const fetchSidebarConfig = useCallback(async () => {
-    if (!db) {
+    if (!db || !companyName) {
       setLoading(false);
       return;
     }
 
     try {
-      const configDocRef = doc(db, "sidebarConfig", "default");
+      const configDocRef = doc(db, "sidebarConfig", companyName);
       const configDoc = await getDoc(configDocRef);
 
       if (configDoc.exists()) {
@@ -95,7 +123,7 @@ export const useSidebarConfig = () => {
       } else {
         // デフォルト設定を使用
         setConfig({
-          id: "default",
+          id: companyName,
           commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
           adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
           enabledMenuItems: [], // 初期状態では何も有効化されていない
@@ -109,7 +137,7 @@ export const useSidebarConfig = () => {
       setError(err);
       // エラー時もデフォルト設定を使用
       setConfig({
-        id: "default",
+        id: companyName,
         commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
         adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
         enabledMenuItems: [],
@@ -119,16 +147,16 @@ export const useSidebarConfig = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyName]);
 
   // リアルタイムでサイドバー設定を監視
   useEffect(() => {
-    if (!db) {
+    if (!db || !companyName) {
       setLoading(false);
       return;
     }
 
-    const configDocRef = doc(db, "sidebarConfig", "default");
+    const configDocRef = doc(db, "sidebarConfig", companyName);
     
     const unsubscribe = onSnapshot(
       configDocRef,
@@ -194,7 +222,7 @@ export const useSidebarConfig = () => {
         } else {
           // デフォルト設定を使用
           setConfig({
-            id: "default",
+            id: companyName,
             commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
             adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
             enabledMenuItems: [],
@@ -210,7 +238,7 @@ export const useSidebarConfig = () => {
         setError(err);
         // エラー時もデフォルト設定を使用
         setConfig({
-          id: "default",
+          id: companyName,
           commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
           adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
           enabledMenuItems: [],
@@ -222,7 +250,14 @@ export const useSidebarConfig = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [companyName]);
+
+  // companyNameが変更されたときに設定を再取得
+  useEffect(() => {
+    if (companyName) {
+      fetchSidebarConfig();
+    }
+  }, [companyName, fetchSidebarConfig]);
 
   // 有効なメニューアイテムのみを取得（order順にソート）
   const getEnabledCommonMenuItems = useCallback((): SidebarMenuItem[] => {

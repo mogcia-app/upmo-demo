@@ -390,14 +390,15 @@ export default function ContractsPage() {
     }
   };
 
-  // Firestoreからドキュメントを取得
+  // Firestoreからドキュメントを取得（会社全体の契約書を取得）
   const fetchDocumentsFromFirestore = async () => {
     if (!user) return;
     
     try {
       // 認証トークンを取得
       const token = await user.getIdToken();
-      const response = await fetch(`/api/admin/get-manual-documents?userId=${user.uid}`, {
+      // userIdパラメータを削除して、同じ会社の全ユーザーの契約書を取得
+      const response = await fetch(`/api/admin/get-manual-documents`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

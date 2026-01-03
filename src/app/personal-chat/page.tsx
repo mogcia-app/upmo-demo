@@ -97,6 +97,7 @@ export default function PersonalChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string>('');
   const { user } = useAuth();
   
   // 要約用の状態
@@ -121,6 +122,7 @@ export default function PersonalChatPage() {
           // 現在のユーザーのcompanyNameを取得
           const currentUser = data.users.find((u: any) => u.id === user.uid);
           const currentCompanyName = currentUser?.companyName || '';
+          setCompanyName(currentCompanyName);
           
           const members = data.users
             .filter((u: any) => 
@@ -149,8 +151,18 @@ export default function PersonalChatPage() {
     
     try {
       if (chatId === "ai-assistant") {
-        // AIアシスタントの場合
-        const session = await fetchChatSession(user.uid, chatId);
+        // AIアシスタントの場合は会社単位で共有
+        let session = await fetchChatSession(user.uid, chatId, companyName);
+        
+        // companyNameがない既存のセッションも取得（個人のセッション）
+        if (!session && companyName) {
+          const personalSession = await fetchChatSession(user.uid, chatId);
+          if (personalSession && !personalSession.companyName) {
+            // 既存の個人セッションにcompanyNameを設定して更新
+            await updateChatSession(personalSession.id, personalSession.messages, companyName);
+            session = { ...personalSession, companyName };
+          }
+        }
         
         if (session && session.messages.length > 0) {
           const loadedMessages: Message[] = session.messages
@@ -255,15 +267,16 @@ export default function PersonalChatPage() {
         });
 
       if (activeChat === "ai-assistant") {
-        // AIアシスタントの場合は自分のセッションのみ保存
+        // AIアシスタントの場合は会社単位で共有
         if (currentSessionId) {
-          await updateChatSession(currentSessionId, chatMessages);
+          await updateChatSession(currentSessionId, chatMessages, companyName);
         } else {
           const sessionId = await saveChatSession({
             userId: user.uid,
             chatId: chatId,
             messages: chatMessages,
-            lastUpdated: new Date()
+            lastUpdated: new Date(),
+            companyName: companyName // 会社名を設定
           });
           setCurrentSessionId(sessionId);
         }

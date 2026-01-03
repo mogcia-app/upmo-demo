@@ -17,6 +17,7 @@ export interface ChatSession {
   messages: ChatMessage[];
   lastUpdated: Date;
   title?: string; // チャットのタイトル（最初のメッセージから生成）
+  companyName?: string; // 会社名（AIアシスタントの場合は会社単位で共有）
 }
 
 // チャットセッションをFirestoreに保存
@@ -36,13 +37,16 @@ export const saveChatSession = async (session: Omit<ChatSession, 'id'>): Promise
       return cleaned;
     };
 
-    const sessionData = {
+    const sessionData: any = {
       userId: session.userId,
       chatId: session.chatId,
       lastUpdated: new Date(),
       messages: session.messages.map(cleanMessage),
-      ...(session.title !== undefined && { title: session.title })
     };
+    
+    // オプショナルフィールドは値がある場合のみ追加
+    if (session.title !== undefined) sessionData.title = session.title;
+    if (session.companyName !== undefined) sessionData.companyName = session.companyName;
     
     const docRef = await addDoc(collection(db, 'chatSessions'), sessionData);
     return docRef.id;
@@ -53,7 +57,7 @@ export const saveChatSession = async (session: Omit<ChatSession, 'id'>): Promise
 };
 
 // チャットセッションを更新
-export const updateChatSession = async (sessionId: string, messages: ChatMessage[]): Promise<void> => {
+export const updateChatSession = async (sessionId: string, messages: ChatMessage[], companyName?: string): Promise<void> => {
   try {
     // undefinedの値を削除してFirestoreに保存
     const cleanMessage = (msg: ChatMessage) => {
@@ -70,10 +74,17 @@ export const updateChatSession = async (sessionId: string, messages: ChatMessage
     };
 
     const sessionRef = doc(db, 'chatSessions', sessionId);
-    await updateDoc(sessionRef, {
+    const updateData: any = {
       messages: messages.map(cleanMessage),
       lastUpdated: new Date()
-    });
+    };
+    
+    // companyNameが指定されている場合は更新
+    if (companyName !== undefined) {
+      updateData.companyName = companyName;
+    }
+    
+    await updateDoc(sessionRef, updateData);
   } catch (error) {
     console.error('Error updating chat session:', error);
     throw error;
@@ -115,13 +126,24 @@ export const fetchUserChatSessions = async (userId: string): Promise<ChatSession
 };
 
 // 特定のチャットセッションを取得
-export const fetchChatSession = async (userId: string, chatId: string): Promise<ChatSession | null> => {
+export const fetchChatSession = async (userId: string, chatId: string, companyName?: string): Promise<ChatSession | null> => {
   try {
-    const q = query(
-      collection(db, 'chatSessions'),
-      where('userId', '==', userId),
-      where('chatId', '==', chatId)
-    );
+    let q;
+    
+    // AIアシスタントの場合はcompanyNameで検索、それ以外はuserIdで検索
+    if (chatId === 'ai-assistant' && companyName) {
+      q = query(
+        collection(db, 'chatSessions'),
+        where('chatId', '==', chatId),
+        where('companyName', '==', companyName)
+      );
+    } else {
+      q = query(
+        collection(db, 'chatSessions'),
+        where('userId', '==', userId),
+        where('chatId', '==', chatId)
+      );
+    }
     
     const querySnapshot = await getDocs(q);
     
@@ -129,7 +151,14 @@ export const fetchChatSession = async (userId: string, chatId: string): Promise<
       return null;
     }
     
-    const doc = querySnapshot.docs[0];
+    // 複数ある場合は最新のものを取得
+    const sortedDocs = querySnapshot.docs.sort((a, b) => {
+      const aTime = a.data().lastUpdated?.toDate()?.getTime() || 0;
+      const bTime = b.data().lastUpdated?.toDate()?.getTime() || 0;
+      return bTime - aTime;
+    });
+    
+    const doc = sortedDocs[0];
     const data = doc.data();
     
     return {
@@ -141,7 +170,8 @@ export const fetchChatSession = async (userId: string, chatId: string): Promise<
         timestamp: msg.timestamp?.toDate() || new Date()
       })),
       lastUpdated: data.lastUpdated?.toDate() || new Date(),
-      title: data.title
+      title: data.title,
+      companyName: data.companyName
     };
   } catch (error) {
     console.error('Error fetching chat session:', error);

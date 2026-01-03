@@ -40,16 +40,38 @@ interface SidebarConfigRequest {
 }
 
 // サイドバー設定を取得
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    if (!db) {
+    if (!db || !auth) {
       return NextResponse.json(
         { error: "Firebase not initialized" },
         { status: 500 }
       );
     }
 
-    const configDocRef = db.collection("sidebarConfig").doc("default");
+    // 認証トークンを取得（Authorizationヘッダーから）
+    const authHeader = request.headers.get("authorization");
+    let companyName = "default"; // デフォルト値
+    
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "");
+      try {
+        const decodedToken = await auth.verifyIdToken(token);
+        const userId = decodedToken.uid;
+        
+        // ユーザーのcompanyNameを取得
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          companyName = userData?.companyName || "default";
+        }
+      } catch (authError: any) {
+        console.warn("Auth verification error (using default config):", authError);
+        // 認証エラーの場合はデフォルト設定を使用
+      }
+    }
+
+    const configDocRef = db.collection("sidebarConfig").doc(companyName);
     const configDoc = await configDocRef.get();
 
     if (configDoc.exists) {
@@ -57,6 +79,7 @@ export async function GET() {
       const updatedAt = data?.updatedAt;
       return NextResponse.json({
         id: configDoc.id,
+        companyName: companyName,
         commonMenuItems: data?.commonMenuItems || [],
         adminMenuItems: data?.adminMenuItems || [],
         enabledMenuItems: data?.enabledMenuItems || [],
@@ -69,7 +92,8 @@ export async function GET() {
     } else {
       // デフォルト設定を返す
       return NextResponse.json({
-        id: "default",
+        id: companyName,
+        companyName: companyName,
         commonMenuItems: [
           { id: "todo", name: "TODOリスト", icon: "•", href: "/todo", enabled: true, order: 1 },
           { id: "progress-notes", name: "進捗メモ", icon: "•", href: "/sales/progress-notes", enabled: true, order: 2 },
@@ -138,16 +162,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ユーザーのcompanyNameを取得
+    const userDoc = await db.collection("users").doc(userId).get();
+    let companyName = "default";
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      companyName = userData?.companyName || "default";
+    }
+
     const body: SidebarConfigRequest = await request.json();
     const { commonMenuItems, adminMenuItems, enabledMenuItems } = body;
 
-    // 既存の設定を取得
-    const configDocRef = db.collection("sidebarConfig").doc("default");
+    // 既存の設定を取得（会社単位）
+    const configDocRef = db.collection("sidebarConfig").doc(companyName);
     const existingDoc = await configDocRef.get();
     const existingData = existingDoc.exists ? existingDoc.data() : {};
 
     // 新しい設定をマージ（指定されたもののみ更新）
     const updatedConfig = {
+      companyName: companyName, // 会社名を保存
       commonMenuItems: commonMenuItems || existingData?.commonMenuItems || [],
       adminMenuItems: adminMenuItems || existingData?.adminMenuItems || [],
       enabledMenuItems: enabledMenuItems !== undefined ? enabledMenuItems : (existingData?.enabledMenuItems || []),
@@ -155,14 +188,14 @@ export async function POST(request: NextRequest) {
       updatedBy: userId,
     };
 
-    // Firestoreに保存
+    // Firestoreに保存（会社単位）
     await configDocRef.set(updatedConfig, { merge: true });
 
     return NextResponse.json({
       success: true,
       message: "Sidebar config updated successfully",
       config: {
-        id: "default",
+        id: companyName,
         ...updatedConfig,
         updatedAt: updatedConfig.updatedAt.toDate().toISOString(),
       },

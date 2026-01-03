@@ -474,12 +474,12 @@ async function searchByIntent(
           const data = doc.data();
           if (!todoIds.has(doc.id)) {
             todoIds.add(doc.id);
-            allTodos.push({
+          allTodos.push({
               id: doc.id,
               text: data.text,
-              description: data.description,
-              status: data.status,
-              priority: data.priority,
+            description: data.description,
+            status: data.status,
+            priority: data.priority,
               dueDate: data.dueDate,
               startDate: data.startDate,
               completed: data.completed || false
@@ -501,7 +501,7 @@ async function searchByIntent(
               dueDate: data.dueDate,
               startDate: data.startDate,
               completed: data.completed || false
-            });
+          });
           }
         });
         
@@ -687,13 +687,67 @@ async function searchByIntent(
       }
 
       case 'document': {
-        const snapshot = await adminDb.collection('manualDocuments').get();
+        // 会社単位で契約書を取得
+        if (!companyName) {
+          return {
+            type: 'document',
+            items: [],
+            formatted: '【社内ドキュメント】\n\n会社情報が見つかりませんでした。'
+          };
+        }
+        
+        const snapshot = await adminDb.collection('manualDocuments')
+          .where('companyName', '==', companyName)
+          .get();
         const relevantDocs: any[] = [];
         
-        // 「（タイトル）について教えて」のようなパターンからタイトルを抽出
+        // 「（タイトル）について教えて」「（タイトル）の（項目名）について教えて」のようなパターンからタイトルと項目名を抽出
+        // まず「の（項目名）」パターンをチェック（より具体的なパターンを先に）
+        const titleWithSectionPattern = /^(.+?)(の)(.+?)(について|とは|の説明|について教えて|について知りたい|を教えて|を見たい)/;
         const titlePattern = /^(.+?)(について|とは|の説明|について教えて|について知りたい)/;
-        const titleMatch = message.match(titlePattern);
-        const extractedTitle = titleMatch ? titleMatch[1].trim() : null;
+        
+        const titleWithSectionMatch = message.match(titleWithSectionPattern);
+        const titleMatch = !titleWithSectionMatch ? message.match(titlePattern) : null;
+        
+        let extractedTitle: string | null = null;
+        let extractedSection: string | null = null;
+        
+        if (titleWithSectionMatch) {
+          // 「Signal.の料金について教えて」のようなパターン
+          extractedTitle = titleWithSectionMatch[1].trim();
+          extractedSection = titleWithSectionMatch[3].trim();
+        } else if (titleMatch) {
+          // 「Signal.について教えて」のようなパターン
+          extractedTitle = titleMatch[1].trim();
+        }
+        
+        // 項目名のマッピング（日本語→英語）
+        const sectionMapping: { [key: string]: string } = {
+          '説明': 'overview',
+          '概要': 'overview',
+          '説明部分': 'overview',
+          '料金': 'pricing',
+          '価格': 'pricing',
+          '料金部分': 'pricing',
+          '特徴': 'features',
+          '機能': 'features',
+          '特徴・機能': 'features',
+          '手順': 'procedures',
+          '手順部分': 'procedures',
+          'サポート': 'support',
+          'サポート部分': 'support',
+          '規則': 'rules',
+          '規則部分': 'rules',
+          '条件': 'terms',
+          '条件部分': 'terms',
+          'Q&A': 'qa',
+          'qa': 'qa',
+          '質問': 'qa',
+          '質問と回答': 'qa'
+        };
+        
+        // 項目名を英語に変換
+        const targetSectionKey = extractedSection ? sectionMapping[extractedSection.toLowerCase()] || null : null;
         
         for (const doc of snapshot.docs) {
           const data = doc.data();
@@ -703,7 +757,8 @@ async function searchByIntent(
             relevantDocs.push({
               title: data.title,
               description: data.description || '',
-              sections: data.sections
+              sections: data.sections,
+              targetSectionKey: null
             });
           } else {
             // タイトル抽出パターンがある場合、タイトルで優先的に検索
@@ -758,7 +813,8 @@ async function searchByIntent(
                 title: data.title,
                 description: data.description || '',
                 sections: data.sections,
-                matchScore
+                matchScore,
+                targetSectionKey // 指定された項目名を保存
               });
             }
           }
@@ -836,16 +892,11 @@ async function searchByIntent(
         if (relevantDocs.length > 0) {
           // 複数のドキュメントがある場合は、すべて表示
           // 「について教えて」パターンの場合は、overviewセクションだけを返す
-          const isAboutQuery = !!extractedTitle;
+          // 「の（項目名）について教えて」パターンの場合は、指定された項目だけを返す
           
           const docTexts = relevantDocs.map((doc, index) => {
             const sections = doc.sections || {};
             const sectionTexts: string[] = [];
-            
-            // 説明を最初に表示
-            if (doc.description && doc.description.trim()) {
-              sectionTexts.push(`説明: ${doc.description}`);
-            }
             
             // セクションラベルのマッピング
             const sectionLabels: Record<string, string> = {
@@ -859,14 +910,43 @@ async function searchByIntent(
               'qa': 'Q&A'
             };
             
-            // 「について教えて」の場合は、overviewセクションだけを処理
-            const sectionsToProcess = isAboutQuery 
-              ? Object.entries(sections).filter(([key]) => key === 'overview')
-              : Object.entries(sections);
+            // 項目指定がある場合は、その項目だけを処理
+            let sectionsToProcess: [string, any][];
+            
+            // ドキュメントにtargetSectionKeyが設定されている場合（項目指定）
+            if (doc.targetSectionKey) {
+              // 指定された項目だけを処理
+              const targetKey = doc.targetSectionKey;
+              if (sections[targetKey] !== undefined) {
+                sectionsToProcess = [[targetKey, sections[targetKey]]];
+              } else {
+                // 指定された項目が存在しない場合
+                sectionsToProcess = [];
+              }
+            } else if (extractedTitle && !targetSectionKey) {
+              // 「について教えて」の場合は、overviewセクションまたは説明を表示
+              if (sections.overview !== undefined) {
+                sectionsToProcess = [['overview', sections.overview]];
+              } else if (doc.description && doc.description.trim()) {
+                // overviewがない場合は説明を表示
+                sectionTexts.push(`説明: ${doc.description}`);
+                sectionsToProcess = [];
+              } else {
+                sectionsToProcess = [];
+              }
+            } else {
+              // すべてのセクションを処理（通常の検索）
+              sectionsToProcess = Object.entries(sections);
+              // 説明を最初に表示
+              if (doc.description && doc.description.trim()) {
+                sectionTexts.push(`説明: ${doc.description}`);
+              }
+            }
             
             for (const [key, value] of sectionsToProcess) {
+              const label = sectionLabels[key] || key;
+              
               if (Array.isArray(value) && value.length > 0) {
-                const label = sectionLabels[key] || key;
                 if (key === 'qa' && typeof value[0] === 'object' && 'question' in value[0]) {
                   // Q&Aセクションの特別な処理
                   const qaTexts = value.map((qa: any, i: number) => 
@@ -897,7 +977,7 @@ async function searchByIntent(
                   }
                 }
               } else if (typeof value === 'string' && value.trim()) {
-                const label = sectionLabels[key] || key;
+                // 文字列の場合（overviewなど）
                 sectionTexts.push(`${label}: ${value}`);
               }
             }

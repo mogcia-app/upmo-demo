@@ -98,8 +98,17 @@ export async function GET(request: NextRequest) {
       } else {
         lastContact = new Date();
       }
+
+      let contractDate: Date | undefined;
+      if (data.contractDate instanceof Timestamp) {
+        contractDate = data.contractDate.toDate();
+      } else if (data.contractDate?.toDate && typeof data.contractDate.toDate === 'function') {
+        contractDate = data.contractDate.toDate();
+      } else if (data.contractDate) {
+        contractDate = new Date(data.contractDate);
+      }
       
-      return {
+      const customer: any = {
         id: doc.id,
         name: data.name || '',
         email: data.email || '',
@@ -113,6 +122,15 @@ export async function GET(request: NextRequest) {
         userId: data.userId || userId,
         companyName: data.companyName || companyName
       };
+
+      if (data.website) {
+        customer.website = data.website;
+      }
+      if (contractDate) {
+        customer.contractDate = contractDate.toISOString();
+      }
+
+      return customer;
     });
 
     return NextResponse.json({ customers });
@@ -148,7 +166,15 @@ export async function POST(request: NextRequest) {
     const userData = userDoc.data();
     const companyName = userData?.companyName || '';
 
-    const { name, email, company, phone, status, priority, notes } = await request.json();
+    const { name, email, company, phone, website, status, priority, contractDate, notes } = await request.json();
+    
+    // notesを配列形式に変換
+    let notesArray: any[] = [];
+    if (Array.isArray(notes)) {
+      notesArray = notes;
+    } else if (notes && typeof notes === 'string') {
+      notesArray = [{ text: notes, createdAt: new Date() }];
+    }
 
     if (!name) {
       return NextResponse.json(
@@ -157,7 +183,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const customerData = {
+    const customerData: any = {
       name,
       email: email || '',
       company: company || '',
@@ -165,12 +191,19 @@ export async function POST(request: NextRequest) {
       status: status || 'prospect',
       priority: priority || 'medium',
       lastContact: new Date(),
-      notes: notes || '',
+      notes: notesArray,
       userId,
       companyName,
       createdAt: new Date(),
       updatedAt: new Date()
     };
+
+    if (website) {
+      customerData.website = website;
+    }
+    if (contractDate) {
+      customerData.contractDate = contractDate instanceof Date ? contractDate : new Date(contractDate);
+    }
 
     const docRef = await db.collection('customers').add(customerData);
 
@@ -244,12 +277,27 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    updateData.updatedAt = new Date();
-    if (updateData.lastContact) {
-      updateData.lastContact = new Date(updateData.lastContact);
+    // undefinedの値をフィルタリング（Firestoreはundefinedを保存できない）
+    const cleanedUpdateData: any = {
+      updatedAt: new Date()
+    };
+    
+    for (const [key, value] of Object.entries(updateData)) {
+        if (value !== undefined && key !== 'id') {
+          if (key === 'lastContact' && value) {
+            cleanedUpdateData[key] = value instanceof Date ? value : (typeof value === 'string' || typeof value === 'number' ? new Date(value) : value);
+          } else if (key === 'contractDate' && value) {
+            cleanedUpdateData[key] = value instanceof Date ? value : (typeof value === 'string' || typeof value === 'number' ? new Date(value) : value);
+          } else if (key === 'contractDate' && value === null) {
+          // contractDateを削除する場合はnullを設定（Firestoreでは削除される）
+          cleanedUpdateData[key] = null;
+        } else {
+          cleanedUpdateData[key] = value;
+        }
+      }
     }
 
-    await db.collection('customers').doc(id).update(updateData);
+    await db.collection('customers').doc(id).update(cleanedUpdateData);
 
     // 更新後のデータを取得
     const updatedDoc = await db.collection('customers').doc(id).get();
@@ -277,15 +325,33 @@ export async function PUT(request: NextRequest) {
       createdAt = new Date();
     }
 
+    let contractDate: Date | undefined;
+    if (data?.contractDate instanceof Timestamp) {
+      contractDate = data.contractDate.toDate();
+    } else if (data?.contractDate?.toDate && typeof data.contractDate.toDate === 'function') {
+      contractDate = data.contractDate.toDate();
+    } else if (data?.contractDate) {
+      contractDate = new Date(data.contractDate);
+    }
+
+    const customer: any = {
+      id: updatedDoc.id,
+      ...data,
+      lastContact: lastContact.toISOString(),
+      createdAt: createdAt.toISOString(),
+      updatedAt: data?.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString()
+    };
+
+    if (data?.website) {
+      customer.website = data.website;
+    }
+    if (contractDate) {
+      customer.contractDate = contractDate.toISOString();
+    }
+
     return NextResponse.json({
       success: true,
-      customer: {
-        id: updatedDoc.id,
-        ...data,
-        lastContact: lastContact.toISOString(),
-        createdAt: createdAt.toISOString(),
-        updatedAt: data?.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString()
-      }
+      customer
     });
 
   } catch (error) {

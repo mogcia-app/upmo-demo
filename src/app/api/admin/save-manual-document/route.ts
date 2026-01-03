@@ -56,6 +56,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'タイトルが必要です' }, { status: 400 });
     }
 
+    // ユーザーのcompanyNameを取得
+    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
     // 編集モード（idがある場合）
     if (id) {
       const docRef = adminDb.collection('manualDocuments').doc(id);
@@ -65,8 +70,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: '文書が見つかりません' }, { status: 404 });
       }
 
-      // 既存の文書を更新
-      await docRef.update({
+      // 既存の文書を更新（companyNameも設定して会社単位で共有可能にする）
+      const updateData: any = {
         title,
         description: description || '',
         type: type || 'meeting',
@@ -79,7 +84,15 @@ export async function POST(request: NextRequest) {
         tags: tags || [],
         priority: priority || 'medium',
         lastUpdated: Timestamp.now()
-      });
+      };
+
+      // companyNameが設定されていない場合は設定する
+      const existingData = doc.data();
+      if (!existingData?.companyName && companyName) {
+        updateData.companyName = companyName;
+      }
+
+      await docRef.update(updateData);
 
       return NextResponse.json({ 
         success: true, 
@@ -102,6 +115,7 @@ export async function POST(request: NextRequest) {
       tags: tags || [],
       priority: priority || 'medium',
       userId: uid,
+      companyName: companyName,
       createdAt: Timestamp.now(),
       lastUpdated: Timestamp.now()
     });

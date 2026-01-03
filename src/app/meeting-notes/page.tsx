@@ -69,6 +69,7 @@ export default function MeetingNotesPage() {
   const [actionItemInput, setActionItemInput] = useState({ item: '', assignee: '', deadline: '' });
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedNoteForDetail, setSelectedNoteForDetail] = useState<MeetingNote | null>(null);
+  const [isAddingToTodo, setIsAddingToTodo] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -287,6 +288,37 @@ export default function MeetingNotesPage() {
 
   const removeActionItem = (index: number) => {
     setFormData({ ...formData, actionItems: formData.actionItems.filter((_, i) => i !== index) });
+  };
+
+  const handleAddToTodo = async (noteId: string) => {
+    if (!user) return;
+    if (!confirm('この議事録のアクション項目をTODOに追加しますか？')) return;
+    
+    try {
+      setIsAddingToTodo(true);
+      const token = await user.getIdToken();
+      const response = await fetch('/api/meeting-notes/add-to-todo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ noteId })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'TODOへの追加に失敗しました');
+      }
+      
+      const data = await response.json();
+      alert(data.message || `${data.added?.length || 0}件のアクション項目をTODOに追加しました`);
+    } catch (error) {
+      console.error('TODO追加エラー:', error);
+      alert(error instanceof Error ? error.message : 'TODOへの追加に失敗しました');
+    } finally {
+      setIsAddingToTodo(false);
+    }
   };
 
   return (
@@ -861,11 +893,23 @@ export default function MeetingNotesPage() {
                   {/* アクション項目 */}
                   {selectedNoteForDetail.actionItems.length > 0 && (
                     <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                        <span className="text-sm font-medium text-gray-700">アクション項目 ({selectedNoteForDetail.actionItems.length}件)</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                          <span className="text-sm font-medium text-gray-700">アクション項目 ({selectedNoteForDetail.actionItems.length}件)</span>
+                        </div>
+                        <button
+                          onClick={() => handleAddToTodo(selectedNoteForDetail.id)}
+                          disabled={isAddingToTodo}
+                          className="px-3 py-1.5 text-sm bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          {isAddingToTodo ? '追加中...' : 'TODOに追加'}
+                        </button>
                       </div>
                       <div className="space-y-2">
                         {selectedNoteForDetail.actionItems.map((item, index) => (
