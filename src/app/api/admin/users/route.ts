@@ -132,19 +132,20 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Firestore にユーザー情報を保存
+    // Firestore にユーザー情報を保存（統一スキーマに準拠）
     try {
       console.log('Firestore にユーザー情報を保存中:', { uid: userRecord.uid });
     await db.collection('users').doc(userRecord.uid).set({
       email,
       displayName: displayName || email.split('@')[0],
+      companyName: finalCompanyName,
       role: finalRole,
       status: 'active',
       department: department || '',
       position: position || '',
-      companyName: finalCompanyName,
-        createdAt: Timestamp.now(),
+      createdAt: Timestamp.now(),
       createdBy: userId, // 作成者のIDを記録
+      updatedAt: Timestamp.now(), // 統一スキーマに追加
     });
       console.log('Firestore ユーザー情報保存成功');
     } catch (firestoreError: any) {
@@ -308,13 +309,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Firestore のユーザー情報を更新
+    // Firestore のユーザー情報を更新（統一スキーマに準拠）
     const updateData: any = {};
     if (role) updateData.role = role;
     if (status) updateData.status = status;
     if (department !== undefined) updateData.department = department;
     if (position !== undefined) updateData.position = position;
-    updateData.lastUpdated = new Date();
+    updateData.updatedAt = Timestamp.now(); // 統一スキーマに準拠（lastUpdatedではなくupdatedAt）
 
     await db.collection('users').doc(uid).update(updateData);
 

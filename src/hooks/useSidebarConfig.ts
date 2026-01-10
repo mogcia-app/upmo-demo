@@ -10,10 +10,12 @@ import { AVAILABLE_MENU_ITEMS, AvailableMenuItem, SidebarConfig, SidebarMenuItem
 export type { SidebarMenuItem, SidebarConfig, AvailableMenuItem };
 
 const DEFAULT_COMMON_MENU_ITEMS: SidebarMenuItem[] = [
-  { id: "todo", name: "TODOリスト", icon: "•", href: "/todo", enabled: true, order: 1 },
-  { id: "progress-notes", name: "進捗メモ", icon: "•", href: "/sales/progress-notes", enabled: true, order: 2 },
-  { id: "contracts", name: "契約書管理", icon: "•", href: "/admin/contracts", enabled: true, order: 3 },
-  { id: "users", name: "利用者招待", icon: "•", href: "/admin/users", enabled: true, order: 4 },
+  { id: "todo", name: "TODOリスト", icon: "•", href: "/todo", category: "other", enabled: true, order: 1 },
+  { id: "progress-notes", name: "進捗メモ", icon: "•", href: "/sales/progress-notes", category: "sales", enabled: true, order: 2 },
+  { id: "contracts", name: "契約書管理", icon: "•", href: "/admin/contracts", category: "document", enabled: true, order: 3 },
+  { id: "users", name: "利用者管理", icon: "•", href: "/admin/users", category: "other", enabled: true, order: 4 },
+  { id: "company-info", name: "会社情報", icon: "•", href: "/admin/company", category: "other", enabled: true, order: 5 },
+  { id: "invoice", name: "請求書発行", icon: "•", href: "/admin/invoice", category: "other", enabled: true, order: 6 },
 ];
 
 const DEFAULT_ADMIN_MENU_ITEMS: SidebarMenuItem[] = [
@@ -103,7 +105,7 @@ export const useSidebarConfig = () => {
           if (!commonMenuItems.find((item: any) => item.id === 'users')) {
             commonMenuItems = [...commonMenuItems, {
               id: "users",
-              name: "利用者招待",
+              name: "利用者管理",
               icon: "•",
               href: "/admin/users",
               enabled: true,
@@ -113,7 +115,6 @@ export const useSidebarConfig = () => {
         }
         
         setConfig({
-          id: configDoc.id,
           commonMenuItems: commonMenuItems,
           adminMenuItems: adminMenuItems,
           enabledMenuItems: data.enabledMenuItems || [], // 有効化された追加メニュー項目のIDリスト
@@ -123,7 +124,6 @@ export const useSidebarConfig = () => {
       } else {
         // デフォルト設定を使用
         setConfig({
-          id: companyName,
           commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
           adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
           enabledMenuItems: [], // 初期状態では何も有効化されていない
@@ -137,7 +137,6 @@ export const useSidebarConfig = () => {
       setError(err);
       // エラー時もデフォルト設定を使用
       setConfig({
-        id: companyName,
         commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
         adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
         enabledMenuItems: [],
@@ -214,7 +213,7 @@ export const useSidebarConfig = () => {
             if (!commonMenuItems.find((item: any) => item.id === 'users')) {
               commonMenuItems = [...commonMenuItems, {
                 id: "users",
-                name: "利用者招待",
+                name: "利用者管理",
                 icon: "•",
                 href: "/admin/users",
                 enabled: true,
@@ -234,7 +233,6 @@ export const useSidebarConfig = () => {
               }
               
               const configData = {
-                id: snapshot.id,
                 commonMenuItems: commonMenuItems,
                 adminMenuItems: adminMenuItems,
                 enabledMenuItems: enabledMenuItems,
@@ -251,7 +249,6 @@ export const useSidebarConfig = () => {
             }).catch((err) => {
               console.error('[useSidebarConfig] Error fetching default config:', err);
               const configData = {
-                id: snapshot.id,
                 commonMenuItems: commonMenuItems,
                 adminMenuItems: adminMenuItems,
                 enabledMenuItems: enabledMenuItems,
@@ -295,7 +292,6 @@ export const useSidebarConfig = () => {
                 const adminMenuItems = defaultData.adminMenuItems || DEFAULT_ADMIN_MENU_ITEMS;
                 
                 setConfig({
-                  id: "default",
                   commonMenuItems: commonMenuItems,
                   adminMenuItems: adminMenuItems,
                   enabledMenuItems: defaultData.enabledMenuItems || [],
@@ -305,7 +301,6 @@ export const useSidebarConfig = () => {
               } else {
                 // デフォルト設定を使用
                 setConfig({
-                  id: configDocId,
                   commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
                   adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
                   enabledMenuItems: [],
@@ -319,7 +314,6 @@ export const useSidebarConfig = () => {
               console.error('[useSidebarConfig] Error fetching default config:', err);
               // デフォルト設定を使用
               setConfig({
-                id: configDocId,
                 commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
                 adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
                 enabledMenuItems: [],
@@ -334,7 +328,6 @@ export const useSidebarConfig = () => {
           
           // デフォルト設定を使用
           setConfig({
-            id: configDocId,
             commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
             adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
             enabledMenuItems: [],
@@ -350,7 +343,6 @@ export const useSidebarConfig = () => {
         setError(err);
         // エラー時もデフォルト設定を使用
         setConfig({
-          id: configDocId,
           commonMenuItems: DEFAULT_COMMON_MENU_ITEMS,
           adminMenuItems: DEFAULT_ADMIN_MENU_ITEMS,
           enabledMenuItems: [],
@@ -376,7 +368,7 @@ export const useSidebarConfig = () => {
         : DEFAULT_COMMON_MENU_ITEMS;
       items = menuItems
         .filter((item: any) => item.enabled)
-        .sort((a, b) => a.order - b.order);
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     
     // contractsが含まれていない場合は強制的に追加
@@ -386,9 +378,10 @@ export const useSidebarConfig = () => {
         name: "契約書管理",
         icon: "•",
         href: "/admin/contracts",
+        category: "document",
         enabled: true,
         order: 6
-      }].sort((a, b) => a.order - b.order);
+      }].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     
     // usersが含まれていない場合は強制的に追加
@@ -398,9 +391,10 @@ export const useSidebarConfig = () => {
         name: "利用者招待",
         icon: "•",
         href: "/admin/users",
+        category: "other",
         enabled: true,
         order: 7
-      }].sort((a, b) => a.order - b.order);
+      }].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     
     return items;
@@ -410,7 +404,7 @@ export const useSidebarConfig = () => {
     if (!config) return DEFAULT_ADMIN_MENU_ITEMS.filter((item: any) => item.enabled);
     return config.adminMenuItems
       .filter((item: any) => item.enabled)
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [config]);
 
   // 有効化された追加メニュー項目を取得（候補プールから）
@@ -430,7 +424,7 @@ export const useSidebarConfig = () => {
     
     // 有効化されたIDリストに基づいて、候補プールから該当する項目を取得
     const filtered = AVAILABLE_MENU_ITEMS
-      .filter((item: any) => config.enabledMenuItems.includes(item.id))
+      .filter((item: any) => (config.enabledMenuItems || []).includes(item.id))
       .sort((a, b) => {
         // カテゴリ順、次にorder順でソート
         const categoryOrder = ['sales', 'customer', 'inventory', 'finance', 'pdca', 'document', 'project', 'analytics', 'other'];

@@ -24,24 +24,11 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user' | 'viewer'>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  
-  // 新規ユーザー作成用の状態
-  const [newUser, setNewUser] = useState({
-    email: '',
-    password: '',
-    displayName: '',
-    role: 'user' as 'admin' | 'user' | 'viewer',
-    department: '',
-    position: ''
-  });
 
   // ユーザー一覧を取得
   const fetchUsers = async () => {
@@ -134,78 +121,6 @@ export default function UsersPage() {
     setShowUserModal(true);
   };
 
-  // 新規ユーザーを作成
-  const createUser = async () => {
-    if (!user) {
-      alert('ログインが必要です');
-      return;
-    }
-    
-    if (!newUser.email || !newUser.password) {
-      alert('メールアドレスとパスワードは必須です');
-      return;
-    }
-
-    try {
-      setIsCreating(true);
-      // 認証トークンを取得
-      const token = await user.getIdToken();
-      
-      // 現在のユーザーのcompanyNameを取得
-      const currentUserResponse = await fetch('/api/admin/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      let companyName = '';
-      if (currentUserResponse.ok) {
-        const currentUserData = await currentUserResponse.json();
-        const currentUser = currentUserData.users.find((u: any) => u.id === user.uid);
-        companyName = currentUser?.companyName || '';
-      }
-      
-      const response = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...newUser,
-          companyName: companyName
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // ユーザー一覧を再取得
-        await fetchUsers();
-        setShowCreateModal(false);
-        setNewUser({
-          email: '',
-          password: '',
-          displayName: '',
-          role: 'user',
-          department: '',
-          position: ''
-        });
-        alert('ユーザーが正常に作成されました');
-      } else {
-        console.error('ユーザー作成APIエラー:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: data.error
-        });
-        alert(`エラー: ${data.error || 'ユーザー作成に失敗しました'}`);
-      }
-    } catch (error: any) {
-      console.error('ユーザー作成エラー:', error);
-      alert(`ユーザー作成に失敗しました: ${error.message || '不明なエラー'}`);
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   // ユーザーを編集
   const updateUser = async (updatedUser: User) => {
@@ -343,17 +258,9 @@ export default function UsersPage() {
                   <div className="text-2xl font-bold text-gray-900">{users.length}</div>
                   <div className="text-sm text-gray-500">総ユーザー数</div>
                 </div>
-                <button 
-                  onClick={() => setShowCreateModal(true)}
-                  className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base"
-                >
-                  <span className="flex items-center gap-2 font-medium">
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    利用者招待
-                  </span>
-                </button>
+                <div className="text-sm text-gray-500 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                  利用者の追加は運営会社にご連絡ください
+                </div>
               </div>
             </div>
           </div>
@@ -473,95 +380,6 @@ export default function UsersPage() {
             )}
           </div>
 
-          {/* ユーザー作成モーダル */}
-          {showCreateModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">利用者を招待</h3>
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス *</label>
-                    <input
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="user@example.com"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">パスワード *</label>
-                    <div className="relative">
-                    <input
-                        type={showPassword ? "text" : "password"}
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="6文字以上"
-                      required
-                    />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword ? (
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                          </svg>
-                        ) : (
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">表示名</label>
-                    <input
-                      type="text"
-                      value={newUser.displayName}
-                      onChange={(e) => setNewUser({...newUser, displayName: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="田中太郎"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={createUser}
-                    disabled={isCreating || !newUser.email || !newUser.password}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {isCreating ? '作成中...' : '作成'}
-                  </button>
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                  >
-                    キャンセル
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ユーザー詳細モーダル */}
           {showUserModal && selectedUser && (

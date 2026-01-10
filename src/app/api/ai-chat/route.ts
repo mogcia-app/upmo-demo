@@ -4,6 +4,7 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { searchSalesCases, searchProgressNotes } from '@/utils/salesSearch';
 import { getAppKnowledge, findPageByKeyword, getPageContext } from '@/bff';
+import { AVAILABLE_MENU_ITEMS, AIChatMetadata, FieldMapping, SearchableField } from '@/types/sidebar';
 
 // Firebase Admin SDK の初期化
 let adminDb: ReturnType<typeof getFirestore> | null = null;
@@ -64,30 +65,355 @@ async function getUserCompanyName(userId: string): Promise<string> {
   }
 }
 
-// 質問の意図を解析（BFFベース）
+// 質問の意図を解析（メニュー項目ベース）
 type Intent = 
-  | { type: 'customer' }
-  | { type: 'sales' }
-  | { type: 'progress' }
-  | { type: 'meeting' }
-  | { type: 'todo' }
-  | { type: 'event' }
-  | { type: 'document' }
-  | { type: 'unknown' };
+  | { type: 'customer'; menuId?: string }
+  | { type: 'sales'; menuId?: string }
+  | { type: 'progress'; menuId?: string }
+  | { type: 'meeting'; menuId?: string }
+  | { type: 'todo'; menuId?: string }
+  | { type: 'event'; menuId?: string }
+  | { type: 'document'; menuId?: string }
+  | { type: 'unknown'; menuId?: never };
+
+// Phase 1: アクション検出の型定義（Intent + Domain + エンティティ）
+type ActionIntent = 'create' | 'check' | 'search' | 'update' | 'delete';
+type ActionDomain = 'invoice' | 'todo' | 'customer' | 'contract' | 'document';
+
+type ActionType = {
+  intent: ActionIntent;
+  domain: ActionDomain;
+  entities: Record<string, string>; // エンティティ（顧客名、タスク名など）
+};
+
+// メニュー項目からAIチャット用メタデータを取得
+function getMenuAIMetadata(menuId: string): AIChatMetadata | null {
+  const menuItem = AVAILABLE_MENU_ITEMS.find(item => item.id === menuId);
+  return menuItem?.aiChatMetadata || null;
+}
+
+// メニュー項目IDから意図を判定
+function parseIntentFromMenu(message: string): { menuId: string; intent: Intent } | null {
+  const messageLower = message.toLowerCase();
+  
+  // 契約書管理を最優先（「の料金」などのセクションクエリがある場合）
+  const contractsItem = AVAILABLE_MENU_ITEMS.find(item => item.id === 'contracts');
+  if (contractsItem && contractsItem.aiChatMetadata) {
+    const contractsKeywords = [
+      '契約書', '契約', 'document', 'ドキュメント',
+      ...contractsItem.aiChatMetadata.searchableFields.flatMap(f => f.japaneseNames),
+      ...contractsItem.aiChatMetadata.fieldMappings.flatMap(m => m.japanese)
+    ];
+    
+    const contractsMatched = contractsKeywords.some(keyword => 
+      keyword && messageLower.includes(keyword.toLowerCase())
+    );
+    
+    if (contractsMatched) {
+      const intentType = mapCategoryToIntent(contractsItem.category);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AI Chat] Menu-based intent detected (contracts):', { menuId: contractsItem.id, intentType });
+      }
+      // intentTypeが'unknown'の場合はmenuIdを設定しない
+      if (intentType === 'unknown') {
+        return null;
+      }
+      return {
+        menuId: contractsItem.id,
+        intent: { type: intentType, menuId: contractsItem.id } as Intent
+      };
+    }
+  }
+  
+  // その他のメニュー項目をチェック（スコアベースで優先順位付け）
+  const menuItemsWithScores = AVAILABLE_MENU_ITEMS
+    .filter(item => item.aiChatMetadata && item.id !== 'contracts')
+    .map(menuItem => {
+      let score = 0;
+      const itemName = menuItem.name?.toLowerCase() || '';
+      const itemDescription = menuItem.description?.toLowerCase() || '';
+      
+      // メニュー名の完全一致（最高優先度）
+      if (itemName && messageLower === itemName) {
+        score += 100;
+      } else if (itemName && messageLower.includes(itemName)) {
+        score += 50;
+      }
+      
+      // 説明の完全一致（高優先度）
+      if (itemDescription && messageLower.includes(itemDescription)) {
+        score += 30;
+      }
+      
+      // より長いキーワードを優先（「顧客リスト」>「リスト」）
+      const searchableKeywords = menuItem.aiChatMetadata!.searchableFields.flatMap(f => f.japaneseNames);
+      for (const keyword of searchableKeywords) {
+        const keywordLower = keyword.toLowerCase();
+        if (keywordLower && messageLower.includes(keywordLower)) {
+          // キーワードの長さに応じてスコアを加算（長いキーワードほど高スコア）
+          score += keywordLower.length;
+        }
+      }
+      
+      return { menuItem, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score); // スコアの高い順にソート
+  
+  // 最もスコアの高いメニュー項目を選択
+  if (menuItemsWithScores.length > 0) {
+    const { menuItem } = menuItemsWithScores[0];
+    const intentType = mapCategoryToIntent(menuItem.category);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AI Chat] Menu-based intent detected:', { menuId: menuItem.id, intentType, score: menuItemsWithScores[0].score });
+    }
+    // intentTypeが'unknown'の場合はmenuIdを設定しない
+    if (intentType === 'unknown') {
+      return null;
+    }
+    return {
+      menuId: menuItem.id,
+      intent: { type: intentType, menuId: menuItem.id } as Intent
+    };
+  }
+  
+  return null;
+}
+
+// カテゴリを意図タイプにマッピング
+function mapCategoryToIntent(category: string): Intent['type'] {
+  const mapping: Record<string, Intent['type']> = {
+    'customer': 'customer',
+    'sales': 'sales',
+    'document': 'document',
+    'other': 'todo'
+  };
+  return mapping[category] || 'unknown';
+}
 
 function parseIntent(message: string): Intent {
-  // BFFのキーワードマッチングを使用
+  // まずメニュー項目ベースで判定
+  const menuResult = parseIntentFromMenu(message);
+  if (menuResult) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AI Chat] Menu-based intent:', { menuId: menuResult.menuId, intent: menuResult.intent.type });
+    }
+    return menuResult.intent;
+  }
+  
+  // フォールバック: BFFのキーワードマッチングを使用
   const pageId = findPageByKeyword(message);
   
   if (pageId === 'customer') return { type: 'customer' };
   if (pageId === 'sales') return { type: 'sales' };
   if (pageId === 'progress') return { type: 'progress' };
   if (pageId === 'meeting') return { type: 'meeting' };
-  if (pageId === 'todo') return { type: 'todo' };
+  if (pageId === 'todo') return { type: 'todo', menuId: 'todo' };
   if (pageId === 'event') return { type: 'event' };
-  if (pageId === 'document') return { type: 'document' };
+  if (pageId === 'document') {
+    // documentの場合は、契約書関連のキーワードでcontractsメニューを検出
+    const messageLower = message.toLowerCase();
+    if (['契約書', '契約', 'contract'].some(keyword => messageLower.includes(keyword))) {
+      return { type: 'document', menuId: 'contracts' };
+    }
+    return { type: 'document' };
+  }
   
   return { type: 'unknown' };
+}
+
+// Phase 1: アクション検出関数（Intent + Domain + エンティティ）
+function detectAction(message: string): ActionType | null {
+  const messageLower = message.toLowerCase();
+  
+  // Step 1: 意図の検出（より多くのパターンに対応）
+  let intent: ActionIntent | null = null;
+  
+  // 作成系の動詞（優先順位: より具体的な表現を先に）
+  const createPatterns = [
+    '作って', '作成して', '発行して', '追加して', '登録して',
+    '作る', '作成する', '発行する', '追加する', '登録する',
+    '作', '作成', '発行', '追加', '登録'
+  ];
+  if (createPatterns.some(pattern => messageLower.includes(pattern))) {
+    intent = 'create';
+  } 
+  // 確認系の動詞
+  else {
+    const checkPatterns = [
+      '確認して', '見て', 'チェックして', '確認する', '見る', 'チェックする',
+      '確認', '見', 'チェック', '閲覧', '閲覧して'
+    ];
+    if (checkPatterns.some(pattern => messageLower.includes(pattern))) {
+      intent = 'check';
+    } 
+    // 更新系の動詞
+    else {
+      const updatePatterns = [
+        '更新して', '変更して', '編集して', '修正して',
+        '更新する', '変更する', '編集する', '修正する',
+        '更新', '変更', '編集', '修正'
+      ];
+      if (updatePatterns.some(pattern => messageLower.includes(pattern))) {
+        intent = 'update';
+      } 
+      // 削除系の動詞
+      else {
+        const deletePatterns = [
+          '削除して', '消して', '削除する', '消す',
+          '削除', '消', '除去', '除去して'
+        ];
+        if (deletePatterns.some(pattern => messageLower.includes(pattern))) {
+          intent = 'delete';
+        }
+      }
+    }
+  }
+  
+  // 検索系の動詞はアクション検出の対象外（通常の検索ロジックを使用）
+  // 「教えて」「見せて」などの一般的な検索動詞は、アクション検出をスキップ
+  // これにより、通常の検索ロジック（メタデータベース検索など）が使用される
+  
+  if (!intent) return null;
+  
+  // Step 2: ドメインの検出（より具体的なキーワードを優先）
+  let domain: ActionDomain | null = null;
+  
+  // 請求書関連（優先順位: より具体的な表現を先に）
+  if (['請求書', 'invoice', 'インボイス', '請求'].some(keyword => messageLower.includes(keyword))) {
+    domain = 'invoice';
+  } 
+  // TODO関連
+  else if (['todoリスト', 'タスクリスト', 'todo', 'タスク', 'やること', 'やる事'].some(keyword => messageLower.includes(keyword))) {
+    domain = 'todo';
+  } 
+  // 顧客関連
+  else if (['顧客', 'customer', '取引先', 'クライアント', '顧客リスト', '顧客管理'].some(keyword => messageLower.includes(keyword))) {
+    domain = 'customer';
+  } 
+  // 契約書関連
+  else if (['契約書', '契約', 'contract'].some(keyword => messageLower.includes(keyword))) {
+    domain = 'contract';
+  } 
+  // 文書関連
+  else if (['文書', 'document', 'ドキュメント'].some(keyword => messageLower.includes(keyword))) {
+    domain = 'document';
+  }
+  
+  if (!domain) return null;
+  
+  // Step 3: エンティティ抽出（Phase 1: 正規表現）
+  const entities: Record<string, string> = {};
+  
+  // 顧客名の抽出（「〇〇さんに」「〇〇様に」「〇〇への」など）
+  const customerPatterns = [
+    /(.+?)(さん|様)(に|へ|の)/,
+    /(.+?)(への|への|に)/,
+    /(.+?)(さん|様)/
+  ];
+  
+  for (const pattern of customerPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      const extractedName = match[1].trim();
+      // 動詞や助詞が含まれていないことを確認
+      if (extractedName.length > 0 && !['作', '作成', '発行', '確認', '見'].includes(extractedName)) {
+        entities.customerName = extractedName;
+        break;
+      }
+    }
+  }
+  
+  // タスク名の抽出（「〇〇を作成して」「〇〇を追加して」など）
+  const taskPatterns = [
+    /(.+?)(を|が)(作|作成|追加|登録)/,
+    /(.+?)(の)(作成|追加|登録)/
+  ];
+  
+  for (const pattern of taskPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      const extractedName = match[1].trim();
+      if (extractedName.length > 0) {
+        entities.taskName = extractedName;
+        break;
+      }
+    }
+  }
+  
+  return {
+    intent,
+    domain,
+    entities
+  };
+}
+
+// Phase 1: アクション応答の生成（AIっぽい文章で判断している感を出す）
+function generateActionResponse(
+  action: ActionType,
+  userId: string,
+  companyName: string
+): string | null {
+  const { intent, domain, entities } = action;
+  
+  // 請求書作成の応答
+  if (intent === 'create' && domain === 'invoice') {
+    const customerName = entities.customerName;
+    
+    if (customerName) {
+      return `【請求書作成の準備】\n\n${customerName}さんへの請求書作成ですね。\n\n請求書発行ページで作成できます。\n\n[📄 請求書発行ページへ移動](/admin/invoice)`;
+    } else {
+      return `【請求書作成】\n\n請求書を作成します。\n\n請求書発行ページで作成できます。\n\n[📄 請求書発行ページへ移動](/admin/invoice)`;
+    }
+  }
+  
+  // TODO作成の応答
+  if (intent === 'create' && domain === 'todo') {
+    const taskName = entities.taskName;
+    
+    if (taskName) {
+      return `【タスク作成の準備】\n\n「${taskName}」というタスクを作成しますね。\n\nTODOリストページで作成できます。\n\n[✅ TODOリストページへ移動](/todo)`;
+    } else {
+      return `【タスク作成】\n\nタスクを作成します。\n\nTODOリストページで作成できます。\n\n[✅ TODOリストページへ移動](/todo)`;
+    }
+  }
+  
+  // 確認系の応答
+  if (intent === 'check') {
+    if (domain === 'invoice') {
+      return `【請求書の確認】\n\n請求書を確認します。\n\n請求書発行ページで確認できます。\n\n[📄 請求書発行ページへ移動](/admin/invoice)`;
+    } else if (domain === 'todo') {
+      return `【タスクの確認】\n\nタスクを確認します。\n\nTODOリストページで確認できます。\n\n[✅ TODOリストページへ移動](/todo)`;
+    } else if (domain === 'customer') {
+      return `【顧客情報の確認】\n\n顧客情報を確認します。\n\n顧客管理ページで確認できます。\n\n[👥 顧客管理ページへ移動](/customers)`;
+    } else if (domain === 'contract') {
+      return `【契約書の確認】\n\n契約書を確認します。\n\n契約書管理ページで確認できます。\n\n[📄 契約書管理ページへ移動](/admin/contracts)`;
+    }
+  }
+  
+  // 更新系の応答
+  if (intent === 'update') {
+    if (domain === 'invoice') {
+      return `【請求書の更新】\n\n請求書を更新します。\n\n請求書発行ページで更新できます。\n\n[📄 請求書発行ページへ移動](/admin/invoice)`;
+    } else if (domain === 'todo') {
+      return `【タスクの更新】\n\nタスクを更新します。\n\nTODOリストページで更新できます。\n\n[✅ TODOリストページへ移動](/todo)`;
+    } else if (domain === 'customer') {
+      return `【顧客情報の更新】\n\n顧客情報を更新します。\n\n顧客管理ページで更新できます。\n\n[👥 顧客管理ページへ移動](/customers)`;
+    }
+  }
+  
+  // 削除系の応答
+  if (intent === 'delete') {
+    if (domain === 'invoice') {
+      return `【請求書の削除】\n\n請求書を削除します。\n\n請求書発行ページで削除できます。\n\n[📄 請求書発行ページへ移動](/admin/invoice)`;
+    } else if (domain === 'todo') {
+      return `【タスクの削除】\n\nタスクを削除します。\n\nTODOリストページで削除できます。\n\n[✅ TODOリストページへ移動](/todo)`;
+    } else if (domain === 'customer') {
+      return `【顧客情報の削除】\n\n顧客情報を削除します。\n\n顧客管理ページで削除できます。\n\n[👥 顧客管理ページへ移動](/customers)`;
+    }
+  }
+  
+  return null;
 }
 
 // 検索結果の構造体
@@ -112,6 +438,419 @@ function validateContextResult(result: any): ContextResult | null {
   };
 }
 
+// メタデータを使用した検索クエリの構築
+function buildSearchQueryFromMetadata(
+  message: string,
+  metadata: AIChatMetadata
+): {
+  keywords: string[];
+  fieldQueries: Record<string, string[]>;
+  sectionQueries: Record<string, string>;
+  titleQuery?: string;  // タイトルクエリ（例: 「Signal.」）
+} {
+  const messageLower = message.toLowerCase();
+  const keywords: string[] = [];
+  const fieldQueries: Record<string, string[]> = {};
+  const sectionQueries: Record<string, string> = {};
+  let titleQuery: string | undefined;
+  
+  // 「（タイトル）の（項目名）について教えて」パターンをチェック
+  const titleWithSectionPattern = /^(.+?)(の)(.+?)(について|とは|の説明|について教えて|について知りたい|を教えて|を見たい)/;
+  const titlePattern = /^(.+?)(について|とは|の説明|について教えて|について知りたい)/;
+  
+  const titleWithSectionMatch = message.match(titleWithSectionPattern);
+  const titleMatch = !titleWithSectionMatch ? message.match(titlePattern) : null;
+  
+  let extractedTitle: string | null = null;
+  let extractedSection: string | null = null;
+  
+  if (titleWithSectionMatch) {
+    // 「Signal.の料金について教えて」のようなパターン
+    extractedTitle = titleWithSectionMatch[1].trim();
+    extractedSection = titleWithSectionMatch[3].trim();
+  } else if (titleMatch) {
+    // 「Signal.について教えて」のようなパターン
+    extractedTitle = titleMatch[1].trim();
+  }
+  
+  // タイトルクエリを設定
+  if (extractedTitle) {
+    titleQuery = extractedTitle;
+  }
+  
+  // フィールドマッピングをチェック（セクションクエリ）
+  if (extractedSection) {
+    // 抽出されたセクション名からマッピングを検索
+    for (const mapping of metadata.fieldMappings) {
+      const matchedJapanese = mapping.japanese.find(jp => 
+        extractedSection!.toLowerCase().includes(jp.toLowerCase()) ||
+        jp.toLowerCase().includes(extractedSection!.toLowerCase())
+      );
+      
+      if (matchedJapanese) {
+        // セクションクエリとして追加（例: 「料金」→ pricing）
+        sectionQueries[mapping.english] = matchedJapanese;
+        break; // 最初のマッチのみ使用
+      }
+    }
+  } else {
+    // セクション名が抽出されていない場合、メッセージ全体から検索
+    for (const mapping of metadata.fieldMappings) {
+      const matchedJapanese = mapping.japanese.find(jp => 
+        messageLower.includes(jp.toLowerCase())
+      );
+      
+      if (matchedJapanese) {
+        // セクションクエリとして追加（例: 「料金」→ pricing）
+        sectionQueries[mapping.english] = matchedJapanese;
+        break; // 最初のマッチのみ使用
+      }
+    }
+  }
+  
+  // 検索可能フィールドの日本語名をチェック
+  for (const field of metadata.searchableFields) {
+    const matchedJapanese = field.japaneseNames.find(jp => 
+      messageLower.includes(jp.toLowerCase())
+    );
+    
+    if (matchedJapanese) {
+      if (!fieldQueries[field.fieldName]) {
+        fieldQueries[field.fieldName] = [];
+      }
+      fieldQueries[field.fieldName].push(matchedJapanese);
+    }
+  }
+  
+  // 一般的なキーワードを抽出（タイトルクエリを除く）
+  const words = messageLower.split(/\s+/).filter(w => w.length > 1);
+  if (titleQuery) {
+    // タイトルクエリをキーワードから除外
+    const titleWords = titleQuery.toLowerCase().split(/\s+/);
+    keywords.push(...words.filter(w => !titleWords.some(tw => w.includes(tw) || tw.includes(w))));
+    keywords.push(titleQuery.toLowerCase()); // タイトルをキーワードとして追加
+  } else {
+    keywords.push(...words);
+  }
+  
+  return { keywords, fieldQueries, sectionQueries, titleQuery };
+}
+
+// メタデータを使用した検索
+async function searchByMenuMetadata(
+  menuId: string,
+  message: string,
+  userId: string,
+  companyName: string
+): Promise<ContextResult | null> {
+  const metadata = getMenuAIMetadata(menuId);
+  if (!metadata) return null;
+  
+  const menuItem = AVAILABLE_MENU_ITEMS.find(item => item.id === menuId);
+  if (!menuItem) return null;
+  
+  if (!adminDb) {
+    console.warn('[searchByMenuMetadata] adminDb is not initialized');
+    return null;
+  }
+  
+  // 検索クエリを構築
+  const query = buildSearchQueryFromMetadata(message, metadata);
+  
+  // Firestoreで検索
+  let snapshot;
+  try {
+    if (metadata.searchByCompany && companyName) {
+      snapshot = await adminDb.collection(metadata.collectionName)
+        .where('companyName', '==', companyName)
+        .limit(metadata.defaultLimit || 10)
+        .get();
+    } else if (metadata.searchByUser) {
+      snapshot = await adminDb.collection(metadata.collectionName)
+        .where('userId', '==', userId)
+        .limit(metadata.defaultLimit || 10)
+        .get();
+    } else {
+      snapshot = await adminDb.collection(metadata.collectionName)
+        .limit(metadata.defaultLimit || 10)
+        .get();
+    }
+  } catch (error) {
+    console.error(`[searchByMenuMetadata] Error fetching from ${metadata.collectionName}:`, error);
+    return null;
+  }
+  
+  // 検索結果をフィルタリング
+  const results = filterResultsByMetadata(snapshot.docs, query, metadata, message);
+  
+  // 結果をフォーマット
+  return formatResultsByMetadata(results, metadata, menuItem, query);
+}
+
+// メタデータを使用した結果のフィルタリング
+function filterResultsByMetadata(
+  docs: any[],
+  query: ReturnType<typeof buildSearchQueryFromMetadata>,
+  metadata: AIChatMetadata,
+  message: string
+): any[] {
+  const messageLower = message.toLowerCase();
+  const isGeneralQuery = ['一覧', '見たい', '教えて', '確認', '見る', '全部', 'すべて', '全て'].some(
+    keyword => messageLower.includes(keyword)
+  );
+  
+  return docs.filter(doc => {
+    const data = doc.data();
+    
+    // 一般的な質問の場合は、すべての結果を返す（フィルタリングをスキップ）
+    // titleQueryがあっても、一般的な質問の場合はすべての結果を返す
+    if (isGeneralQuery && Object.keys(query.sectionQueries).length === 0) {
+      return true;
+    }
+    
+    // タイトルクエリがある場合、まずタイトルでマッチング
+    // ただし、一般的な質問の場合はスキップ（上で既にtrueを返している）
+    if (query.titleQuery && !isGeneralQuery) {
+      const title = data.title || data.text || data.name || ''; // TODOデータの場合はtextフィールドもチェック
+      const titleLower = title.toLowerCase();
+      const titleQueryLower = query.titleQuery.toLowerCase();
+      
+      // タイトルが完全一致または部分一致するかチェック
+      const titleMatch = titleLower === titleQueryLower || 
+                        titleLower.includes(titleQueryLower) || 
+                        titleQueryLower.includes(titleLower);
+      
+      if (!titleMatch) {
+        return false; // タイトルが一致しない場合は除外
+      }
+    }
+    
+    // 一般的な質問で、キーワードがメニュー名や説明に含まれている場合も返す
+    if (isGeneralQuery && query.keywords.length > 0) {
+      // メニュー名や説明に含まれるキーワードがある場合は返す
+      const menuItem = AVAILABLE_MENU_ITEMS.find(item => item.id === metadata.collectionName);
+      if (menuItem) {
+        const menuKeywords = [
+          menuItem.name?.toLowerCase(),
+          menuItem.description?.toLowerCase(),
+          ...metadata.searchableFields.flatMap(f => f.japaneseNames.map(n => n.toLowerCase()))
+        ];
+        const matchedKeyword = query.keywords.some(keyword => 
+          menuKeywords.some(menuKeyword => menuKeyword && menuKeyword.includes(keyword))
+        );
+        if (matchedKeyword) {
+          return true;
+        }
+      }
+    }
+    
+    // セクションクエリのチェック（例: pricing）
+    if (Object.keys(query.sectionQueries).length > 0) {
+      let sectionMatched = false;
+      for (const [sectionKey, japaneseName] of Object.entries(query.sectionQueries)) {
+        const sections = data.sections || {};
+        if (sections[sectionKey] !== undefined && sections[sectionKey] !== null) {
+          // セクションが存在し、内容が空でないことを確認
+          const sectionContent = sectionContentToString(sections[sectionKey]);
+          if (sectionContent.trim().length > 0) {
+            sectionMatched = true;
+            break;
+          }
+        }
+      }
+      
+      // タイトルクエリがある場合は、セクションがマッチした場合のみ返す
+      if (query.titleQuery) {
+        return sectionMatched;
+      }
+      
+      // タイトルクエリがない場合は、セクションがマッチすれば返す
+      if (sectionMatched) {
+        return true;
+      }
+    }
+    
+    // フィールドクエリのチェック
+    for (const [fieldName, japaneseNames] of Object.entries(query.fieldQueries)) {
+      const fieldValue = data[fieldName];
+      if (fieldValue) {
+        const fieldValueLower = String(fieldValue).toLowerCase();
+        const matched = japaneseNames.some(jp => 
+          fieldValueLower.includes(jp.toLowerCase())
+        );
+        if (matched) return true;
+      }
+    }
+    
+    // フィールドマッピングを使用したステータス検索（例: 「共有事項」→ `shared`）
+    // メッセージにステータス名が含まれている場合、そのステータスのデータを返す
+    for (const mapping of metadata.fieldMappings) {
+      const matchedJapanese = mapping.japanese.find(jp => 
+        messageLower.includes(jp.toLowerCase())
+      );
+      
+      if (matchedJapanese) {
+        // ステータスフィールドがある場合、そのステータス値と一致するかチェック
+        const statusValue = data.status;
+        if (statusValue && String(statusValue).toLowerCase() === mapping.english.toLowerCase()) {
+          return true;
+        }
+      }
+    }
+    
+    // キーワードマッチング（タイトルクエリがある場合は、タイトルが一致していることが前提）
+    if (query.keywords.length > 0) {
+      const allText = JSON.stringify(data).toLowerCase();
+      const matched = query.keywords.some(keyword => 
+        allText.includes(keyword)
+      );
+      if (matched) return true;
+    }
+    
+    // タイトルクエリのみで、他の条件がない場合は返す
+    if (query.titleQuery && Object.keys(query.sectionQueries).length === 0 && Object.keys(query.fieldQueries).length === 0) {
+      return true;
+    }
+    
+    // 一般的な質問で、すべての条件が満たされない場合でも、データが存在すれば返す
+    if (isGeneralQuery) {
+      return true;
+    }
+    
+    return false;
+  });
+}
+
+// メタデータを使用した結果のフォーマット
+function formatResultsByMetadata(
+  results: any[],
+  metadata: AIChatMetadata,
+  menuItem: typeof AVAILABLE_MENU_ITEMS[0],
+  query: ReturnType<typeof buildSearchQueryFromMetadata>
+): ContextResult {
+  const formattedItems = results.map(doc => {
+    const data = doc.data();
+    const item: any = { id: doc.id, ...data };
+    
+    // セクションクエリがある場合は、そのセクションだけを返す
+    if (Object.keys(query.sectionQueries).length > 0) {
+      item.targetSectionKey = Object.keys(query.sectionQueries)[0];
+    }
+    
+    return item;
+  });
+  
+  // フォーマットされたテキストを生成
+  const formatted = formatItemsAsText(formattedItems, metadata, menuItem, query);
+  
+  return {
+    type: mapCategoryToIntent(menuItem.category) as Intent['type'],
+    items: formattedItems,
+    formatted,
+    pageUrl: menuItem.href
+  };
+}
+
+// アイテムをテキストにフォーマット
+function formatItemsAsText(
+  items: any[],
+  metadata: AIChatMetadata,
+  menuItem: typeof AVAILABLE_MENU_ITEMS[0],
+  query: ReturnType<typeof buildSearchQueryFromMetadata>
+): string {
+  if (items.length === 0) {
+    return `【${menuItem.name}】\n\n情報が見つかりませんでした。\n\n別のキーワードで検索していただくか、${menuItem.name}ページで確認してください。`;
+  }
+  
+  // セクションクエリがある場合（例: 契約書の料金）
+  if (Object.keys(query.sectionQueries).length > 0) {
+    const sectionKey = Object.keys(query.sectionQueries)[0];
+    const sectionLabel = query.sectionQueries[sectionKey];
+    
+    // セクションラベルのマッピング（日本語名を取得）
+    const sectionMapping = metadata.fieldMappings.find(m => m.english === sectionKey);
+    const displayLabel = sectionMapping?.japanese[0] || sectionLabel;
+    
+    const sectionTexts = items.map(item => {
+      const sections = item.sections || {};
+      const sectionValue = sections[sectionKey];
+      
+      if (sectionValue === undefined || sectionValue === null) {
+        return null;
+      }
+      
+      // セクション内容を文字列化
+      const sectionContent = sectionContentToString(sectionValue);
+      if (sectionContent.trim().length === 0) {
+        return null;
+      }
+      
+      // セクションクエリがある場合は、そのセクションだけを返す
+      return `【${item.title}】\n\n${displayLabel}:\n${sectionContent}`;
+    }).filter(text => text !== null);
+    
+    if (sectionTexts.length > 0) {
+      const header = query.titleQuery 
+        ? `【${menuItem.name}】\n\n「${query.titleQuery}」の${displayLabel}について、${sectionTexts.length}件ヒットしました。`
+        : `【${menuItem.name}】\n\n${displayLabel}について、${sectionTexts.length}件ヒットしました。`;
+      
+      return `${header}\n\n${sectionTexts.join('\n\n---\n\n')}\n\n[📄 ${menuItem.name}ページへ移動](${menuItem.href})`;
+    } else {
+      // セクションが見つからない場合
+      return `【${menuItem.name}】\n\n${query.titleQuery ? `「${query.titleQuery}」の` : ''}${displayLabel}に関する情報が見つかりませんでした。\n\n別のキーワードで検索していただくか、${menuItem.name}ページで確認してください。`;
+    }
+  }
+  
+  // 通常のフォーマット
+  const itemTexts = items.map(item => {
+    let text = '';
+    
+    // タイトル
+    if (item.title) text += `タイトル: ${item.title}\n`;
+    if (item.name) text += `名前: ${item.name}\n`;
+    
+    // 検索可能フィールドを表示
+    for (const field of metadata.searchableFields) {
+      const value = item[field.fieldName];
+      if (value !== undefined && value !== null && value !== '') {
+        const fieldLabel = field.japaneseNames[0] || field.fieldName;
+        text += `${fieldLabel}: ${value}\n`;
+      }
+    }
+    
+    return text.trim();
+  });
+  
+  return `【${menuItem.name}】\n\n${items.length}件ヒットしました。\n\n${itemTexts.join('\n\n---\n\n')}\n\n[📄 ${menuItem.name}ページへ移動](${menuItem.href})`;
+}
+
+// セクション内容を文字列化
+function sectionContentToString(sectionValue: any): string {
+  if (typeof sectionValue === 'string') {
+    return sectionValue;
+  }
+  if (Array.isArray(sectionValue)) {
+    return sectionValue.map((item: any) => {
+      if (typeof item === 'string') {
+        return `• ${item}`;
+      }
+      if (item && typeof item === 'object') {
+        const title = item.title || '';
+        const content = item.content || '';
+        if (title && content) {
+          return `• ${title}\n  ${content}`;
+        } else if (title) {
+          return `• ${title}`;
+        } else if (content) {
+          return `• ${content}`;
+        }
+      }
+      return '';
+    }).filter((s: string) => s.length > 0).join('\n');
+  }
+  return '';
+}
+
 // intentに基づいて1系統だけ検索
 async function searchByIntent(
   intent: Intent,
@@ -119,6 +858,71 @@ async function searchByIntent(
   userId: string,
   companyName: string
 ): Promise<ContextResult | null> {
+  // メニューIDがある場合は、メタデータベースの検索を使用
+  if (intent.menuId) {
+    const result = await searchByMenuMetadata(intent.menuId, message, userId, companyName);
+    if (result) {
+      return result;
+    }
+  }
+  
+  // 汎用的なフォールバック: メタデータが定義されているメニュー項目を自動検出
+  // メニューIDが設定されていない場合でも、メタデータが定義されていれば使用
+  const messageLower = message.toLowerCase();
+  
+  // スコアベースのマッチング（より具体的なキーワードを優先）
+  const menuItemsWithScores = AVAILABLE_MENU_ITEMS
+    .filter(item => item.aiChatMetadata)
+    .map(item => {
+      let score = 0;
+      const itemName = item.name?.toLowerCase() || '';
+      const itemDescription = item.description?.toLowerCase() || '';
+      
+      // メニュー名の完全一致（最高優先度）
+      if (itemName && messageLower === itemName) {
+        score += 100;
+      } else if (itemName && messageLower.includes(itemName)) {
+        score += 50;
+      }
+      
+      // 説明の完全一致（高優先度）
+      if (itemDescription && messageLower.includes(itemDescription)) {
+        score += 30;
+      }
+      
+      // メニュー名の部分一致（中優先度）
+      if (itemName && messageLower.includes(itemName.split(' ')[0])) {
+        score += 20;
+      }
+      
+      // より長いキーワードを優先（「顧客リスト」>「リスト」）
+      const searchableKeywords = item.aiChatMetadata!.searchableFields.flatMap(f => f.japaneseNames);
+      for (const keyword of searchableKeywords) {
+        const keywordLower = keyword.toLowerCase();
+        if (keywordLower && messageLower.includes(keywordLower)) {
+          // キーワードの長さに応じてスコアを加算（長いキーワードほど高スコア）
+          score += keywordLower.length;
+        }
+      }
+      
+      return { item, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score); // スコアの高い順にソート
+  
+  // 最もスコアの高いメニュー項目を選択
+  const menuItemWithMetadata = menuItemsWithScores.length > 0 ? menuItemsWithScores[0].item : null;
+  
+  if (menuItemWithMetadata && menuItemWithMetadata.aiChatMetadata) {
+    const result = await searchByMenuMetadata(menuItemWithMetadata.id, message, userId, companyName);
+    if (result) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AI Chat] Using metadata-based search (fallback):', { menuId: menuItemWithMetadata.id });
+      }
+      return result;
+    }
+  }
+  
   // unknown intentの場合は検索しない（パフォーマンス向上）
   if (intent.type === 'unknown') {
     return null;
@@ -139,6 +943,15 @@ async function searchByIntent(
   try {
     switch (intent.type) {
       case 'customer': {
+        // メタデータベースの検索を使用（顧客管理）
+        if (intent.menuId === 'customer-management' || intent.menuId === 'customer-list') {
+          const result = await searchByMenuMetadata(intent.menuId, message, userId, companyName);
+          if (result) {
+            return result;
+          }
+        }
+        
+        // フォールバック: 既存のロジック
         if (!companyName) return null;
         const customersSnapshot = await adminDb.collection('customers')
           .where('companyName', '==', companyName)
@@ -213,6 +1026,15 @@ async function searchByIntent(
       }
 
       case 'sales': {
+        // メタデータベースの検索を使用（営業案件）
+        if (intent.menuId === 'sales-opportunity' || intent.menuId === 'sales-lead' || intent.menuId === 'sales-activity') {
+          const result = await searchByMenuMetadata(intent.menuId, message, userId, companyName);
+          if (result) {
+            return result;
+          }
+        }
+        
+        // フォールバック: 既存のロジック
         const limit = isGeneralQuery ? 10 : 5;
         const salesCases = await searchSalesCases(message, userId, limit);
         
@@ -287,6 +1109,15 @@ async function searchByIntent(
       }
 
       case 'progress': {
+        // メタデータベースの検索を使用（進捗メモ）
+        if (intent.menuId === 'progress-notes') {
+          const result = await searchByMenuMetadata('progress-notes', message, userId, companyName);
+          if (result) {
+            return result;
+          }
+        }
+        
+        // フォールバック: 既存のロジック
         const limit = isGeneralQuery ? 10 : 5;
         const progressNotes = await searchProgressNotes(message, userId, undefined, limit);
         
@@ -366,6 +1197,15 @@ async function searchByIntent(
       }
 
       case 'meeting': {
+        // メタデータベースの検索を使用（議事録管理）
+        if (intent.menuId === 'minutes-management') {
+          const result = await searchByMenuMetadata('minutes-management', message, userId, companyName);
+          if (result) {
+            return result;
+          }
+        }
+        
+        // フォールバック: 既存のロジック
         if (!companyName) return null;
         const limit = isGeneralQuery ? 20 : 10;
         const meetingNotesSnapshot = await adminDb.collection('meetingNotes')
@@ -444,6 +1284,19 @@ async function searchByIntent(
       }
 
       case 'todo': {
+        // メタデータベースの検索を使用（TODOリスト）
+        // menuIdが設定されていない場合でも、todo intentの場合はメタデータベース検索を試みる
+        if (intent.menuId === 'todo' || !intent.menuId) {
+          const result = await searchByMenuMetadata('todo', message, userId, companyName);
+          if (result) {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[AI Chat] Using metadata-based search for todo:', { resultCount: result.items.length });
+            }
+            return result;
+          }
+        }
+        
+        // フォールバック: 既存のロジック
         // 「今日」「きょう」「today」などのキーワードを検出
         const todayKeywords = ['今日', 'きょう', 'today', '本日'];
         const isTodayQuery = todayKeywords.some(keyword => searchQuery.includes(keyword));
@@ -687,18 +1540,41 @@ async function searchByIntent(
       }
 
       case 'document': {
-        // 会社単位で契約書を取得
-        if (!companyName) {
-          return {
-            type: 'document',
-            items: [],
-            formatted: '【社内ドキュメント】\n\n会社情報が見つかりませんでした。'
-          };
+        // メタデータベースの検索を使用（契約書管理）
+        // 「契約書」「契約」「document」などのキーワードでcontractsメニューを検出
+        const messageLower = message.toLowerCase();
+        const isContractQuery = ['契約書', '契約', 'contract', 'document'].some(keyword => 
+          messageLower.includes(keyword)
+        );
+        
+        // メタデータベースの検索を優先（契約書関連の質問の場合）
+        if (isContractQuery || intent.menuId === 'contracts') {
+          const result = await searchByMenuMetadata('contracts', message, userId, companyName);
+          if (result) {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[AI Chat] Using metadata-based search for contracts');
+            }
+            return result;
+          }
         }
         
-        const snapshot = await adminDb.collection('manualDocuments')
-          .where('companyName', '==', companyName)
-          .get();
+        // フォールバック: 既存のロジック（後方互換性のため）
+        // 会社単位で契約書を取得
+        // companyNameがない場合は、userIdで検索（後方互換性のため）
+        let snapshot;
+        
+        if (companyName) {
+          // 会社名で検索（推奨）
+          snapshot = await adminDb.collection('manualDocuments')
+            .where('companyName', '==', companyName)
+            .get();
+        } else {
+          // companyNameがない場合は、userIdで検索
+          console.warn('[AI Chat] companyName is empty, falling back to userId search');
+          snapshot = await adminDb.collection('manualDocuments')
+            .where('userId', '==', userId)
+            .get();
+        }
         const relevantDocs: any[] = [];
         
         // 「（タイトル）について教えて」「（タイトル）の（項目名）について教えて」のようなパターンからタイトルと項目名を抽出
@@ -721,49 +1597,87 @@ async function searchByIntent(
           extractedTitle = titleMatch[1].trim();
         }
         
-        // 項目名のマッピング（日本語→英語）
-        const sectionMapping: { [key: string]: string } = {
-          '説明': 'overview',
-          '概要': 'overview',
-          '説明部分': 'overview',
-          '料金': 'pricing',
-          '価格': 'pricing',
-          '料金部分': 'pricing',
-          '特徴': 'features',
-          '機能': 'features',
-          '特徴・機能': 'features',
-          '手順': 'procedures',
-          '手順部分': 'procedures',
-          'サポート': 'support',
-          'サポート部分': 'support',
-          '規則': 'rules',
-          '規則部分': 'rules',
-          '条件': 'terms',
-          '条件部分': 'terms',
-          'Q&A': 'qa',
-          'qa': 'qa',
-          '質問': 'qa',
-          '質問と回答': 'qa'
-        };
+        // メタデータから項目名のマッピングを取得（契約書管理の場合）
+        const contractsMetadata = getMenuAIMetadata('contracts');
+        const sectionMapping: { [key: string]: string } = {};
+        
+        if (contractsMetadata) {
+          // メタデータのフィールドマッピングを使用
+          contractsMetadata.fieldMappings.forEach(mapping => {
+            mapping.japanese.forEach(jp => {
+              sectionMapping[jp.toLowerCase()] = mapping.english;
+            });
+          });
+        } else {
+          // フォールバック: 既存のマッピング
+          sectionMapping['説明'] = 'overview';
+          sectionMapping['概要'] = 'overview';
+          sectionMapping['料金'] = 'pricing';
+          sectionMapping['価格'] = 'pricing';
+          sectionMapping['特徴'] = 'features';
+          sectionMapping['機能'] = 'features';
+          sectionMapping['手順'] = 'procedures';
+          sectionMapping['サポート'] = 'support';
+          sectionMapping['規則'] = 'rules';
+          sectionMapping['条件'] = 'terms';
+          sectionMapping['Q&A'] = 'qa';
+          sectionMapping['質問'] = 'qa';
+        }
         
         // 項目名を英語に変換
         const targetSectionKey = extractedSection ? sectionMapping[extractedSection.toLowerCase()] || null : null;
         
+        // セクション内容を文字列化するヘルパー関数
+        const sectionContentToString = (sectionValue: any): string => {
+          if (typeof sectionValue === 'string') {
+            return sectionValue;
+          }
+          if (Array.isArray(sectionValue)) {
+            return sectionValue.map((item: any) => {
+              if (typeof item === 'string') {
+                return item;
+              }
+              if (item && typeof item === 'object') {
+                return `${item.title || ''} ${item.content || ''}`.trim();
+              }
+              return '';
+            }).filter((s: string) => s.length > 0).join(' ');
+          }
+          return '';
+        };
+        
         for (const doc of snapshot.docs) {
           const data = doc.data();
+          const sections = data.sections || {};
           
           // 一般的な質問の場合は、すべてのドキュメントを返す
           if (isGeneralQuery) {
             relevantDocs.push({
               title: data.title,
               description: data.description || '',
-              sections: data.sections,
+              sections: sections,
               targetSectionKey: null
             });
           } else {
             // タイトル抽出パターンがある場合、タイトルで優先的に検索
             let isMatch = false;
             let matchScore = 0;
+            
+            // 項目指定がある場合、その項目の内容をチェック
+            if (targetSectionKey) {
+              const targetSectionContent = sections[targetSectionKey];
+              if (targetSectionContent === undefined || targetSectionContent === null) {
+                // 指定された項目が存在しない場合はスキップ
+                continue;
+              }
+              
+              // 項目の内容が空でないことを確認
+              const sectionContentStr = sectionContentToString(targetSectionContent);
+              if (sectionContentStr.trim().length === 0) {
+                // 項目の内容が空の場合はスキップ
+                continue;
+              }
+            }
             
             if (extractedTitle) {
               const docTitleLower = data.title?.toLowerCase() || '';
@@ -796,12 +1710,29 @@ async function searchByIntent(
             }
             
             // 内容でのマッチング
-            const contentMatch = JSON.stringify(data.sections || {}).toLowerCase().includes(searchQuery);
-            const wordMatch = queryWords.some(word => 
-              data.title?.toLowerCase().includes(word) || 
-              data.description?.toLowerCase().includes(word) ||
-              JSON.stringify(data.sections || {}).toLowerCase().includes(word)
-            );
+            // 項目指定がある場合は、その項目の内容だけで検索
+            let contentMatch = false;
+            let wordMatch = false;
+            
+            if (targetSectionKey) {
+              // 項目指定がある場合、その項目の内容だけで検索
+              const targetSectionContent = sections[targetSectionKey];
+              const sectionContentStr = sectionContentToString(targetSectionContent).toLowerCase();
+              contentMatch = sectionContentStr.includes(searchQuery);
+              wordMatch = queryWords.some(word => sectionContentStr.includes(word));
+            } else {
+              // 項目指定がない場合、すべてのセクションを検索
+              const allSectionsContent = Object.entries(sections)
+                .map(([key, value]) => sectionContentToString(value))
+                .join(' ')
+                .toLowerCase();
+              contentMatch = allSectionsContent.includes(searchQuery);
+              wordMatch = queryWords.some(word => 
+                data.title?.toLowerCase().includes(word) || 
+                data.description?.toLowerCase().includes(word) ||
+                allSectionsContent.includes(word)
+              );
+            }
             
             if ((contentMatch || wordMatch) && !isMatch) {
               isMatch = true;
@@ -812,9 +1743,9 @@ async function searchByIntent(
               relevantDocs.push({
                 title: data.title,
                 description: data.description || '',
-                sections: data.sections,
+                sections: sections,
                 matchScore,
-                targetSectionKey // 指定された項目名を保存
+                targetSectionKey: targetSectionKey || null // 指定された項目名を保存
               });
             }
           }
@@ -913,17 +1844,27 @@ async function searchByIntent(
             // 項目指定がある場合は、その項目だけを処理
             let sectionsToProcess: [string, any][];
             
+            // targetSectionKeyが設定されている場合（doc.targetSectionKeyまたはグローバル変数）
+            const effectiveTargetSectionKey = doc.targetSectionKey || targetSectionKey;
+            
             // ドキュメントにtargetSectionKeyが設定されている場合（項目指定）
-            if (doc.targetSectionKey) {
+            if (effectiveTargetSectionKey) {
               // 指定された項目だけを処理
-              const targetKey = doc.targetSectionKey;
-              if (sections[targetKey] !== undefined) {
-                sectionsToProcess = [[targetKey, sections[targetKey]]];
+              const targetKey = effectiveTargetSectionKey;
+              if (sections[targetKey] !== undefined && sections[targetKey] !== null) {
+                // セクションが存在し、内容が空でないことを確認
+                const sectionContentStr = sectionContentToString(sections[targetKey]);
+                if (sectionContentStr.trim().length > 0) {
+                  sectionsToProcess = [[targetKey, sections[targetKey]]];
+                } else {
+                  // セクションの内容が空の場合
+                  sectionsToProcess = [];
+                }
               } else {
                 // 指定された項目が存在しない場合
                 sectionsToProcess = [];
               }
-            } else if (extractedTitle && !targetSectionKey) {
+            } else if (extractedTitle && !effectiveTargetSectionKey) {
               // 「について教えて」の場合は、overviewセクションまたは説明を表示
               if (sections.overview !== undefined) {
                 sectionsToProcess = [['overview', sections.overview]];
@@ -936,10 +1877,25 @@ async function searchByIntent(
               }
             } else {
               // すべてのセクションを処理（通常の検索）
-              sectionsToProcess = Object.entries(sections);
-              // 説明を最初に表示
-              if (doc.description && doc.description.trim()) {
-                sectionTexts.push(`説明: ${doc.description}`);
+              // ただし、targetSectionKeyが設定されている場合は、そのセクションだけを処理
+              if (targetSectionKey && !effectiveTargetSectionKey) {
+                // グローバル変数のtargetSectionKeyを使用
+                if (sections[targetSectionKey] !== undefined && sections[targetSectionKey] !== null) {
+                  const sectionContentStr = sectionContentToString(sections[targetSectionKey]);
+                  if (sectionContentStr.trim().length > 0) {
+                    sectionsToProcess = [[targetSectionKey, sections[targetSectionKey]]];
+                  } else {
+                    sectionsToProcess = [];
+                  }
+                } else {
+                  sectionsToProcess = [];
+                }
+              } else {
+                sectionsToProcess = Object.entries(sections);
+                // 説明を最初に表示
+                if (doc.description && doc.description.trim()) {
+                  sectionTexts.push(`説明: ${doc.description}`);
+                }
               }
             }
             
@@ -1195,6 +2151,11 @@ export async function POST(request: NextRequest) {
     // ユーザーのcompanyNameを取得
     const companyName = await getUserCompanyName(userId);
 
+    // デバッグログ（開発環境のみ）
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AI Chat] User info:', { userId, companyName: companyName || '(empty)' });
+    }
+
     if (!adminDb) {
       return NextResponse.json(
         { error: 'データベース接続エラー' },
@@ -1202,12 +2163,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. intentを最初に決定
+    // Phase 1: アクション検出を最初に試みる
+    const action = detectAction(message);
+    if (action) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AI Chat] Action detected:', action);
+      }
+      
+      const actionResponse = generateActionResponse(action, userId, companyName);
+      if (actionResponse) {
+        return NextResponse.json({
+          response: actionResponse,
+          intent: 'action',
+          action: action
+        });
+      }
+    }
+
+    // 1. intentを最初に決定（アクションが検出されなかった場合）
     const intent = parseIntent(message);
     
     // デバッグログ（開発環境のみ）
     if (process.env.NODE_ENV === 'development') {
-      console.log('[AI Chat] Intent parsed:', { message, intent: intent.type });
+      console.log('[AI Chat] Intent parsed:', { message, intent: intent.type, menuId: intent.menuId || 'none' });
     }
 
     // 2. intentに基づいて1系統だけ検索

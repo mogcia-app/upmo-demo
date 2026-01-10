@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useSidebarConfig } from "../hooks/useSidebarConfig";
 import { useAuth } from "../contexts/AuthContext";
-import { CATEGORY_NAMES, MenuCategory } from "../types/sidebar";
+import { CATEGORY_NAMES, CATEGORY_ORDER, getMenuItemsByCategoryOrdered } from "../types/sidebar";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -24,12 +24,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const isAdmin = userRole?.role === 'admin';
 
   // カテゴリの折りたたみ状態を管理
-  const [expandedCategories, setExpandedCategories] = useState<Set<MenuCategory>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   // 共通メニューの折りたたみ状態を管理
   const [isCommonMenuExpanded, setIsCommonMenuExpanded] = useState(true); // デフォルトで展開
 
   // カテゴリの展開/折りたたみを切り替え
-  const toggleCategory = (category: MenuCategory) => {
+  const toggleCategory = (category: string) => {
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
       if (newSet.has(category)) {
@@ -137,73 +137,55 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               <div className="mx-2 lg:mx-4 my-4 border-t border-white/20"></div>
               
               {/* カテゴリごとにグループ化して表示 */}
-              {(() => {
-                // カテゴリの順序を固定
-                const categoryOrder: MenuCategory[] = ['sales', 'customer', 'inventory', 'finance', 'pdca', 'document', 'project', 'analytics', 'other'];
-                
-                // カテゴリごとにグループ化
-                const groupedByCategory = additionalMenuItems.reduce((acc, item) => {
-                  if (!acc[item.category]) {
-                    acc[item.category] = [];
-                  }
-                  acc[item.category].push(item);
-                  return acc;
-                }, {} as Record<MenuCategory, typeof additionalMenuItems>);
-                
-                // カテゴリ順にソートして、空でないカテゴリのみ表示
-                return categoryOrder
-                  .filter(category => groupedByCategory[category] && groupedByCategory[category].length > 0)
-                  .map((category) => {
-                    const items = groupedByCategory[category];
-                    const isExpanded = expandedCategories.has(category);
-                    return (
-                      <div key={category} className="mb-2">
-                      <button
-                          onClick={() => toggleCategory(category)}
-                          className="w-full flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-2 text-white/90 text-sm lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
-                        >
-                          <div className="flex items-center">
-                            <span>{CATEGORY_NAMES[category]}</span>
-                            <span className="ml-2 text-xs text-white/60">({items.length})</span>
-                          </div>
-                          <svg
-                            className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'transform rotate-90' : ''}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                        {isExpanded && (
-                          <ul className="space-y-1 mt-1 ml-2 border-l-2 border-white/20 pl-2">
-                            {items.map((item) => (
-                              <li key={item.id}>
-                                <a
-                                  href={item.href}
-                                  onClick={onClose}
-                                  className="
-                                    flex items-center px-3 lg:px-4 py-2 lg:py-2 rounded-lg text-white/90 hover:bg-white/20 hover:text-white
-                                    transition-all duration-200 ease-in-out
-                                    group text-sm lg:text-sm
-                                  "
-                                  title={item.name}
-                                >
-                                  <span className="text-base lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
-                                    {item.icon}
-                                  </span>
-                                  <span className="font-medium">{item.name}</span>
-                                </a>
-                              </li>
-                            ))}
-                          </ul>
+              {getMenuItemsByCategoryOrdered(additionalMenuItems).map(([category, items]) => {
+                const isExpanded = expandedCategories.has(category);
+                return (
+                  <div key={category} className="mb-2">
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      className="w-full flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-2 text-white/90 text-sm lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center">
+                        <span>{CATEGORY_NAMES[category] || category}</span>
+                        <span className="ml-2 text-xs text-white/60">({items.length})</span>
+                      </div>
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'transform rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    {isExpanded && (
+                      <ul className="space-y-1 mt-1 ml-2 border-l-2 border-white/20 pl-2">
+                        {items.map((item) => (
+                          <li key={item.id}>
+                            <a
+                              href={item.href}
+                              onClick={onClose}
+                              className="
+                                flex items-center px-3 lg:px-4 py-2 lg:py-2 rounded-lg text-white/90 hover:bg-white/20 hover:text-white
+                                transition-all duration-200 ease-in-out
+                                group text-sm lg:text-sm
+                              "
+                              title={item.name}
+                            >
+                              <span className="text-base lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
+                                {item.icon}
+                              </span>
+                              <span className="font-medium">{item.name}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
-              );
-                  });
-              })()}
+                );
+              })}
             </>
-            )}
+          )}
 
           {/* セパレーター */}
           <div className="mx-2 lg:mx-4 my-4 border-t border-white/20"></div>
