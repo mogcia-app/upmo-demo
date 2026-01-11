@@ -119,7 +119,7 @@ export default function TodoPage() {
         // 各ユーザーのTODOを取得（並列処理）
         const todoPromises = companyUserIds.map(userId => 
           getDocs(query(
-            collection(db, 'todos'),
+          collection(db, 'todos'),
             where('userId', '==', userId)
           ))
         );
@@ -211,14 +211,14 @@ export default function TodoPage() {
           const todoData = {
             ...baseTodoData,
             userId: userId
-          };
-          
-          const docRef = await addDoc(collection(db, 'todos'), todoData);
-          const newTodoItem: TodoItem = {
-            id: docRef.id,
-            ...todoData,
-            sharedWith: []
-          };
+        };
+
+        const docRef = await addDoc(collection(db, 'todos'), todoData);
+        const newTodoItem: TodoItem = {
+          id: docRef.id,
+          ...todoData,
+          sharedWith: []
+        };
           createdTodos.push(newTodoItem);
         }
         
@@ -226,7 +226,7 @@ export default function TodoPage() {
         const myTodo = createdTodos.find(t => t.userId === user.uid);
         if (myTodo) {
           const updatedTodos = [myTodo, ...todos];
-          setTodos(updatedTodos);
+        setTodos(updatedTodos);
         }
         
         setNewTodo('');
@@ -617,7 +617,7 @@ export default function TodoPage() {
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-gray-900 text-xs sm:text-sm leading-tight break-words">
                 {!todo.description?.includes('議事録') && !todo.description?.includes('[AI生成]') && (
-                  <span className="hidden sm:inline">#{todo.id.slice(-2)} </span>
+                <span className="hidden sm:inline">#{todo.id.slice(-2)} </span>
                 )}
                 {todo.text}
               </h3>
@@ -625,9 +625,9 @@ export default function TodoPage() {
                 const todoOwner = allUsers.find(u => u.id === todo.userId);
                 const ownerName = todoOwner?.displayName || todoOwner?.email || '不明';
                 return (
-                  <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                     {ownerName}のタスク
-                  </p>
+                </p>
                 );
               })()}
               {isShared && (
@@ -734,36 +734,36 @@ export default function TodoPage() {
                 );
               } else {
                 // 通常のTODOの場合は作成者と共有先を表示
-                const creator = allUsers.find(u => u.id === todo.userId);
-                return (
+              const creator = allUsers.find(u => u.id === todo.userId);
+              return (
                   <>
                     {/* 作成者 */}
-                    <div
-                      className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
-                      title={creator?.displayName || todo.assignee || '作成者'}
-                    >
-                      {creator?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                    {/* 共有先のユーザー */}
-                    {todo.sharedWith && todo.sharedWith.length > 0 && todo.sharedWith.slice(0, 2).map((sharedUserId, index) => {
-                      const sharedUser = allUsers.find(u => u.id === sharedUserId);
-                      const colors = ['bg-green-500', 'bg-purple-500', 'bg-pink-500'];
-                      if (!sharedUser) return null;
-                      return (
-                        <div
-                          key={sharedUserId}
-                          className={`w-5 h-5 sm:w-6 sm:h-6 ${colors[index % colors.length]} rounded-full border border-white flex items-center justify-center text-white text-xs font-medium`}
-                          title={sharedUser.displayName}
-                        >
-                          {sharedUser.displayName.charAt(0).toUpperCase()}
-                        </div>
-                      );
-                    })}
-                    {todo.sharedWith && todo.sharedWith.length > 2 && (
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-400 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium">
-                        +{todo.sharedWith.length - 2}
-                      </div>
-                    )}
+                <div
+                  className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
+                  title={creator?.displayName || todo.assignee || '作成者'}
+                >
+                  {creator?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
+                </div>
+            {/* 共有先のユーザー */}
+            {todo.sharedWith && todo.sharedWith.length > 0 && todo.sharedWith.slice(0, 2).map((sharedUserId, index) => {
+              const sharedUser = allUsers.find(u => u.id === sharedUserId);
+              const colors = ['bg-green-500', 'bg-purple-500', 'bg-pink-500'];
+              if (!sharedUser) return null;
+              return (
+                <div
+                  key={sharedUserId}
+                  className={`w-5 h-5 sm:w-6 sm:h-6 ${colors[index % colors.length]} rounded-full border border-white flex items-center justify-center text-white text-xs font-medium`}
+                  title={sharedUser.displayName}
+                >
+                  {sharedUser.displayName.charAt(0).toUpperCase()}
+                </div>
+              );
+            })}
+            {todo.sharedWith && todo.sharedWith.length > 2 && (
+              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-400 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium">
+                +{todo.sharedWith.length - 2}
+              </div>
+            )}
                   </>
                 );
               }
@@ -773,16 +773,16 @@ export default function TodoPage() {
           {/* 日付とタグ */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-0">
             {(todo.startDate || todo.dueDate) && (
-              <div className="text-xs text-gray-500 whitespace-nowrap">
+            <div className="text-xs text-gray-500 whitespace-nowrap">
                 {todo.startDate && todo.dueDate ? (
                   <>
                     {todo.startDate.toLocaleDateString('ja-JP', {
-                      month: '2-digit',
-                      day: '2-digit'
+                month: '2-digit',
+                day: '2-digit'
                     })} - {todo.dueDate.toLocaleDateString('ja-JP', {
-                      month: '2-digit',
-                      day: '2-digit'
-                    })}
+                month: '2-digit',
+                day: '2-digit'
+              })}
                   </>
                 ) : todo.startDate ? (
                   <>開始: {todo.startDate.toLocaleDateString('ja-JP', {
@@ -795,7 +795,7 @@ export default function TodoPage() {
                     day: '2-digit'
                   })}</>
                 ) : null}
-              </div>
+            </div>
             )}
             <div className="flex gap-1 flex-wrap">
               {todo.tags?.map((tag, tagIndex) => (
@@ -863,7 +863,7 @@ export default function TodoPage() {
               </div>
               {/* 月切り替えコントロール */}
               <div className="flex items-center gap-2">
-                <button
+                  <button
                   onClick={() => changeMonth('prev')}
                   className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                   title="前月"
@@ -871,7 +871,7 @@ export default function TodoPage() {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                </button>
+                  </button>
                 <div className="flex items-center gap-2">
                   <input
                     type="month"
@@ -883,13 +883,13 @@ export default function TodoPage() {
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   {selectedMonth.getFullYear() !== new Date().getFullYear() || selectedMonth.getMonth() !== new Date().getMonth() ? (
-                    <button
+                  <button
                       onClick={goToCurrentMonth}
                       className="px-3 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                       title="今月に戻る"
-                    >
+                  >
                       今月
-                    </button>
+                  </button>
                   ) : null}
                 </div>
                 <button
@@ -1000,17 +1000,17 @@ export default function TodoPage() {
                 </div>
                 <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
-                    {getTodosByStatus('shared').map((todo, index) => (
+                  {getTodosByStatus('shared').map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
                         <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
                       </div>
-                    ))}
-                    {getTodosByStatus('shared').length === 0 && (
+                  ))}
+                  {getTodosByStatus('shared').length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                        <div className="text-3xl sm:text-4xl mb-2">📋</div>
-                        <p className="text-xs sm:text-sm">共有事項がありません</p>
-                      </div>
-                    )}
+                      <div className="text-3xl sm:text-4xl mb-2">📋</div>
+                      <p className="text-xs sm:text-sm">共有事項がありません</p>
+                    </div>
+                  )}
                   </div>
                 </div>
               </div>
@@ -1035,17 +1035,17 @@ export default function TodoPage() {
                 </div>
                 <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
-                    {getTodosByStatus('todo').map((todo, index) => (
+                  {getTodosByStatus('todo').map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
                         <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
                       </div>
-                    ))}
-                    {getTodosByStatus('todo').length === 0 && (
+                  ))}
+                  {getTodosByStatus('todo').length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                        <div className="text-3xl sm:text-4xl mb-2">📝</div>
-                        <p className="text-xs sm:text-sm">ToDoがありません</p>
-                      </div>
-                    )}
+                      <div className="text-3xl sm:text-4xl mb-2">📝</div>
+                      <p className="text-xs sm:text-sm">ToDoがありません</p>
+                    </div>
+                  )}
                   </div>
                 </div>
               </div>
@@ -1070,19 +1070,19 @@ export default function TodoPage() {
                 </div>
                 <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
-                    {getTodosByStatus('in-progress').map((todo, index) => (
+                  {getTodosByStatus('in-progress').map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
                         <TaskCard todo={todo} index={index} onEdit={startEditing} onDelete={deleteTodo} onStatusChange={changeStatus} onToggleComplete={toggleComplete} />
                       </div>
-                    ))}
-                    {getTodosByStatus('in-progress').length === 0 && (
+                  ))}
+                  {getTodosByStatus('in-progress').length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                        <div className="text-3xl sm:text-4xl mb-2">🚀</div>
-                        <p className="text-xs sm:text-sm">進行中のタスクがありません</p>
-                      </div>
-                    )}
-                  </div>
+                      <div className="text-3xl sm:text-4xl mb-2">🚀</div>
+                      <p className="text-xs sm:text-sm">進行中のタスクがありません</p>
+                    </div>
+                  )}
                 </div>
+              </div>
               </div>
 
               {/* 完了 */}
@@ -1107,8 +1107,8 @@ export default function TodoPage() {
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
                         <div className="text-3xl sm:text-4xl mb-2">✅</div>
                         <p className="text-xs sm:text-sm">完了したタスクがありません</p>
-                      </div>
-                    )}
+            </div>
+            )}
                   </div>
                 </div>
               </div>
@@ -1123,13 +1123,13 @@ export default function TodoPage() {
                 <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
-                    <input
-                      type="text"
-                      value={newTodo}
-                      onChange={(e) => setNewTodo(e.target.value)}
-                      placeholder="タスクのタイトルを入力..."
-                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                  <input
+                    type="text"
+                    value={newTodo}
+                    onChange={(e) => setNewTodo(e.target.value)}
+                    placeholder="タスクのタイトルを入力..."
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">担当者</label>

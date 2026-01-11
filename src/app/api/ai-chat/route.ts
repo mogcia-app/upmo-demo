@@ -96,13 +96,34 @@ function getMenuAIMetadata(menuId: string): AIChatMetadata | null {
 function parseIntentFromMenu(message: string): { menuId: string; intent: Intent } | null {
   const messageLower = message.toLowerCase();
   
+  // 一般的な質問（「使い方を教えて」など）は、特定のメニューにマッチしないようにする
+  const generalQueryPatterns = [
+    '使い方を教えて', '使い方', '使い方を', '使い方について',
+    '使い方を知りたい', '使い方を確認したい', '使い方を見たい',
+    '使い方を説明して', '使い方を説明', '使い方の説明',
+    'どう使う', 'どうやって使う', '使用方法', '使用方法を教えて',
+    'ヘルプ', 'help', 'ヘルプを', 'ヘルプを教えて',
+    'よくある質問を教えて', 'よくある質問', 'FAQ', 'faq', 'よくある質問について'
+  ];
+  
+  const isGeneralUsageQuery = generalQueryPatterns.some(pattern => 
+    messageLower === pattern.toLowerCase() || messageLower === `${pattern}。` || messageLower === `${pattern}？` || messageLower.includes(pattern.toLowerCase())
+  );
+  
+  // 一般的な使い方の質問の場合は、nullを返してunknown intentにする
+  if (isGeneralUsageQuery) {
+    return null;
+  }
+  
   // 契約書管理を最優先（「の料金」などのセクションクエリがある場合）
   const contractsItem = AVAILABLE_MENU_ITEMS.find(item => item.id === 'contracts');
   if (contractsItem && contractsItem.aiChatMetadata) {
+    // fieldMappingsはセクション検索用なので、意図判定からは除外する
+    // （「使い方」などのキーワードが含まれているため、誤検出を防ぐ）
     const contractsKeywords = [
       '契約書', '契約', 'document', 'ドキュメント',
-      ...contractsItem.aiChatMetadata.searchableFields.flatMap(f => f.japaneseNames),
-      ...contractsItem.aiChatMetadata.fieldMappings.flatMap(m => m.japanese)
+      ...contractsItem.aiChatMetadata.searchableFields.flatMap(f => f.japaneseNames)
+      // fieldMappingsは除外（セクション検索用）
     ];
     
     const contractsMatched = contractsKeywords.some(keyword => 
@@ -192,6 +213,26 @@ function mapCategoryToIntent(category: string): Intent['type'] {
 }
 
 function parseIntent(message: string): Intent {
+  const messageLower = message.toLowerCase();
+  
+  // 一般的な質問（「使い方を教えて」など）は、特定のメニューにマッチしないようにする
+  const generalQueryPatterns = [
+    '使い方を教えて', '使い方', '使い方を', '使い方について',
+    '使い方を知りたい', '使い方を確認したい', '使い方を見たい',
+    '使い方を説明して', '使い方を説明', '使い方の説明',
+    'どう使う', 'どうやって使う', '使用方法', '使用方法を教えて',
+    'ヘルプ', 'help', 'ヘルプを', 'ヘルプを教えて'
+  ];
+  
+  const isGeneralUsageQuery = generalQueryPatterns.some(pattern => 
+    messageLower.includes(pattern.toLowerCase())
+  );
+  
+  // 一般的な使い方の質問の場合は、unknown intentを返す（後でAIチャット自体の使い方を説明する応答を返す）
+  if (isGeneralUsageQuery) {
+    return { type: 'unknown' };
+  }
+  
   // まずメニュー項目ベースで判定
   const menuResult = parseIntentFromMenu(message);
   if (menuResult) {
@@ -211,12 +252,13 @@ function parseIntent(message: string): Intent {
   if (pageId === 'todo') return { type: 'todo', menuId: 'todo' };
   if (pageId === 'event') return { type: 'event' };
   if (pageId === 'document') {
-    // documentの場合は、契約書関連のキーワードでcontractsメニューを検出
+    // documentの場合は、契約書管理（contracts）にマッチさせる
+    // 「文書」「document」「ドキュメント」などのキーワードでcontractsメニューを検出
     const messageLower = message.toLowerCase();
-    if (['契約書', '契約', 'contract'].some(keyword => messageLower.includes(keyword))) {
+    if (['契約書', '契約', 'contract', '文書', 'document', 'ドキュメント'].some(keyword => messageLower.includes(keyword))) {
       return { type: 'document', menuId: 'contracts' };
     }
-    return { type: 'document' };
+    return { type: 'document', menuId: 'contracts' }; // デフォルトでcontractsにマッチ
   }
   
   return { type: 'unknown' };
@@ -474,8 +516,18 @@ function buildSearchQueryFromMetadata(
   }
   
   // タイトルクエリを設定
+  // ただし、メニュー名自体（例: 「TODOリスト」）が抽出された場合は、titleQueryとして設定しない
   if (extractedTitle) {
-    titleQuery = extractedTitle;
+    const menuItem = AVAILABLE_MENU_ITEMS.find(item => 
+      item.name.toLowerCase() === extractedTitle.toLowerCase() ||
+      item.name.toLowerCase().includes(extractedTitle.toLowerCase()) ||
+      extractedTitle.toLowerCase().includes(item.name.toLowerCase())
+    );
+    
+    // メニュー名と一致しない場合のみ、titleQueryとして設定
+    if (!menuItem) {
+      titleQuery = extractedTitle;
+    }
   }
   
   // フィールドマッピングをチェック（セクションクエリ）
@@ -495,15 +547,22 @@ function buildSearchQueryFromMetadata(
     }
   } else {
     // セクション名が抽出されていない場合、メッセージ全体から検索
-    for (const mapping of metadata.fieldMappings) {
-      const matchedJapanese = mapping.japanese.find(jp => 
-        messageLower.includes(jp.toLowerCase())
-      );
-      
-      if (matchedJapanese) {
-        // セクションクエリとして追加（例: 「料金」→ pricing）
-        sectionQueries[mapping.english] = matchedJapanese;
-        break; // 最初のマッチのみ使用
+    // ただし、一般的な質問（「教えて」など）の場合は、セクションクエリを抽出しない
+    const isGeneralQuery = ['一覧', '見たい', '教えて', '確認', '見る', '全部', 'すべて', '全て'].some(
+      keyword => messageLower.includes(keyword)
+    );
+    
+    if (!isGeneralQuery) {
+      for (const mapping of metadata.fieldMappings) {
+        const matchedJapanese = mapping.japanese.find(jp => 
+          messageLower.includes(jp.toLowerCase())
+        );
+        
+        if (matchedJapanese) {
+          // セクションクエリとして追加（例: 「料金」→ pricing）
+          sectionQueries[mapping.english] = matchedJapanese;
+          break; // 最初のマッチのみ使用
+        }
       }
     }
   }
@@ -583,6 +642,18 @@ async function searchByMenuMetadata(
   // 検索結果をフィルタリング
   const results = filterResultsByMetadata(snapshot.docs, query, metadata, message);
   
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[searchByMenuMetadata] Results:', {
+      menuId,
+      collectionName: metadata.collectionName,
+      snapshotDocsCount: snapshot.docs.length,
+      filteredResultsCount: results.length,
+      userId,
+      companyName,
+      query: JSON.stringify(query)
+    });
+  }
+  
   // 結果をフォーマット
   return formatResultsByMetadata(results, metadata, menuItem, query);
 }
@@ -603,8 +674,8 @@ function filterResultsByMetadata(
     const data = doc.data();
     
     // 一般的な質問の場合は、すべての結果を返す（フィルタリングをスキップ）
-    // titleQueryがあっても、一般的な質問の場合はすべての結果を返す
-    if (isGeneralQuery && Object.keys(query.sectionQueries).length === 0) {
+    // titleQueryやsectionQueriesがあっても、一般的な質問の場合はすべての結果を返す
+    if (isGeneralQuery) {
       return true;
     }
     
@@ -2000,6 +2071,10 @@ function buildResponse(intent: Intent, result: ContextResult | null, message: st
 
   // 2. unknown intentの場合
   if (intent.type === 'unknown') {
+    // 「よくある質問」「FAQ」を検出
+    const faqKeywords = ['よくある質問', 'FAQ', 'faq', 'よくある質問を教えて', 'よくある質問について'];
+    const isFAQQuery = faqKeywords.some(keyword => message.toLowerCase().includes(keyword));
+    
     // 「使い方」「方法」「教えて」などの一般的な質問を検出
     const helpKeywords = ['使い方', '使い', '方法', '教えて', 'how to', '使い方を', 'どうやって', 'どう使う'];
     const isHelpQuery = helpKeywords.some(keyword => message.toLowerCase().includes(keyword));
@@ -2007,71 +2082,105 @@ function buildResponse(intent: Intent, result: ContextResult | null, message: st
     try {
       const knowledge = getAppKnowledge();
       
-      if (isHelpQuery) {
+      if (isFAQQuery) {
+        // よくある質問のリストを返す
+        const faqList = [
+          {
+            question: '「情報が見つかりませんでした」と表示される',
+            answer: 'データが存在しないか、質問の表現が適切でない可能性があります。「〇〇について教えて」という形式で質問してください。'
+          },
+          {
+            question: 'セクション検索がうまく動作しない',
+            answer: 'タイトルとセクション名の両方を指定してください。例：「Signal.の料金について教えて」'
+          },
+          {
+            question: '自分のTODOが見つからない',
+            answer: 'TODOリストはユーザー単位で検索されます。ログインしているユーザーのデータのみ検索対象です。'
+          },
+          {
+            question: '契約書が見つからない',
+            answer: '契約書管理は会社単位で共有されます。会社名が正しく設定されているか確認してください。'
+          },
+          {
+            question: 'アクション検出が動作しない',
+            answer: 'アクション動詞（「作って」「確認したい」など）とドメイン名（「請求書」「タスク」など）を含めてください。'
+          },
+          {
+            question: '検索結果が多すぎる/少なすぎる',
+            answer: 'より具体的な質問をするか、セクション名やステータスを指定してください。'
+          }
+        ];
+        
+        const faqText = faqList.map((faq, index) => 
+          `Q${index + 1}: ${faq.question}\nA: ${faq.answer}`
+        ).join('\n\n');
+        
+        return `❓ よくある質問\n\n${faqText}\n\n他に質問があれば、お気軽にどうぞ！`;
+      } else if (isHelpQuery) {
         // 使い方の質問に対して、より親切な案内を返す
         const helpExamples = [
           {
-            category: '📋 顧客管理',
+            category: 'TODOリスト',
             examples: [
-              '「顧客一覧を見たい」',
-              '「山田さんの情報を教えて」',
-              '「顧客を検索したい」'
+              '「TODOリストについて教えて」',
+              '「共有事項について教えて」',
+              '「進行中のタスクを確認したい」'
             ]
           },
           {
-            category: '💼 営業案件',
+            category: '進捗メモ',
             examples: [
-              '「営業案件を教えて」',
-              '「進行中の案件は？」',
-              '「案件の一覧を見たい」'
+              '「進捗メモについて教えて」',
+              '「営業活動の進捗を確認したい」',
+              '「案件の進捗を見たい」'
             ]
           },
           {
-            category: '✅ タスク管理',
+            category: '契約書管理',
             examples: [
-              '「今日のタスクは？」',
-              '「タスク一覧を見たい」',
-              '「優先度の高いタスクは？」'
+              '「契約書について教えて」',
+              '「Signal.について教えて」',
+              '「Signal.の料金について教えて」'
             ]
           },
           {
-            category: '📝 議事録',
+            category: '利用者管理',
             examples: [
-              '「議事録を見たい」',
-              '「先週の会議の議事録は？」',
-              '「議事録を検索したい」'
+              '「利用者について教えて」',
+              '「ユーザー一覧を確認したい」',
+              '「利用者を検索したい」'
             ]
           },
           {
-            category: '📅 カレンダー',
+            category: '会社情報',
             examples: [
-              '「今日の予定は？」',
-              '「今週のイベントは？」',
-              '「予定を確認したい」'
+              '「会社情報について教えて」',
+              '「会社の住所を確認したい」',
+              '「会社の電話番号を教えて」'
             ]
           },
           {
-            category: '📄 社内ドキュメント',
+            category: '請求書発行',
             examples: [
-              '「マニュアルを探したい」',
-              '「契約書を検索したい」',
-              '「社内文書を見たい」'
+              '「請求書について教えて」',
+              '「請求書一覧を確認したい」',
+              '「請求書を検索したい」'
             ]
           }
         ];
         
-        const examplesText = helpExamples.map(help => 
-          `${help.category}\n${help.examples.map(ex => `  • ${ex}`).join('\n')}`
-        ).join('\n\n');
+        const examplesText = helpExamples.map(help => {
+          const examplesList = help.examples.map(ex => `  • ${ex}`).join('\n');
+          return `${help.category}\n${examplesList}`;
+        }).join('\n\n');
         
         return `こんにちは！AIアシスタントです。\n\n` +
-          `📖 使い方\n\n` +
           `このチャットでは、アプリ内の情報を質問形式で検索できます。\n\n` +
           `質問の例：\n\n${examplesText}\n\n` +
           `💡 ポイント\n` +
           `• 自然な日本語で質問してください\n` +
           `• 具体的なキーワード（「顧客」「案件」「タスク」など）を含めると、より正確な結果が得られます\n` +
-          `• 「今日のタスクは？」のように日付を含めると、その日の情報を取得できます\n\n` +
+          `• 「12月1日のタスクは？」のように日付を含めると、その日の情報を取得できます\n\n` +
           `何か質問があれば、お気軽にどうぞ！`;
       } else {
         // 通常のunknown intent

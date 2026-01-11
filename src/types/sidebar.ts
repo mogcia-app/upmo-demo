@@ -159,8 +159,8 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
           japaneseNames: ['タイトル', '件名', '題名'],
           searchable: true,
           weight: 10
-        },
-        {
+  },
+  {
           fieldName: 'content',
           japaneseNames: ['内容', '本文', 'メモ', '記録'],
           searchable: true,
@@ -264,8 +264,8 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
           japaneseNames: ['名前', '表示名', '氏名', 'ユーザー名'],
           searchable: true,
           weight: 10
-        },
-        {
+  },
+  {
           fieldName: 'email',
           japaneseNames: ['メール', 'メールアドレス', 'Eメール'],
           searchable: true,
@@ -340,8 +340,8 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
           japaneseNames: ['請求書番号', '番号', 'インボイス番号'],
           searchable: true,
           weight: 10
-        },
-        {
+  },
+  {
           fieldName: 'customerName',
           japaneseNames: ['顧客名', '顧客', '取引先'],
           searchable: true,
@@ -362,6 +362,47 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
         {
           fieldName: 'dueDate',
           japaneseNames: ['支払期限', '期限', '期日'],
+          searchable: true,
+          weight: 3
+        }
+      ],
+      fieldMappings: []
+    }
+  },
+  {
+    id: 'calendar',
+    name: 'カレンダー',
+    icon: '📅',
+    href: '/calendar',
+    description: '予定の管理',
+    category: 'other',
+    aiChatMetadata: {
+      collectionName: 'events',
+      searchByCompany: true,
+      searchByUser: false,
+      defaultLimit: 20,
+      searchableFields: [
+        {
+          fieldName: 'title',
+          japaneseNames: ['タイトル', '予定名', '件名'],
+          searchable: true,
+          weight: 10
+        },
+        {
+          fieldName: 'description',
+          japaneseNames: ['説明', '詳細', '内容'],
+          searchable: true,
+          weight: 5
+        },
+        {
+          fieldName: 'location',
+          japaneseNames: ['場所', 'ロケーション', '会場'],
+          searchable: true,
+          weight: 3
+        },
+        {
+          fieldName: 'date',
+          japaneseNames: ['日付', '日程', '予定日'],
           searchable: true,
           weight: 3
         }
@@ -435,8 +476,8 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
           japaneseNames: ['会社名', '企業名', '会社'],
           searchable: true,
           weight: 8
-        },
-        {
+  },
+  {
           fieldName: 'email',
           japaneseNames: ['メール', 'メールアドレス', 'Eメール'],
           searchable: true,
@@ -470,8 +511,8 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
           japaneseNames: ['顧客名', '顧客', '取引先'],
           searchable: true,
           weight: 8
-        },
-        {
+  },
+  {
           fieldName: 'notes',
           japaneseNames: ['メモ', '詳細', '内容', '記録'],
           searchable: true,
@@ -518,8 +559,8 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
           japaneseNames: ['電話', '電話番号', 'TEL'],
           searchable: true,
           weight: 3
-        },
-        {
+  },
+  {
           fieldName: 'notes',
           japaneseNames: ['メモ', '備考', 'ノート', '記録'],
           searchable: true,

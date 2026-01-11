@@ -44,13 +44,18 @@ export default function PersonalChatPage() {
     let match;
     let key = 0;
 
-    // テキストを行ごとに分割して処理
+    // テキストを行ごとに分割して処理（改行を保持するため）
     const lines = text.split('\n');
     
     lines.forEach((line, lineIndex) => {
+      // 各行の前に改行を追加（最初の行以外）
       if (lineIndex > 0) {
-        // 改行を追加
-        parts.push('\n');
+        parts.push(<br key={`br-${key++}`} />);
+      }
+      
+      // 空行の場合は改行のみ
+      if (line.trim() === '') {
+        return;
       }
       
       let lineLastIndex = 0;
@@ -692,10 +697,15 @@ export default function PersonalChatPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="text-sm whitespace-pre-wrap">
+                        <div className="text-sm break-words">
                           {message.sender === 'ai' 
                             ? renderMessageWithLinks(message.text)
-                            : message.text
+                            : message.text.split('\n').map((line, i) => (
+                                <React.Fragment key={i}>
+                                  {i > 0 && <br />}
+                                  {line}
+                                </React.Fragment>
+                              ))
                           }
                         </div>
                         <p className="text-xs mt-1 opacity-70">

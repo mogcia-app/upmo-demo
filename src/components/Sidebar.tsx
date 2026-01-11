@@ -138,54 +138,54 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               
               {/* カテゴリごとにグループ化して表示 */}
               {getMenuItemsByCategoryOrdered(additionalMenuItems).map(([category, items]) => {
-                const isExpanded = expandedCategories.has(category);
-                return (
-                  <div key={category} className="mb-2">
-                    <button
-                      onClick={() => toggleCategory(category)}
+                    const isExpanded = expandedCategories.has(category);
+                    return (
+                      <div key={category} className="mb-2">
+                      <button
+                          onClick={() => toggleCategory(category)}
                       className="w-full flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-2 text-white/90 text-sm lg:text-sm font-semibold hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center">
+                        >
+                          <div className="flex items-center">
                         <span>{CATEGORY_NAMES[category] || category}</span>
-                        <span className="ml-2 text-xs text-white/60">({items.length})</span>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'transform rotate-90' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                    {isExpanded && (
+                            <span className="ml-2 text-xs text-white/60">({items.length})</span>
+                          </div>
+                          <svg
+                            className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'transform rotate-90' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                        {isExpanded && (
                       <ul className="space-y-1 mt-1 ml-2 border-l-2 border-white/20 pl-2">
-                        {items.map((item) => (
-                          <li key={item.id}>
-                            <a
-                              href={item.href}
+                            {items.map((item) => (
+                              <li key={item.id}>
+                                <a
+                                  href={item.href}
                               onClick={onClose}
-                              className="
+                                  className="
                                 flex items-center px-3 lg:px-4 py-2 lg:py-2 rounded-lg text-white/90 hover:bg-white/20 hover:text-white
-                                transition-all duration-200 ease-in-out
+                                    transition-all duration-200 ease-in-out
                                 group text-sm lg:text-sm
-                              "
-                              title={item.name}
-                            >
+                                  "
+                                  title={item.name}
+                                >
                               <span className="text-base lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
-                                {item.icon}
-                              </span>
+                                    {item.icon}
+                                  </span>
                               <span className="font-medium">{item.name}</span>
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
                     )}
                   </div>
-                );
+              );
               })}
             </>
-          )}
+            )}
 
           {/* セパレーター */}
           <div className="mx-2 lg:mx-4 my-4 border-t border-white/20"></div>

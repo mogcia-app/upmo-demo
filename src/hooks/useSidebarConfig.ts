@@ -16,6 +16,7 @@ const DEFAULT_COMMON_MENU_ITEMS: SidebarMenuItem[] = [
   { id: "users", name: "利用者管理", icon: "•", href: "/admin/users", category: "other", enabled: true, order: 4 },
   { id: "company-info", name: "会社情報", icon: "•", href: "/admin/company", category: "other", enabled: true, order: 5 },
   { id: "invoice", name: "請求書発行", icon: "•", href: "/admin/invoice", category: "other", enabled: true, order: 6 },
+  { id: "calendar", name: "カレンダー", icon: "•", href: "/calendar", category: "other", enabled: true, order: 7 },
 ];
 
 const DEFAULT_ADMIN_MENU_ITEMS: SidebarMenuItem[] = [

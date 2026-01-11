@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
           { id: "users", name: "利用者管理", icon: "•", href: "/admin/users", enabled: true, order: 4 },
           { id: "company-info", name: "会社情報", icon: "•", href: "/admin/company", enabled: true, order: 5 },
           { id: "invoice", name: "請求書発行", icon: "•", href: "/admin/invoice", enabled: true, order: 6 },
+          { id: "calendar", name: "カレンダー", icon: "📅", href: "/calendar", enabled: true, order: 7 },
         ],
         adminMenuItems: [
           { id: "contracts", name: "契約書", icon: "•", href: "/admin/contracts", enabled: true, order: 1 },

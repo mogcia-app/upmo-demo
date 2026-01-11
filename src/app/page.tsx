@@ -517,21 +517,6 @@ const SimpleCalendarView: React.FC = () => {
   ];
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"]; // getDay()の戻り値に合わせて日曜日を最初に
 
-  // 今後の予定を取得（今日以降）
-  const upcomingEvents = teamEvents
-    .filter(event => {
-      const eventDate = new Date(event.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return eventDate >= today;
-    })
-    .sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateA.getTime() - dateB.getTime();
-    })
-    .slice(0, 5);
-
   return (
     <div>
       {/* 月ナビゲーション */}
@@ -577,7 +562,7 @@ const SimpleCalendarView: React.FC = () => {
         <div className="grid grid-cols-7 gap-1">
           {days.map((date, index) => {
             if (!date) {
-              return <div key={index} className="aspect-square"></div>;
+              return <div key={index} className="min-h-[70px]"></div>;
             }
             
             const today = isToday(date);
@@ -592,91 +577,46 @@ const SimpleCalendarView: React.FC = () => {
                   e.stopPropagation();
                   openDateEventsModal(date);
                 }}
-                className={`aspect-square p-1 flex flex-col items-center justify-center rounded-lg text-sm transition-all ${
+                className={`min-h-[70px] p-1 flex flex-col rounded-lg text-sm transition-all ${
                   today 
                     ? 'bg-[#005eb2] text-white font-semibold' 
-                    : hasEvents
-                    ? 'bg-sky-50 hover:bg-sky-100 text-gray-900'
-                    : 'hover:bg-gray-100 text-gray-700'
+                    : 'bg-white hover:bg-gray-50 text-gray-700'
                 }`}
               >
-                <span>{date.getDate()}</span>
-                {hasEvents && (
-                  <div className="w-1 h-1 rounded-full bg-sky-500 mt-0.5"></div>
-                )}
+                <span className={`text-center mb-1 font-medium ${today ? 'text-white' : 'text-gray-900'}`}>{date.getDate()}</span>
+                <div className="flex-1 flex flex-col gap-0.5 overflow-hidden">
+                  {hasEvents && (
+                    <>
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <div
+                          key={event.id}
+                          className={`text-xs leading-tight px-1.5 py-0.5 rounded truncate border-l-2 ${
+                            today 
+                              ? 'bg-white/20 text-white' 
+                              : 'bg-gray-50 text-gray-900'
+                          }`}
+                          style={{
+                            borderLeftColor: event.color || '#3B82F6'
+                          }}
+                          title={event.title}
+                        >
+                          {event.title}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <div className={`text-[10px] px-1.5 py-0.5 truncate ${today ? 'text-white/90' : 'text-gray-500'}`}>
+                          その他{dayEvents.length - 3}件
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* 今後の予定 */}
-      {upcomingEvents.length > 0 && (
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <h4 className="text-sm font-semibold text-gray-900 mb-4">今後の予定</h4>
-          <div className="space-y-3">
-            {upcomingEvents.map((event) => {
-              const eventDate = new Date(event.date);
-              const month = eventDate.getMonth() + 1;
-              const day = eventDate.getDate();
-              
-              return (
-                <div
-                  key={event.id}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                >
-                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: event.color }}></div>
-                  <div 
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => openEventDetailModal(event)}
-                  >
-                    <div className="font-medium text-sm text-gray-900">{event.title}</div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {month}月{day}日{event.time && ` ${event.time}`}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      {event.member}
-                    </div>
-                    {event.attendees && event.attendees.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {event.attendees.slice(0, 3).map((attendeeId) => {
-                          const member = teamMembers.find(m => m.id === attendeeId);
-                          const displayName = member?.displayName || attendeeId;
-                          return (
-                            <span
-                              key={attendeeId}
-                              className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded"
-                            >
-                              {displayName}
-                            </span>
-                          );
-                        })}
-                        {event.attendees.length > 3 && (
-                          <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                            +{event.attendees.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteEvent(event.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 p-1"
-                    title="削除"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* 予定詳細モーダル */}
       {showEventDetailModal && selectedEventForDetail && (
@@ -1047,10 +987,10 @@ const SimpleCalendarView: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
                   {selectedDateForEvents.getFullYear()}年{selectedDateForEvents.getMonth() + 1}月{selectedDateForEvents.getDate()}日の予定
@@ -1059,31 +999,17 @@ const SimpleCalendarView: React.FC = () => {
                   {dayNames[selectedDateForEvents.getDay()]}曜日
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    openAddEventModal(selectedDateForEvents);
-                    setShowDateEventsModal(false);
-                  }}
-                  className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm font-medium flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  予定を追加
-                </button>
-                <button
-                  onClick={() => setShowDateEventsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+              <button
+                onClick={() => setShowDateEventsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
               {(() => {
                 const year = selectedDateForEvents.getFullYear();
                 const month = String(selectedDateForEvents.getMonth() + 1).padStart(2, '0');
@@ -1096,109 +1022,134 @@ const SimpleCalendarView: React.FC = () => {
                     <div className="text-center py-12">
                       <div className="text-6xl mb-4">📅</div>
                       <h4 className="text-lg font-medium text-gray-900 mb-2">予定がありません</h4>
-                      <p className="text-gray-500 mb-6">この日に予定を追加してみましょう</p>
-                      <button
-                        onClick={() => {
-                          openAddEventModal(selectedDateForEvents);
-                          setShowDateEventsModal(false);
-                        }}
-                        className="px-6 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium"
-                      >
-                        予定を追加
-                      </button>
                     </div>
                   );
                 }
 
-                // 利用者ごとにグループ化
-                const eventsByMember = dayEvents.reduce((acc, event) => {
-                  const memberName = event.member || '不明';
-                  if (!acc[memberName]) {
-                    acc[memberName] = [];
-                  }
-                  acc[memberName].push(event);
-                  return acc;
-                }, {} as Record<string, typeof dayEvents>);
-
                 return (
-                  <div className="space-y-6">
-                    {Object.entries(eventsByMember).map(([memberName, events]) => (
-                      <div key={memberName} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          {memberName}
-                        </h4>
-                        <div className="space-y-3 ml-4">
-                          {events
-                            .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
-                            .map((event) => (
-                            <div
-                              key={event.id}
-                              className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                            >
-                              <div 
-                                className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" 
-                                style={{ backgroundColor: event.color }}
-                              ></div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <h5 className="font-medium text-gray-900">{event.title}</h5>
-                                    {event.time && (
-                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        {event.time}
-                                      </div>
-                                    )}
-                                    {event.location && (
-                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                        {event.location}
-                                      </div>
-                                    )}
-                                    {event.description && (
-                                      <div className="text-xs text-gray-600 mt-1">{event.description}</div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                      onClick={() => {
-                                        openEditEventModal(event);
-                                        setShowDateEventsModal(false);
-                                      }}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                      title="編集"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        if (confirm('この予定を削除しますか？')) {
-                                          handleDeleteEvent(event.id);
-                                        }
-                                      }}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                      title="削除"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
+                  <div className="space-y-4">
+                    {dayEvents
+                      .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+                      .map((event) => {
+                        return (
+                          <div
+                            key={event.id}
+                            className="border border-gray-200 rounded-lg p-4 space-y-3 relative"
+                          >
+                            {/* 編集・削除ボタン */}
+                            <div className="absolute top-4 right-4 flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  openEditEventModal(event);
+                                  setShowDateEventsModal(false);
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="編集"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('この予定を削除しますか？')) {
+                                    handleDeleteEvent(event.id);
+                                  }
+                                }}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="削除"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                            
+                            {/* タイトル */}
+                            <div className="pr-20">
+                              <h4 className="text-lg font-semibold text-gray-900">{event.title}</h4>
+                            </div>
+                            
+                            {/* 時間 */}
+                            {event.time && (
+                              <div className="flex items-center gap-2 text-sm text-gray-700">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{event.time}</span>
+                              </div>
+                            )}
+                            
+                            {/* 場所 */}
+                            {event.location && (
+                              <div className="flex items-center gap-2 text-sm text-gray-700">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>{event.location}</span>
+                              </div>
+                            )}
+                            
+                            {/* 参加者 */}
+                            {event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  <span>参加者</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2 ml-6">
+                                  {event.attendees.map((attendeeId: string) => {
+                                    const member = teamMembers.find(m => m.id === attendeeId);
+                                    const displayName = member?.displayName || attendeeId;
+                                    return (
+                                      <span
+                                        key={attendeeId}
+                                        className="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                      >
+                                        {displayName}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                            )}
+                            
+                            {/* 説明 */}
+                            {event.description && (
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium text-gray-700">説明</div>
+                                <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 ml-6 whitespace-pre-wrap leading-relaxed">
+                                  {event.description.split('\n').map((line: string, index: number) => {
+                                    // 箇条書きの検出（-、•、*、数字で始まる行）
+                                    const isBullet = /^[\s]*[-•*]\s/.test(line) || /^[\s]*\d+[\.\)]\s/.test(line);
+                                    if (isBullet) {
+                                      return (
+                                        <div key={index} className="flex items-start gap-2 my-1">
+                                          <span className="text-gray-400 mt-1">•</span>
+                                          <span className="flex-1">{line.replace(/^[\s]*[-•*]\s/, '').replace(/^[\s]*\d+[\.\)]\s/, '')}</span>
+                                        </div>
+                                      );
+                                    }
+                                    // 空行の処理
+                                    if (line.trim() === '') {
+                                      return <div key={index} className="h-2" />;
+                                    }
+                                    // 通常の行
+                                    return (
+                                      <div key={index} className="my-1">
+                                        {line}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 );
               })()}
@@ -1968,10 +1919,10 @@ const CalendarView: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
                   {selectedDateForEvents.getFullYear()}年{selectedDateForEvents.getMonth() + 1}月{selectedDateForEvents.getDate()}日の予定
@@ -1980,31 +1931,17 @@ const CalendarView: React.FC = () => {
                   {dayNames[selectedDateForEvents.getDay()]}曜日
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    openAddEventModal(selectedDateForEvents);
-                    setShowDateEventsModal(false);
-                  }}
-                  className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm font-medium flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  予定を追加
-                </button>
-                <button
-                  onClick={() => setShowDateEventsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+              <button
+                onClick={() => setShowDateEventsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
               {(() => {
                 const year = selectedDateForEvents.getFullYear();
                 const month = String(selectedDateForEvents.getMonth() + 1).padStart(2, '0');
@@ -2017,109 +1954,134 @@ const CalendarView: React.FC = () => {
                     <div className="text-center py-12">
                       <div className="text-6xl mb-4">📅</div>
                       <h4 className="text-lg font-medium text-gray-900 mb-2">予定がありません</h4>
-                      <p className="text-gray-500 mb-6">この日に予定を追加してみましょう</p>
-                      <button
-                        onClick={() => {
-                          openAddEventModal(selectedDateForEvents);
-                          setShowDateEventsModal(false);
-                        }}
-                        className="px-6 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium"
-                      >
-                        予定を追加
-                      </button>
                     </div>
                   );
                 }
 
-                // 利用者ごとにグループ化
-                const eventsByMember = dayEvents.reduce((acc, event) => {
-                  const memberName = event.member || '不明';
-                  if (!acc[memberName]) {
-                    acc[memberName] = [];
-                  }
-                  acc[memberName].push(event);
-                  return acc;
-                }, {} as Record<string, typeof dayEvents>);
-
                 return (
-                  <div className="space-y-6">
-                    {Object.entries(eventsByMember).map(([memberName, events]) => (
-                      <div key={memberName} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          {memberName}
-                        </h4>
-                        <div className="space-y-3 ml-4">
-                          {events
-                            .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
-                            .map((event) => (
-                            <div
-                              key={event.id}
-                              className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                            >
-                              <div 
-                                className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" 
-                                style={{ backgroundColor: event.color }}
-                              ></div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <h5 className="font-medium text-gray-900">{event.title}</h5>
-                                    {event.time && (
-                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        {event.time}
-                                      </div>
-                                    )}
-                                    {event.location && (
-                                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                        {event.location}
-                                      </div>
-                                    )}
-                                    {event.description && (
-                                      <div className="text-xs text-gray-600 mt-1">{event.description}</div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                      onClick={() => {
-                                        openEditEventModal(event);
-                                        setShowDateEventsModal(false);
-                                      }}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                      title="編集"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        if (confirm('この予定を削除しますか？')) {
-                                          handleDeleteEvent(event.id);
-                                        }
-                                      }}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                      title="削除"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
+                  <div className="space-y-4">
+                    {dayEvents
+                      .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+                      .map((event) => {
+                        return (
+                          <div
+                            key={event.id}
+                            className="border border-gray-200 rounded-lg p-4 space-y-3 relative"
+                          >
+                            {/* 編集・削除ボタン */}
+                            <div className="absolute top-4 right-4 flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  openEditEventModal(event);
+                                  setShowDateEventsModal(false);
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="編集"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('この予定を削除しますか？')) {
+                                    handleDeleteEvent(event.id);
+                                  }
+                                }}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="削除"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                            
+                            {/* タイトル */}
+                            <div className="pr-20">
+                              <h4 className="text-lg font-semibold text-gray-900">{event.title}</h4>
+                            </div>
+                            
+                            {/* 時間 */}
+                            {event.time && (
+                              <div className="flex items-center gap-2 text-sm text-gray-700">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{event.time}</span>
+                              </div>
+                            )}
+                            
+                            {/* 場所 */}
+                            {event.location && (
+                              <div className="flex items-center gap-2 text-sm text-gray-700">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>{event.location}</span>
+                              </div>
+                            )}
+                            
+                            {/* 参加者 */}
+                            {event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  <span>参加者</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2 ml-6">
+                                  {event.attendees.map((attendeeId: string) => {
+                                    const member = teamMembers.find(m => m.id === attendeeId);
+                                    const displayName = member?.displayName || attendeeId;
+                                    return (
+                                      <span
+                                        key={attendeeId}
+                                        className="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                      >
+                                        {displayName}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                            )}
+                            
+                            {/* 説明 */}
+                            {event.description && (
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium text-gray-700">説明</div>
+                                <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 ml-6 whitespace-pre-wrap leading-relaxed">
+                                  {event.description.split('\n').map((line: string, index: number) => {
+                                    // 箇条書きの検出（-、•、*、数字で始まる行）
+                                    const isBullet = /^[\s]*[-•*]\s/.test(line) || /^[\s]*\d+[\.\)]\s/.test(line);
+                                    if (isBullet) {
+                                      return (
+                                        <div key={index} className="flex items-start gap-2 my-1">
+                                          <span className="text-gray-400 mt-1">•</span>
+                                          <span className="flex-1">{line.replace(/^[\s]*[-•*]\s/, '').replace(/^[\s]*\d+[\.\)]\s/, '')}</span>
+                                        </div>
+                                      );
+                                    }
+                                    // 空行の処理
+                                    if (line.trim() === '') {
+                                      return <div key={index} className="h-2" />;
+                                    }
+                                    // 通常の行
+                                    return (
+                                      <div key={index} className="my-1">
+                                        {line}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 );
               })()}
@@ -2749,7 +2711,7 @@ export default function Home() {
           </div>
 
           {/* メインコンテンツエリア - 2カラムレイアウト */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
             {/* 左側: AIチャット */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md p-6 border border-blue-100 flex flex-col h-full">
               <div className="flex items-center gap-3 mb-4">
@@ -2878,16 +2840,6 @@ export default function Home() {
                   </button>
                   <button
                     onClick={() => {
-                      setChatInput("文書を検索して");
-                      setTimeout(() => handleChatSend(), 100);
-                    }}
-                    className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-700 hover:bg-gray-50 transition-colors"
-                    disabled={isChatLoading}
-                  >
-                    📄 文書を検索
-                  </button>
-                  <button
-                    onClick={() => {
                       setChatInput("よくある質問を教えて");
                       setTimeout(() => handleChatSend(), 100);
                     }}
@@ -2900,7 +2852,7 @@ export default function Home() {
             </div>
 
             {/* 右側: カレンダー */}
-            <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="bg-white rounded-xl shadow-md p-6 flex-1 flex flex-col">
               <SimpleCalendarView />
             </div>
           </div>
