@@ -646,7 +646,7 @@ const SimpleCalendarView: React.FC = () => {
       </div>
 
       {/* メインコンテンツ */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* 左側: カレンダー */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* カレンダーヘッダー */}
@@ -961,7 +961,7 @@ const SimpleCalendarView: React.FC = () => {
         </div>
 
         {/* 右サイドバー */}
-        <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+        <div className="hidden lg:flex w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-gray-200 bg-white flex flex-col">
 
           <div className="flex-1 overflow-y-auto flex flex-col">
             {/* ミニカレンダーセクション */}

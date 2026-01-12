@@ -63,6 +63,26 @@ export interface SearchContext {
   }>;
 }
 
+// 営業活動の型定義
+export interface SalesActivity {
+  id: string;
+  title: string; // 活動タイトル
+  type: 'visit' | 'call' | 'email' | 'meeting' | 'presentation' | 'other'; // 活動タイプ
+  companyName?: string; // 会社名
+  companyData?: Record<string, any>; // 顧客リストから取得した会社情報（列データ）
+  activityDate: Date; // 活動日
+  participants?: string[]; // 参加者ID
+  participantNames?: string[]; // 参加者名
+  description?: string; // 活動内容
+  outcome?: string; // 結果・成果
+  nextAction?: string; // 次アクション
+  tags?: string[]; // タグ
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string; // 作成者ID
+  companyNameForSharing?: string; // 会社名（チーム共有用）
+}
+
 
 
 

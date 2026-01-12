@@ -497,7 +497,7 @@ export default function ContractsPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">文書管理</h1>
             
@@ -741,7 +741,7 @@ export default function ContractsPage() {
           {/* 手動入力モーダル */}
           {showInputModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg p-6 w-full max-w-7xl max-h-[95vh] overflow-y-auto shadow-2xl">
+              <div className="bg-white rounded-lg p-4 sm:p-6 w-full mx-4 max-w-7xl max-h-[95vh] overflow-y-auto shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-gray-900">
                     {editingDocument ? '文書を編集' : '文書を手動入力'}
@@ -778,9 +778,9 @@ export default function ContractsPage() {
                 </div>
                 
                 {/* 基本情報セクション */}
-                <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">基本情報</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         タイトル <span className="text-red-500">*</span>
@@ -811,7 +811,7 @@ export default function ContractsPage() {
                 </div>
                 
                 {/* セクション入力エリア - 全セクションを縦に並べて表示 */}
-                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">文書内容</h3>
                   
                   {/* 全セクションを縦に並べて表示 */}

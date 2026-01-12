@@ -1799,10 +1799,10 @@ async function searchByIntent(
                 .toLowerCase();
               contentMatch = allSectionsContent.includes(searchQuery);
               wordMatch = queryWords.some(word => 
-                data.title?.toLowerCase().includes(word) || 
-                data.description?.toLowerCase().includes(word) ||
+              data.title?.toLowerCase().includes(word) || 
+              data.description?.toLowerCase().includes(word) ||
                 allSectionsContent.includes(word)
-              );
+            );
             }
             
             if ((contentMatch || wordMatch) && !isMatch) {
@@ -1971,7 +1971,7 @@ async function searchByIntent(
             }
             
             for (const [key, value] of sectionsToProcess) {
-              const label = sectionLabels[key] || key;
+                const label = sectionLabels[key] || key;
               
               if (Array.isArray(value) && value.length > 0) {
                 if (key === 'qa' && typeof value[0] === 'object' && 'question' in value[0]) {

@@ -66,7 +66,7 @@ export type SidebarMenuItem = MenuItem;
 export const CATEGORY_NAMES: Record<string, string> = {
   sales: '営業管理',
   customer: '顧客管理',
-  document: 'ドキュメント管理',
+  document: '文書管理',
 };
 
 // カテゴリの表示順序
@@ -143,10 +143,10 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'progress-notes',
-    name: '進捗メモ',
+    name: 'メモ',
     icon: '•',
     href: '/sales/progress-notes',
-    description: '営業活動の進捗記録',
+    description: '自由に使えるメモ機能',
     category: 'sales',
     aiChatMetadata: {
       collectionName: 'progressNotes',
@@ -652,7 +652,7 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'document-management',
-    name: 'ドキュメント管理',
+    name: '文書管理',
     icon: '📚',
     href: '/documents',
     description: '各種ドキュメントの管理',

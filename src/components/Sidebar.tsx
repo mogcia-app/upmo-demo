@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSidebarConfig } from "../hooks/useSidebarConfig";
 import { useAuth } from "../contexts/AuthContext";
 import { CATEGORY_NAMES, CATEGORY_ORDER, getMenuItemsByCategoryOrdered } from "../types/sidebar";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -14,6 +16,43 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const { getEnabledCommonMenuItems, getEnabledAdminMenuItems, getEnabledAdditionalMenuItems } = useSidebarConfig();
   const { user, userRole, logout } = useAuth();
+  const [userDisplayName, setUserDisplayName] = useState<string>('');
+
+  // ユーザーのdisplayNameを取得
+  useEffect(() => {
+    const fetchUserDisplayName = async () => {
+      if (user && db) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log('User data from Firestore:', userData);
+            // displayNameを優先的に使用、なければemailをフォールバック
+            const displayName = userData.displayName || user.displayName || '';
+            console.log('Display name found:', displayName);
+            if (displayName) {
+              setUserDisplayName(displayName);
+            } else {
+              // displayNameがない場合はemailをフォールバック
+              setUserDisplayName(user.email || '');
+            }
+          } else {
+            // Firestoreにユーザードキュメントがない場合は、Firebase AuthのdisplayNameを使用
+            console.log('User document not found in Firestore, using Firebase Auth displayName');
+            setUserDisplayName(user.displayName || user.email || '');
+          }
+        } catch (error) {
+          console.error('Error fetching user display name:', error);
+          // エラー時はFirebase AuthのdisplayNameを使用
+          setUserDisplayName(user.displayName || user.email || '');
+        }
+      } else if (user) {
+        // dbが初期化されていない場合はFirebase AuthのdisplayNameを使用
+        setUserDisplayName(user.displayName || user.email || '');
+      }
+    };
+    fetchUserDisplayName();
+  }, [user]);
 
   // Firestoreから取得した設定を使用（有効なもののみ、order順にソート済み）
   const commonMenuItems = getEnabledCommonMenuItems();
@@ -172,9 +211,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                                   "
                                   title={item.name}
                                 >
-                              <span className="text-base lg:text-base mr-3 group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
-                                    {item.icon}
-                                  </span>
                               <span className="font-medium">{item.name}</span>
                                 </a>
                               </li>
@@ -229,17 +265,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
         <div className="p-4 lg:p-6 border-t border-white/20 bg-blue-600/50">
           {user ? (
             <div className="space-y-2">
-              <div className="flex items-center space-x-2 lg:space-x-3 justify-center lg:justify-start">
-                <div className="w-10 h-10 lg:w-8 lg:h-8 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/30">
-                  <span className="text-white text-sm font-medium">
-                    {user.email?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className={`flex-1 min-w-0 ${isOpen ? 'block' : 'hidden lg:block'}`}>
-                  <p className="text-sm font-medium text-white truncate">
-                    {user.email}
+              <div className={`flex-1 min-w-0 ${isOpen ? 'block' : 'hidden lg:block'}`}>
+                <p className="text-sm font-medium text-white truncate text-center lg:text-left">
+                  {userDisplayName || user?.displayName || user?.email || ''}
                   </p>
-                </div>
               </div>
               <button
                 onClick={logout}

@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Layout from "../components/Layout";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useAuth } from "../contexts/AuthContext";
+import { fetchChatSession, updateChatSession, saveChatSession } from "../utils/chatHistory";
 
 
 // シンプルなカレンダーコンポーネント（右側用）
@@ -585,11 +587,11 @@ const SimpleCalendarView: React.FC = () => {
               >
                 <span className={`text-center mb-1 font-medium ${today ? 'text-white' : 'text-gray-900'}`}>{date.getDate()}</span>
                 <div className="flex-1 flex flex-col gap-0.5 overflow-hidden">
-                  {hasEvents && (
+                {hasEvents && (
                     <>
                       {dayEvents.slice(0, 3).map((event) => (
-                        <div
-                          key={event.id}
+                <div
+                  key={event.id}
                           className={`text-xs leading-tight px-1.5 py-0.5 rounded truncate border-l-2 ${
                             today 
                               ? 'bg-white/20 text-white' 
@@ -601,21 +603,21 @@ const SimpleCalendarView: React.FC = () => {
                           title={event.title}
                         >
                           {event.title}
-                        </div>
+                    </div>
                       ))}
                       {dayEvents.length > 3 && (
                         <div className={`text-[10px] px-1.5 py-0.5 truncate ${today ? 'text-white/90' : 'text-gray-500'}`}>
                           その他{dayEvents.length - 3}件
-                        </div>
+                      </div>
                       )}
                     </>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                    )}
+                  </div>
+                  </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
 
       {/* 予定詳細モーダル */}
@@ -628,7 +630,7 @@ const SimpleCalendarView: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -751,7 +753,7 @@ const SimpleCalendarView: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -987,7 +989,7 @@ const SimpleCalendarView: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-4 sm:p-6 max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
@@ -1778,7 +1780,7 @@ const CalendarView: React.FC = () => {
           onClick={() => setShowAddEventModal(false)}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -1919,7 +1921,7 @@ const CalendarView: React.FC = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-4 sm:p-6 max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
@@ -2401,6 +2403,8 @@ export default function Home() {
     id: string;
     title: string;
     lastUpdated: Date;
+    type: string;
+    href: string;
   }>>([]);
   const [chatMessages, setChatMessages] = useState<Array<{
     id: string;
@@ -2411,6 +2415,18 @@ export default function Home() {
   const [chatInput, setChatInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string>('');
+  const [favoriteQuestions, setFavoriteQuestions] = useState<Array<{ id: string; text: string; icon: string }>>([
+    { id: '1', text: '使い方を教えて', icon: '💡' },
+    { id: '2', text: 'よくある質問を教えて', icon: '❓' },
+    { id: '3', text: 'TODOリストについて教えて', icon: '📋' },
+    { id: '4', text: '契約書について教えて', icon: '📄' },
+    { id: '5', text: '今日のタスクは？', icon: '✅' },
+    { id: '6', text: '利用者について教えて', icon: '👥' },
+  ]);
+  const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
+  const [newQuestionText, setNewQuestionText] = useState('');
 
   // タスク統計と契約書件数を取得
   useEffect(() => {
@@ -2443,38 +2459,127 @@ export default function Home() {
     loadStats();
   }, [user]);
 
-  // 最近の文書を取得
+  // 最近の更新を取得（14日以内）
   useEffect(() => {
-    const loadRecentDocuments = async () => {
+    const loadRecentUpdates = async () => {
       if (!user) return;
       
       try {
         const token = await user.getIdToken();
-        const response = await fetch('/api/admin/get-manual-documents', {
+        const now = new Date();
+        const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+        
+        const updates: Array<{
+          id: string;
+          title: string;
+          lastUpdated: Date;
+          type: string;
+          href: string;
+        }> = [];
+
+        // 契約書を取得
+        try {
+          const contractsResponse = await fetch('/api/admin/get-manual-documents', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.documents) {
-            // 最新5件を取得
-            const recent = data.documents
-              .slice(0, 5)
-              .map((doc: any) => ({
+
+          if (contractsResponse.ok) {
+            const contractsData = await contractsResponse.json();
+            if (contractsData.success && contractsData.documents) {
+              contractsData.documents.forEach((doc: any) => {
+                const updatedAt = doc.updatedAt ? new Date(doc.updatedAt.seconds * 1000) : 
+                                 doc.createdAt ? new Date(doc.createdAt.seconds * 1000) : 
+                                 doc.lastUpdated ? new Date(doc.lastUpdated) : new Date();
+                if (updatedAt >= fourteenDaysAgo) {
+                  updates.push({
                 id: doc.id,
-                title: doc.title,
-                lastUpdated: doc.lastUpdated ? new Date(doc.lastUpdated) : new Date()
-              }));
-            setRecentDocuments(recent);
+                    title: doc.title || '無題',
+                    lastUpdated: updatedAt,
+                    type: '契約書',
+                    href: `/admin/contracts?doc=${doc.id}`
+                  });
+                }
+              });
           }
         }
       } catch (error) {
-        console.error('最近の文書の読み込みエラー:', error);
+          console.error('契約書の取得エラー:', error);
+        }
+
+        // TODOを取得
+        try {
+          const todosResponse = await fetch('/api/todos', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (todosResponse.ok) {
+            const todosData = await todosResponse.json();
+            if (todosData.success && todosData.todos) {
+              todosData.todos.forEach((todo: any) => {
+                const updatedAt = todo.updatedAt ? new Date(todo.updatedAt.seconds * 1000) : 
+                                 todo.createdAt ? new Date(todo.createdAt.seconds * 1000) : new Date();
+                if (updatedAt >= fourteenDaysAgo) {
+                  updates.push({
+                    id: todo.id,
+                    title: todo.text || '無題のタスク',
+                    lastUpdated: updatedAt,
+                    type: 'TODO',
+                    href: '/todo'
+                  });
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('TODOの取得エラー:', error);
+        }
+
+        // 顧客を取得
+        try {
+          const customersResponse = await fetch('/api/customers', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (customersResponse.ok) {
+            const customersData = await customersResponse.json();
+            if (customersData.success && customersData.customers) {
+              customersData.customers.forEach((customer: any) => {
+                const updatedAt = customer.updatedAt ? new Date(customer.updatedAt.seconds * 1000) : 
+                                 customer.createdAt ? new Date(customer.createdAt.seconds * 1000) : new Date();
+                if (updatedAt >= fourteenDaysAgo) {
+                  updates.push({
+                    id: customer.id,
+                    title: customer.name || '無題の顧客',
+                    lastUpdated: updatedAt,
+                    type: '顧客',
+                    href: `/customers?customer=${customer.id}`
+                  });
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('顧客の取得エラー:', error);
+        }
+
+        // 更新日時でソートして最新5件を取得
+        updates.sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
+        setRecentDocuments(updates.slice(0, 5));
+      } catch (error) {
+        console.error('最近の更新の読み込みエラー:', error);
       }
     };
 
-    loadRecentDocuments();
+    loadRecentUpdates();
+    // 30秒ごとに更新
+    const interval = setInterval(loadRecentUpdates, 30000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // 初期AIメッセージを表示
@@ -2539,6 +2644,57 @@ export default function Home() {
     }
   };
 
+  // チャットメッセージをFirestoreに保存
+  const saveChatMessagesToFirestore = async (messages: Array<{
+    id: string;
+    text: string;
+    sender: 'user' | 'ai';
+    timestamp: Date;
+  }>) => {
+    if (!user) return;
+    
+    try {
+      const chatMessagesForFirestore = messages.map(msg => ({
+        id: msg.id,
+        text: msg.text,
+        sender: msg.sender,
+        timestamp: msg.timestamp
+      }));
+      
+      if (currentSessionId) {
+        // 既存のセッションを更新
+        await updateChatSession(currentSessionId, chatMessagesForFirestore, companyName || undefined);
+      } else {
+        // 新しいセッションを作成
+        const sessionId = await saveChatSession({
+          userId: user.uid,
+          chatId: 'ai-assistant',
+          messages: chatMessagesForFirestore,
+          lastUpdated: new Date(),
+          companyName: companyName || undefined
+        });
+        setCurrentSessionId(sessionId);
+      }
+    } catch (error) {
+      console.error('チャット履歴の保存エラー:', error);
+    }
+  };
+
+  // よく使う質問を追加
+  const handleAddQuestion = () => {
+    if (!newQuestionText.trim()) return;
+    
+    const newQuestion = {
+      id: Date.now().toString(),
+      text: newQuestionText.trim(),
+      icon: '' // アイコンは不要
+    };
+    
+    setFavoriteQuestions(prev => [...prev, newQuestion]);
+    setShowAddQuestionModal(false);
+    setNewQuestionText('');
+  };
+
   // チャットメッセージ送信
   const handleChatSend = async () => {
     if (!chatInput.trim() || isChatLoading || !user) return;
@@ -2550,9 +2706,13 @@ export default function Home() {
       timestamp: new Date()
     };
 
-    setChatMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...chatMessages, userMessage];
+    setChatMessages(updatedMessages);
     setChatInput("");
     setIsChatLoading(true);
+    
+    // ユーザーメッセージを保存
+    saveChatMessagesToFirestore(updatedMessages);
 
     // ローディングメッセージを追加
     const loadingMessage = {
@@ -2570,12 +2730,17 @@ export default function Home() {
       // ローディングメッセージを削除してAI回答を追加
       setChatMessages(prev => {
         const withoutLoading = prev.filter(msg => msg.id !== "loading");
-        return [...withoutLoading, {
+        const updatedMessages = [...withoutLoading, {
           id: (Date.now() + 1).toString(),
           text: aiResponse,
           sender: 'ai' as const,
           timestamp: new Date()
         }];
+        
+        // Firestoreに保存
+        saveChatMessagesToFirestore(updatedMessages);
+        
+        return updatedMessages;
       });
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
@@ -2628,173 +2793,116 @@ export default function Home() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="space-y-6">
-          {/* 検索バー */}
-          <div className="bg-white rounded-xl shadow-md p-4">
-            <form onSubmit={handleSearch} className="flex gap-2">
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="文書、契約書、規則などを検索..."
-                  className="w-full px-4 py-3 pl-12 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#005eb2] focus:border-transparent text-sm transition-all"
-                />
-                <svg 
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <button
-                type="submit"
-                disabled={isSearching || !searchQuery.trim()}
-                className="px-6 py-3 bg-[#005eb2] text-white rounded-xl hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
-              >
-                {isSearching ? '検索中...' : '検索'}
-              </button>
-            </form>
-          </div>
-
-          {/* 統計カード */}
-          <div className="hidden lg:grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-            <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-[#005eb2]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="p-3 bg-[#005eb2]/10">
-                    <svg className="w-8 h-8 text-[#005eb2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                    </svg>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">チーム利用者</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{teamMembersCount}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-green-500">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="p-3 bg-green-500/10">
-                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">契約書件数</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{contractCount}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white shadow-md p-6 hover:shadow-lg transition-shadow border-l-4 border-purple-500">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="p-3 bg-purple-500/10">
-                    <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">今日のタスク</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{taskStats.today}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
+        <div className="h-full flex flex-col">
           {/* メインコンテンツエリア - 2カラムレイアウト */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 min-h-0">
             {/* 左側: AIチャット */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md p-6 border border-blue-100 flex flex-col h-full">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
+            <div className="flex-1 bg-white rounded-xl shadow-md border border-gray-200 flex flex-col h-full overflow-hidden">
+              {/* ヘッダー */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 border border-gray-200 overflow-hidden relative">
+                  <Image 
+                    src="/upmoicon.png" 
+                    alt="AIアシスタント" 
+                    width={40}
+                    height={40}
+                    className="object-cover"
+                    unoptimized
+                  />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">AIアシスタント</h2>
-                  <p className="text-sm text-gray-600">質問や相談をどうぞ</p>
+                  <h2 className="text-base font-semibold text-gray-900">AIアシスタント</h2>
                 </div>
               </div>
 
               {/* チャットメッセージエリア */}
-              <div className="bg-white rounded-lg border border-gray-200 mb-4 flex-1 flex flex-col min-h-[300px] max-h-[500px]">
-                <div className="p-4 space-y-4 overflow-y-auto flex-1" style={{ maxHeight: '500px' }}>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50">
+                <div 
+                  className="p-4 space-y-3 overflow-y-auto flex-1"
+                  style={{ 
+                    maxHeight: '100%',
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
                     {chatMessages.length === 0 ? (
-                      <div className="text-center text-gray-500 py-8">
-                        <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="text-center text-gray-400 py-12">
+                        <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                         </svg>
-                        <p className="text-sm">メッセージを入力してAIアシスタントと会話を始めましょう</p>
+                        <p className="text-sm">メッセージを入力して会話を始めましょう</p>
                       </div>
                     ) : (
-                      chatMessages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex items-start gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                      chatMessages.map((message, index) => {
+                        const showTimestamp = index === 0 || 
+                          chatMessages[index - 1].sender !== message.sender ||
+                          new Date(message.timestamp).getTime() - new Date(chatMessages[index - 1].timestamp).getTime() > 300000; // 5分以上経過
+                        
+                        return (
+                          <div key={message.id}>
+                            {showTimestamp && (
+                              <div className="text-center my-2">
+                                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                                  {message.timestamp.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            )}
+                            <div
+                              className={`flex items-end gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                           {message.sender === 'ai' && (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                              </svg>
+                                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 mb-1 border border-gray-200 overflow-hidden relative">
+                                  <Image 
+                                    src="/upmoicon.png" 
+                                    alt="AI" 
+                                    width={32}
+                                    height={32}
+                                    className="object-cover"
+                                    unoptimized
+                                  />
                             </div>
                           )}
-                          <div className="relative max-w-[75%]">
+                              <div className={`flex flex-col ${message.sender === 'user' ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%]`}>
                             <div
-                              className={`rounded-2xl px-4 py-3 ${
+                                  className={`rounded-2xl px-4 py-2.5 ${
                                 message.sender === 'user'
-                                  ? 'bg-[#005eb2] text-white'
-                                  : 'bg-gray-100 text-gray-900'
+                                      ? 'bg-[#1958ec] text-white rounded-br-sm'
+                                      : 'bg-white text-gray-900 rounded-bl-sm shadow-sm'
                               }`}
                             >
-                              <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                {message.sender === 'ai' 
-                                  ? renderMessageWithLinks(message.text)
-                                  : message.text
-                                }
-                              </p>
+                                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                    {message.sender === 'ai' 
+                                      ? renderMessageWithLinks(message.text)
+                                      : message.text
+                                    }
+                                  </p>
                               {message.id === "loading" && (
                                 <div className="flex gap-1 mt-2">
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                      <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                 </div>
                               )}
                             </div>
-                            {/* 吹き出しの三角形 */}
-                            {message.sender === 'ai' && (
-                              <div className="absolute left-0 bottom-0 w-0 h-0 border-l-[8px] border-l-gray-100 border-t-[8px] border-t-transparent transform translate-x-[-8px] translate-y-[4px]"></div>
-                            )}
-                            {message.sender === 'user' && (
-                              <div className="absolute right-0 bottom-0 w-0 h-0 border-r-[8px] border-r-[#005eb2] border-t-[8px] border-t-transparent transform translate-x-[8px] translate-y-[4px]"></div>
-                            )}
                           </div>
                           {message.sender === 'user' && (
-                            <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0 mb-1">
                               <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                               </svg>
                             </div>
                           )}
                         </div>
-                      ))
+                          </div>
+                        );
+                      })
                     )}
                   <div ref={chatMessagesEndRef} />
                 </div>
               </div>
 
               {/* チャット入力エリア */}
-              <div className="flex gap-2 mb-3">
+              <div className="border-t border-gray-200 bg-white px-4 py-3">
+                <div className="flex gap-2 items-end">
                   <input
                     type="text"
                     value={chatInput}
@@ -2806,13 +2914,13 @@ export default function Home() {
                       }
                     }}
                     placeholder="メッセージを入力..."
-                    className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     disabled={isChatLoading}
                   />
                   <button
                     onClick={handleChatSend}
                     disabled={isChatLoading || !chatInput.trim()}
-                    className="px-6 py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center"
+                    className="w-10 h-10 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0"
                   >
                     {isChatLoading ? (
                       <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2824,38 +2932,163 @@ export default function Home() {
                       </svg>
                     )}
                   </button>
+                </div>
+              </div>
               </div>
               
-              {/* クイックアクション */}
-              <div className="flex flex-wrap gap-2">
+            {/* 右側: サイドバー */}
+            <div className="hidden lg:flex w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* よく使う質問 */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-900">よく使う質問</h3>
+                  <button
+                      onClick={() => setShowAddQuestionModal(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                      + 追加
+                  </button>
+                  </div>
+                  <div className="space-y-2">
+                    {favoriteQuestions.map((item) => (
+                      <div
+                        key={item.id}
+                        className="group flex items-center gap-2"
+                      >
                   <button
                     onClick={() => {
-                      setChatInput("使い方を教えて");
+                            setChatInput(item.text);
                       setTimeout(() => handleChatSend(), 100);
                     }}
-                    className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-700 hover:bg-gray-50 transition-colors"
                     disabled={isChatLoading}
+                          className="flex-1 text-left px-3 py-2 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    💡 使い方を聞く
+                          {item.text}
                   </button>
                   <button
                     onClick={() => {
-                      setChatInput("よくある質問を教えて");
-                      setTimeout(() => handleChatSend(), 100);
+                            setFavoriteQuestions(prev => prev.filter(q => q.id !== item.id));
                     }}
-                    className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-700 hover:bg-gray-50 transition-colors"
-                    disabled={isChatLoading}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-red-600 hover:text-red-800 transition-opacity"
+                          title="削除"
                   >
-                    ❓ よくある質問
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                   </button>
+                      </div>
+                    ))}
               </div>
             </div>
 
-            {/* 右側: カレンダー */}
-            <div className="bg-white rounded-xl shadow-md p-6 flex-1 flex flex-col">
-              <SimpleCalendarView />
+                 {/* 今日のタスク */}
+                 <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">今日のタスク</h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-gray-900">{taskStats.today}</div>
+                    <div className="text-xs text-gray-500 mt-1">件のタスクがあります</div>
+                    <Link
+                      href="/todo"
+                      className="mt-3 inline-block text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      タスク一覧を見る →
+                    </Link>
             </div>
           </div>
+
+                {/* 最近の更新 */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">最近の更新</h3>
+                  {recentDocuments.length > 0 ? (
+                    <div className="space-y-2">
+                      {recentDocuments.map((item) => (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          className="block px-3 py-2 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{item.title}</div>
+                              <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                  {item.type}
+                                </span>
+                                <span>{item.lastUpdated.toLocaleDateString('ja-JP')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-4 text-sm text-gray-500 bg-gray-50 rounded-lg">
+                      ここに最近の更新情報が表示されます
+                    </div>
+                  )}
+                </div>
+
+               
+
+              </div>
+            </div>
+          </div>
+
+          {/* よく使う質問追加モーダル */}
+          {showAddQuestionModal && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              onClick={() => {
+                setShowAddQuestionModal(false);
+                setNewQuestionText('');
+              }}
+            >
+              <div 
+                className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-bold text-gray-900 mb-4">よく使う質問を追加</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      質問文 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newQuestionText}
+                      onChange={(e) => setNewQuestionText(e.target.value)}
+                      placeholder="例: 使い方を教えて"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newQuestionText.trim()) {
+                          handleAddQuestion();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowAddQuestionModal(false);
+                      setNewQuestionText('');
+                    }}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleAddQuestion}
+                    disabled={!newQuestionText.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    追加
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Layout>
     </ProtectedRoute>

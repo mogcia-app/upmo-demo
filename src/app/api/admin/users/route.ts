@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-
+    
     // Firebase Auth でユーザーを作成
     let userRecord;
     try {

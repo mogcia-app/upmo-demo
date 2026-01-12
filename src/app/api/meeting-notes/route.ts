@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
                   createdAt: Timestamp.now(),
                   priority: 'medium' as const,
                   status: 'shared' as const,
-                  assignee: assigneeName, // 担当者名を保存
+                  assignee: assigneeUserId || targetUserId, // 担当者のユーザーIDを設定
                   description: `議事録「${title}」からのアクション項目`,
                   userId: targetUserId, // 担当者のTODOとして作成
                   sharedWith: [] // 個別のTODOなので共有は不要
@@ -504,7 +504,7 @@ export async function PUT(request: NextRequest) {
                   createdAt: Timestamp.now(),
                   priority: 'medium' as const,
                   status: 'shared' as const,
-                  assignee: assigneeName,
+                  assignee: assigneeUserId || targetUserId, // 担当者のユーザーIDを設定
                   description: `議事録「${title}」からのアクション項目`,
                   userId: targetUserId, // 担当者のTODOとして作成
                   sharedWith: [] // 個別のTODOなので共有は不要

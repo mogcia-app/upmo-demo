@@ -170,7 +170,7 @@ export default function CompanyPage() {
                   {/* 基本情報 */}
                   <div className="mb-8">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-2 border-b border-gray-200">基本情報</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">会社名 *</label>
                         {isEditing ? (
@@ -286,7 +286,7 @@ export default function CompanyPage() {
                   {/* 会社詳細 */}
                   <div className="mb-8">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-2 border-b border-gray-200">会社詳細</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">代表者名</label>
                         {isEditing ? (

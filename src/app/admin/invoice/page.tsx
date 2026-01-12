@@ -288,7 +288,7 @@ export default function InvoicePage() {
           {/* 請求書作成・編集モーダル */}
           {showCreateModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-              <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-white rounded-lg p-4 sm:p-6 w-full mx-4 max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold">請求書{currentInvoice.id ? '編集' : '作成'}</h3>
                   <button
@@ -303,7 +303,7 @@ export default function InvoicePage() {
 
                 <div className="space-y-6">
                   {/* 基本情報 */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">請求書番号 *</label>
                       <input
@@ -338,7 +338,7 @@ export default function InvoicePage() {
                   {/* 顧客情報 */}
                   <div>
                     <h4 className="text-lg font-medium text-gray-900 mb-4">顧客情報</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">顧客名 *</label>
                         <input

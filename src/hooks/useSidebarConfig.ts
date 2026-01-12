@@ -11,7 +11,7 @@ export type { SidebarMenuItem, SidebarConfig, AvailableMenuItem };
 
 const DEFAULT_COMMON_MENU_ITEMS: SidebarMenuItem[] = [
   { id: "todo", name: "TODOリスト", icon: "•", href: "/todo", category: "other", enabled: true, order: 1 },
-  { id: "progress-notes", name: "進捗メモ", icon: "•", href: "/sales/progress-notes", category: "sales", enabled: true, order: 2 },
+  { id: "progress-notes", name: "メモ", icon: "•", href: "/sales/progress-notes", category: "sales", enabled: true, order: 2 },
   { id: "contracts", name: "契約書管理", icon: "•", href: "/admin/contracts", category: "document", enabled: true, order: 3 },
   { id: "users", name: "利用者管理", icon: "•", href: "/admin/users", category: "other", enabled: true, order: 4 },
   { id: "company-info", name: "会社情報", icon: "•", href: "/admin/company", category: "other", enabled: true, order: 5 },

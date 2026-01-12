@@ -137,8 +137,10 @@ export async function GET(request: NextRequest) {
         priority: data.priority,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
-        userId: data.userId || ''
-      });
+        userId: data.userId || '',
+        isFavorite: data.isFavorite || false,
+        sharedWith: data.sharedWith || []
+      } as any);
     });
 
     return NextResponse.json({
@@ -176,7 +178,9 @@ export async function POST(request: NextRequest) {
       risks,
       tags,
       priority,
-      userId
+      userId,
+      isFavorite,
+      sharedWith
     } = body;
 
     // userIdは認証トークンから取得（リクエストのuserIdは無視）
@@ -204,6 +208,8 @@ export async function POST(request: NextRequest) {
       risks: risks || [],
       tags: tags || [],
       priority: priority || 'medium',
+      isFavorite: isFavorite || false,
+      sharedWith: sharedWith || [],
       createdAt: new Date(),
       updatedAt: new Date(),
       userId: authenticatedUserId

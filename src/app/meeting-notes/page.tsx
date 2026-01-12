@@ -328,7 +328,7 @@ export default function MeetingNotesPage() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900">議事録管理</h1>
             <div className="flex items-center gap-4">
-              <button
+            <button
               onClick={() => {
                 setEditingNote(null);
                 setSelectedCustomerForNote(null);
@@ -362,11 +362,11 @@ export default function MeetingNotesPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {notes.map((note) => (
-                  <div
-                    key={note.id}
+                <div
+                  key={note.id}
                     className="bg-white shadow-md hover:shadow-lg transition-shadow border-l-4 border-blue-500 p-5 flex flex-col"
                     style={{ aspectRatio: '1 / 1' }}
-                  >
+                >
                   {/* ヘッダー */}
                   <div className="mb-3 flex-shrink-0">
                     <div className="flex items-start justify-between mb-2">
@@ -436,61 +436,61 @@ export default function MeetingNotesPage() {
 
                   {/* コンテンツエリア（スクロール可能） */}
                   <div className="flex-1 overflow-y-auto mb-3">
-                    {/* 参加者 */}
-                    {note.attendees.length > 0 && (
+                  {/* 参加者 */}
+                  {note.attendees.length > 0 && (
                       <div className="mb-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                          </svg>
-                          <span className="text-xs font-medium text-gray-600">参加者 ({note.attendees.length}名)</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {note.attendees.slice(0, 5).map((attendeeId, index) => {
-                            const member = teamMembers.find(m => m.id === attendeeId);
-                            const displayName = member?.displayName || attendeeId;
-                            return (
-                              <span
-                                key={index}
-                                className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded"
-                              >
-                                {displayName}
-                              </span>
-                            );
-                          })}
-                          {note.attendees.length > 5 && (
-                            <span className="px-2 py-1 text-xs text-gray-500">+{note.attendees.length - 5}</span>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <span className="text-xs font-medium text-gray-600">参加者 ({note.attendees.length}名)</span>
                       </div>
-                    )}
+                      <div className="flex flex-wrap gap-1">
+                        {note.attendees.slice(0, 5).map((attendeeId, index) => {
+                          const member = teamMembers.find(m => m.id === attendeeId);
+                          const displayName = member?.displayName || attendeeId;
+                          return (
+                            <span
+                              key={index}
+                              className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded"
+                            >
+                              {displayName}
+                            </span>
+                          );
+                        })}
+                        {note.attendees.length > 5 && (
+                          <span className="px-2 py-1 text-xs text-gray-500">+{note.attendees.length - 5}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                    {/* アクション項目 */}
-                    {note.actionItems.length > 0 && (
+                  {/* アクション項目 */}
+                  {note.actionItems.length > 0 && (
                       <div className="mb-3">
-                        <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2">
                           <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                          </svg>
-                          <span className="text-xs font-medium text-gray-600">アクション項目 ({note.actionItems.length}件)</span>
-                        </div>
-                        <div className="space-y-1">
-                          {note.actionItems.slice(0, 2).map((item, index) => (
-                            <div key={index} className="text-xs bg-gray-50 p-2 border-l-4 border-gray-400">
-                              <div className="font-medium text-gray-700">{item.item}</div>
-                              <div className="text-gray-500 mt-1">
-                                {item.assignee && <span>担当: {item.assignee}</span>}
-                                {item.assignee && item.deadline && <span> • </span>}
-                                {item.deadline && <span>期限: {item.deadline}</span>}
-                              </div>
-                            </div>
-                          ))}
-                          {note.actionItems.length > 2 && (
-                            <div className="text-xs text-gray-500">他 {note.actionItems.length - 2} 件</div>
-                          )}
-                        </div>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        <span className="text-xs font-medium text-gray-600">アクション項目 ({note.actionItems.length}件)</span>
                       </div>
-                    )}
+                      <div className="space-y-1">
+                        {note.actionItems.slice(0, 2).map((item, index) => (
+                            <div key={index} className="text-xs bg-gray-50 p-2 border-l-4 border-gray-400">
+                            <div className="font-medium text-gray-700">{item.item}</div>
+                            <div className="text-gray-500 mt-1">
+                              {item.assignee && <span>担当: {item.assignee}</span>}
+                              {item.assignee && item.deadline && <span> • </span>}
+                              {item.deadline && <span>期限: {item.deadline}</span>}
+                            </div>
+                          </div>
+                        ))}
+                        {note.actionItems.length > 2 && (
+                          <div className="text-xs text-gray-500">他 {note.actionItems.length - 2} 件</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                     {/* AI要約 */}
                     {note.summary && (
@@ -502,8 +502,8 @@ export default function MeetingNotesPage() {
                           <span className="text-xs font-medium text-blue-600">AI要約</span>
                         </div>
                         <p className="text-sm text-gray-700 line-clamp-4">{note.summary}</p>
-                      </div>
-                    )}
+                    </div>
+                  )}
                   </div>
 
                   {/* フッター（全文確認ボタン） */}
@@ -793,10 +793,10 @@ export default function MeetingNotesPage() {
                         location: '',
                         attendees: [],
                         assignee: '',
-                  actionItems: [],
+                        actionItems: [],
                   notes: '',
                   summary: ''
-                });
+                      });
                     }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                   >

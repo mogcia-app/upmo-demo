@@ -442,24 +442,37 @@ export default function TodoPage() {
   const getTodosByStatus = (status: 'shared' | 'todo' | 'in-progress') => {
     const filtered = getFilteredTodos();
     if (status === 'shared') {
-      // 共有事項: 自分のTODOでstatus='shared'のもの + 他人のTODO（全て）
+      // 共有事項: 議事録から作成されたTODOで、担当者が現在のユーザーであるもののみ
+      return filtered.filter(todo => {
+        if (todo.completed) return false;
+        // 議事録から作成されたTODOかどうかを確認
+        const isFromMeetingNote = todo.description?.includes('議事録');
+        if (!isFromMeetingNote) return false;
+        
+        // 担当者が現在のユーザーであるもののみ表示
+        // assigneeがIDの場合
+        if (todo.assignee === user?.uid) {
+          return true;
+        }
+        
+        // assigneeが名前の場合、ユーザーリストから検索
+        const assigneeUser = allUsers.find(u => 
+          u.displayName === todo.assignee || 
+          u.email === todo.assignee
+        );
+        
+        // 見つかったユーザーのIDが現在のユーザーと一致するか確認
+        return assigneeUser?.id === user?.uid;
+      });
+    } else {
+      // ToDo、進行中: 自分のTODOのみ（議事録から作成されたものは除く）
       return filtered.filter(todo => {
         if (todo.completed) return false;
         const isMyTodo = todo.userId === user?.uid;
-        if (isMyTodo) {
-          return todo.status === 'shared';
-        } else {
-          // 他人のTODOは全て共有事項に表示
-          return true;
-        }
+        const isFromMeetingNote = todo.description?.includes('議事録');
+        // 自分のTODOで、議事録から作成されたものは除外
+        return isMyTodo && !isFromMeetingNote && todo.status === status;
       });
-    } else {
-      // ToDo、進行中: 自分のTODOのみ
-      return filtered.filter(todo => 
-        todo.userId === user?.uid && 
-        todo.status === status && 
-        !todo.completed
-      );
     }
   };
 
@@ -616,9 +629,6 @@ export default function TodoPage() {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-gray-900 text-xs sm:text-sm leading-tight break-words">
-                {!todo.description?.includes('議事録') && !todo.description?.includes('[AI生成]') && (
-                <span className="hidden sm:inline">#{todo.id.slice(-2)} </span>
-                )}
                 {todo.text}
               </h3>
               {!isOwner && (() => {
@@ -709,62 +719,100 @@ export default function TodoPage() {
             </div>
           )}
 
-          {/* 担当者アバター */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* 作成者・担当者情報 */}
+          <div className="flex flex-col gap-1.5 sm:gap-2">
             {(() => {
-              // 議事録から作成されたTODOの場合は担当者のみを表示
+              // 議事録から作成されたTODOの場合は作成者と担当者を表示
               const isFromMeetingNote = todo.description?.includes('議事録');
               
-              if (isFromMeetingNote && todo.assignee) {
-                // 担当者を表示
-                const assigneeUser = allUsers.find(u => u.id === todo.assignee);
+              if (isFromMeetingNote) {
+                const creator = allUsers.find(u => u.id === todo.userId);
+                // assigneeがIDの場合と名前の場合の両方に対応
+                const assigneeUser = allUsers.find(u => 
+                  u.id === todo.assignee || 
+                  u.displayName === todo.assignee || 
+                  u.email === todo.assignee
+                );
+                const assigneeName = assigneeUser?.displayName || todo.assignee || '未指定';
+                const isSamePerson = creator && (creator.id === assigneeUser?.id || creator.displayName === assigneeName);
+                
                 return (
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <span className="text-xs text-gray-500">担当者:</span>
-                    <div
-                      className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
-                      title={assigneeUser?.displayName || todo.assignee || '担当者'}
-                    >
-                      {assigneeUser?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                    {assigneeUser && (
-                      <span className="text-xs text-gray-700">{assigneeUser.displayName}</span>
+                  <div className="flex flex-col gap-1 text-xs text-gray-600">
+                    {isSamePerson ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-500">担当者:</span>
+                        <span className="text-gray-700">{assigneeName}</span>
+                      </div>
+                    ) : (
+                      <>
+                        {creator && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-gray-500">作成者:</span>
+                            <span className="text-gray-700">{creator.displayName}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-500">担当者:</span>
+                          <span className="text-gray-700">{assigneeName}</span>
+                        </div>
+                      </>
                     )}
                   </div>
                 );
               } else {
-                // 通常のTODOの場合は作成者と共有先を表示
-              const creator = allUsers.find(u => u.id === todo.userId);
-              return (
-                  <>
-                    {/* 作成者 */}
-                <div
-                  className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium"
-                  title={creator?.displayName || todo.assignee || '作成者'}
-                >
-                  {creator?.displayName?.charAt(0).toUpperCase() || todo.assignee?.charAt(0).toUpperCase() || 'U'}
-                </div>
-            {/* 共有先のユーザー */}
-            {todo.sharedWith && todo.sharedWith.length > 0 && todo.sharedWith.slice(0, 2).map((sharedUserId, index) => {
-              const sharedUser = allUsers.find(u => u.id === sharedUserId);
-              const colors = ['bg-green-500', 'bg-purple-500', 'bg-pink-500'];
-              if (!sharedUser) return null;
-              return (
-                <div
-                  key={sharedUserId}
-                  className={`w-5 h-5 sm:w-6 sm:h-6 ${colors[index % colors.length]} rounded-full border border-white flex items-center justify-center text-white text-xs font-medium`}
-                  title={sharedUser.displayName}
-                >
-                  {sharedUser.displayName.charAt(0).toUpperCase()}
-                </div>
-              );
-            })}
-            {todo.sharedWith && todo.sharedWith.length > 2 && (
-              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-400 rounded-full border border-white flex items-center justify-center text-white text-xs font-medium">
-                +{todo.sharedWith.length - 2}
-              </div>
-            )}
-                  </>
+                // 通常のTODOの場合は作成者と担当者を表示
+                const creator = allUsers.find(u => u.id === todo.userId);
+                // assigneeがIDの場合と名前の場合の両方に対応
+                const assigneeUser = allUsers.find(u => 
+                  u.id === todo.assignee || 
+                  u.displayName === todo.assignee || 
+                  u.email === todo.assignee
+                );
+                const assigneeName = assigneeUser?.displayName || todo.assignee || '未指定';
+                const isSamePerson = creator && (creator.id === assigneeUser?.id || creator.displayName === assigneeName);
+                
+                return (
+                  <div className="flex flex-col gap-1 text-xs text-gray-600">
+                    {isSamePerson ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-500">担当者:</span>
+                        <span className="text-gray-700">{assigneeName}</span>
+                      </div>
+                    ) : (
+                      <>
+                        {creator && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-gray-500">作成者:</span>
+                            <span className="text-gray-700">{creator.displayName}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-500">担当者:</span>
+                          <span className="text-gray-700">{assigneeName}</span>
+                        </div>
+                      </>
+                    )}
+                    {/* 共有先のユーザー */}
+                    {todo.sharedWith && todo.sharedWith.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="font-medium text-gray-500">共有先:</span>
+                        <div className="flex items-center gap-1">
+                          {todo.sharedWith.slice(0, 3).map((sharedUserId) => {
+                            const sharedUser = allUsers.find(u => u.id === sharedUserId);
+                            if (!sharedUser) return null;
+                            return (
+                              <span key={sharedUserId} className="text-gray-700">
+                                {sharedUser.displayName}
+                              </span>
+                            );
+                          })}
+                          {todo.sharedWith.length > 3 && (
+                            <span className="text-gray-500">+{todo.sharedWith.length - 3}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               }
             })()}
