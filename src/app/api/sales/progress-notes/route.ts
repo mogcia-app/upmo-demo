@@ -40,7 +40,7 @@ const initAdmin = () => {
 };
 
 // 認証トークンを検証
-const verifyAuthToken = async (authHeader: string | null) => {
+const verifyAuthToken = async (authHeader: string | null): Promise<{ userId: string; companyName: string; decodedToken: any }> => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new Error('認証が必要です');
   }
@@ -52,7 +52,15 @@ const verifyAuthToken = async (authHeader: string | null) => {
       initAdmin();
       const auth = getAuth();
       const decodedToken = await auth.verifyIdToken(token);
-      return decodedToken;
+      const userId = decodedToken.uid;
+      
+      // ユーザーのcompanyNameを取得
+      const db = initAdmin();
+      const userDoc = await db.collection('users').doc(userId).get();
+      const userData = userDoc.data();
+      const companyName = userData?.companyName || '';
+      
+      return { userId, companyName, decodedToken };
     } catch (adminError: any) {
       // Firebase Admin SDKが初期化されていない場合
       if (adminError.message?.includes('getAuth') || adminError.message?.includes('not initialized')) {
@@ -73,35 +81,29 @@ const verifyAuthToken = async (authHeader: string | null) => {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const caseId = searchParams.get('caseId');
 
     // 認証トークンを検証
     const authHeader = request.headers.get('Authorization');
-    const decodedToken = await verifyAuthToken(authHeader);
+    const { userId, companyName } = await verifyAuthToken(authHeader);
     
     // Firebase Admin SDKのFirestoreを初期化
     const db = initAdmin();
     
-    // userIdが指定されていない場合、認証されたユーザーのIDを使用
-    const targetUserId = userId || decodedToken.uid;
-
-    // Firebase Admin SDKのFirestoreでクエリを構築
+    // companyNameでフィルタリング（チーム共有）
     let queryRef: any = db.collection('progressNotes');
-
-    if (targetUserId && caseId) {
-      // 両方のフィルターがある場合
-      queryRef = queryRef.where('userId', '==', targetUserId).where('caseId', '==', caseId).orderBy('date', 'desc');
-    } else if (targetUserId) {
-      // userIdのみ
-      queryRef = queryRef.where('userId', '==', targetUserId).orderBy('date', 'desc');
-    } else if (caseId) {
-      // caseIdのみ（自分のデータのみ）
-      queryRef = queryRef.where('userId', '==', decodedToken.uid).where('caseId', '==', caseId).orderBy('date', 'desc');
+    
+    if (companyName) {
+      queryRef = queryRef.where('companyName', '==', companyName);
     } else {
-      // 自分のデータのみ
-      queryRef = queryRef.where('userId', '==', decodedToken.uid).orderBy('date', 'desc');
+      queryRef = queryRef.where('userId', '==', userId);
     }
+    
+    if (caseId) {
+      queryRef = queryRef.where('caseId', '==', caseId);
+    }
+    
+    queryRef = queryRef.orderBy('date', 'desc');
 
     let querySnapshot;
     try {
@@ -111,7 +113,14 @@ export async function GET(request: NextRequest) {
       // インデックスエラーの場合、フィルターなしで再試行
       if (queryError.code === 'failed-precondition') {
         console.warn('インデックスエラーが発生しました。フィルターなしで再試行します。');
-        queryRef = db.collection('progressNotes').orderBy('date', 'desc');
+        if (companyName) {
+          queryRef = db.collection('progressNotes').where('companyName', '==', companyName).orderBy('date', 'desc');
+        } else {
+          queryRef = db.collection('progressNotes').where('userId', '==', userId).orderBy('date', 'desc');
+        }
+        if (caseId) {
+          queryRef = queryRef.where('caseId', '==', caseId);
+        }
         querySnapshot = await queryRef.get();
       } else {
         throw queryError;
@@ -164,7 +173,7 @@ export async function POST(request: NextRequest) {
     
     // 認証トークンを検証
     const authHeader = request.headers.get('Authorization');
-    const decodedToken = await verifyAuthToken(authHeader);
+    const { userId, companyName } = await verifyAuthToken(authHeader);
     
     const {
       caseId,
@@ -178,13 +187,9 @@ export async function POST(request: NextRequest) {
       risks,
       tags,
       priority,
-      userId,
       isFavorite,
       sharedWith
     } = body;
-
-    // userIdは認証トークンから取得（リクエストのuserIdは無視）
-    const authenticatedUserId = decodedToken.uid;
 
     if (!title || !content) {
       return NextResponse.json(
@@ -212,7 +217,8 @@ export async function POST(request: NextRequest) {
       sharedWith: sharedWith || [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      userId: authenticatedUserId
+      userId: userId,
+      companyName: companyName || ''
     };
 
     const docRef = await db.collection('progressNotes').add(noteData);
@@ -250,7 +256,7 @@ export async function PUT(request: NextRequest) {
 
     // 認証トークンを検証
     const authHeader = request.headers.get('Authorization');
-    const decodedToken = await verifyAuthToken(authHeader);
+    const { userId, companyName } = await verifyAuthToken(authHeader);
     
     // Firebase Admin SDKのFirestoreを初期化
     const db = initAdmin();
@@ -265,7 +271,8 @@ export async function PUT(request: NextRequest) {
     }
     
     const noteData = noteDoc.data();
-    if (noteData?.userId !== decodedToken.uid) {
+    // 同じcompanyNameまたは所有者の場合のみ更新可能
+    if (noteData?.userId !== userId && noteData?.companyName !== companyName) {
       return NextResponse.json(
         { error: 'この進捗メモを更新する権限がありません' },
         { status: 403 }
@@ -320,7 +327,7 @@ export async function DELETE(request: NextRequest) {
 
     // 認証トークンを検証
     const authHeader = request.headers.get('Authorization');
-    const decodedToken = await verifyAuthToken(authHeader);
+    const { userId, companyName } = await verifyAuthToken(authHeader);
     
     // Firebase Admin SDKのFirestoreを初期化
     const db = initAdmin();
@@ -335,7 +342,8 @@ export async function DELETE(request: NextRequest) {
     }
     
     const noteData = noteDoc.data();
-    if (noteData?.userId !== decodedToken.uid) {
+    // 同じcompanyNameまたは所有者の場合のみ削除可能
+    if (noteData?.userId !== userId && noteData?.companyName !== companyName) {
       return NextResponse.json(
         { error: 'この進捗メモを削除する権限がありません' },
         { status: 403 }
