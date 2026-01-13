@@ -64,7 +64,13 @@ export default function TemplatesPage() {
       }
 
       const data = await response.json();
-      const fetchedTemplates = data.templates || [];
+      const fetchedTemplates = (data.templates || []).map((t: any) => ({
+        ...t,
+        createdAt: t.createdAt ? (typeof t.createdAt === 'string' ? new Date(t.createdAt) : t.createdAt) : new Date(),
+        updatedAt: t.updatedAt ? (typeof t.updatedAt === 'string' ? new Date(t.updatedAt) : t.updatedAt) : new Date(),
+        scheduledStart: t.scheduledStart ? (typeof t.scheduledStart === 'string' ? new Date(t.scheduledStart) : t.scheduledStart) : undefined,
+        scheduledEnd: t.scheduledEnd ? (typeof t.scheduledEnd === 'string' ? new Date(t.scheduledEnd) : t.scheduledEnd) : undefined,
+      }));
 
 
       // ソート
@@ -78,7 +84,9 @@ export default function TemplatesPage() {
             return (b.uses || 0) - (a.uses || 0);
           case 'date':
           default:
-            return (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0);
+            const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : (typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : 0);
+            const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : (typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : 0);
+            return dateB - dateA;
         }
       });
 
