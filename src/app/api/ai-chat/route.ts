@@ -233,6 +233,12 @@ function parseIntent(message: string): Intent {
     return { type: 'unknown' };
   }
   
+  // カスタムページのキーワードを検出
+  const customPageKeywords = ['カスタム', 'カスタムページ', 'custom', 'custom page', 'カスタムタブ', 'custom tab'];
+  if (customPageKeywords.some(keyword => messageLower.includes(keyword))) {
+    return { type: 'unknown' }; // カスタムページはunknownとして処理し、後で特別に処理
+  }
+  
   // まずメニュー項目ベースで判定
   const menuResult = parseIntentFromMenu(message);
   if (menuResult) {
@@ -923,6 +929,213 @@ function sectionContentToString(sectionValue: any): string {
 }
 
 // intentに基づいて1系統だけ検索
+// タイトルで検索（「○○について教えて」パターン用）
+async function searchByTitle(titleQuery: string, userId: string, companyName: string): Promise<ContextResult | null> {
+  if (!adminDb) {
+    return null;
+  }
+
+  const searchQuery = titleQuery.toLowerCase();
+  
+  try {
+    // 1. 顧客リスト（customers/list）で検索
+    if (companyName) {
+      const customerListTabsSnapshot = await adminDb.collection('customerListTabs')
+        .where('companyName', '==', companyName)
+        .get();
+      
+      for (const tabDoc of customerListTabsSnapshot.docs) {
+        const tabData = tabDoc.data();
+        const rows = tabData.rows || [];
+        
+        for (const row of rows) {
+          // 行の各列の値をチェック
+          for (const key in row) {
+            const value = String(row[key] || '').toLowerCase();
+            if (value.includes(searchQuery)) {
+              const pageContext = getPageContext('customer');
+              const pageUrl = pageContext?.url || '/customers/list';
+              return {
+                type: 'customer',
+                items: [row],
+                formatted: `【顧客リスト】\n\n「${titleQuery}」に関する情報が見つかりました。\n\n${JSON.stringify(row, null, 2)}\n\n[📋 顧客リストページへ移動](${pageUrl})`,
+                pageUrl
+              };
+            }
+          }
+        }
+      }
+    }
+    
+    // 2. 営業案件（salesOpportunities）で検索
+    let opportunitiesQuery: any = adminDb.collection('salesOpportunities');
+    if (companyName) {
+      opportunitiesQuery = opportunitiesQuery.where('companyName', '==', companyName);
+    } else {
+      opportunitiesQuery = opportunitiesQuery.where('userId', '==', userId);
+    }
+    const opportunitiesSnapshot = await opportunitiesQuery.limit(50).get();
+    
+    for (const doc of opportunitiesSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.customerName?.toLowerCase().includes(searchQuery) ||
+          data.customerCompany?.toLowerCase().includes(searchQuery)) {
+        const pageContext = getPageContext('sales');
+        const pageUrl = pageContext?.url || '/sales/opportunities';
+        return {
+          type: 'sales',
+          items: [data],
+          formatted: `【営業案件】\n\n「${titleQuery}」に関する情報が見つかりました。\n\n案件名: ${data.title || '（タイトルなし）'}\n顧客名: ${data.customerName || ''}\n顧客会社: ${data.customerCompany || ''}\nステータス: ${data.status || ''}\n\n[💼 営業案件ページへ移動](${pageUrl})`,
+          pageUrl
+        };
+      }
+    }
+    
+    // 3. 営業活動（salesActivities）で検索
+    let activitiesQuery: any = adminDb.collection('salesActivities');
+    if (companyName) {
+      activitiesQuery = activitiesQuery.where('companyName', '==', companyName);
+    } else {
+      activitiesQuery = activitiesQuery.where('userId', '==', userId);
+    }
+    const activitiesSnapshot = await activitiesQuery.limit(50).get();
+    
+    for (const doc of activitiesSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.companyName?.toLowerCase().includes(searchQuery)) {
+        const pageContext = getPageContext('progress');
+        const pageUrl = pageContext?.url || '/sales/activities';
+        return {
+          type: 'progress',
+          items: [data],
+          formatted: `【営業活動】\n\n「${titleQuery}」に関する情報が見つかりました。\n\n活動タイトル: ${data.title || '（タイトルなし）'}\n会社名: ${data.companyName || ''}\n活動タイプ: ${data.type || ''}\n\n[📝 営業活動ページへ移動](${pageUrl})`,
+          pageUrl
+        };
+      }
+    }
+    
+    // 4. TODO（todos）で検索
+    const todosSnapshot = await adminDb.collection('todos')
+      .where('userId', '==', userId)
+      .limit(50)
+      .get();
+    
+    for (const doc of todosSnapshot.docs) {
+      const data = doc.data();
+      if (data.text?.toLowerCase().includes(searchQuery) || 
+          data.description?.toLowerCase().includes(searchQuery)) {
+        const pageContext = getPageContext('todo');
+        const pageUrl = pageContext?.url || '/todo';
+        return {
+          type: 'todo',
+          items: [data],
+          formatted: `【TODO】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタスク: ${data.text || '（タイトルなし）'}\n説明: ${data.description || ''}\nステータス: ${data.status || ''}\n\n[✅ TODOページへ移動](${pageUrl})`,
+          pageUrl
+        };
+      }
+    }
+    
+    // 5. イベント（events）で検索
+    let eventsQuery: any = adminDb.collection('events');
+    if (companyName) {
+      eventsQuery = eventsQuery.where('companyName', '==', companyName);
+    } else {
+      eventsQuery = eventsQuery.where('userId', '==', userId);
+    }
+    const eventsSnapshot = await eventsQuery.limit(50).get();
+    
+    for (const doc of eventsSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.description?.toLowerCase().includes(searchQuery)) {
+        const pageContext = getPageContext('event');
+        const pageUrl = pageContext?.url || '/calendar';
+        return {
+          type: 'event',
+          items: [data],
+          formatted: `【カレンダー】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nイベント: ${data.title || '（タイトルなし）'}\n説明: ${data.description || ''}\n日付: ${data.date ? (data.date instanceof Timestamp ? data.date.toDate().toLocaleDateString('ja-JP') : new Date(data.date).toLocaleDateString('ja-JP')) : ''}\n\n[📅 カレンダーページへ移動](${pageUrl})`,
+          pageUrl
+        };
+      }
+    }
+    
+    // 6. 進捗メモ（progressNotes）で検索
+    let progressNotesQuery: any = adminDb.collection('progressNotes');
+    if (companyName) {
+      progressNotesQuery = progressNotesQuery.where('companyName', '==', companyName);
+    } else {
+      progressNotesQuery = progressNotesQuery.where('userId', '==', userId);
+    }
+    const progressNotesSnapshot = await progressNotesQuery.limit(50).get();
+    
+    for (const doc of progressNotesSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.caseTitle?.toLowerCase().includes(searchQuery)) {
+        const pageContext = getPageContext('progress');
+        const pageUrl = pageContext?.url || '/sales/progress-notes';
+        return {
+          type: 'progress',
+          items: [data],
+          formatted: `【進捗メモ】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタイトル: ${data.title || '（タイトルなし）'}\n案件: ${data.caseTitle || ''}\n内容: ${data.content || ''}\n\n[📝 進捗メモページへ移動](${pageUrl})`,
+          pageUrl
+        };
+      }
+    }
+    
+    // 7. テンプレート（templates）で検索
+    let templatesQuery: any = adminDb.collection('templates');
+    if (companyName) {
+      templatesQuery = templatesQuery.where('companyName', '==', companyName);
+    } else {
+      templatesQuery = templatesQuery.where('userId', '==', userId);
+    }
+    const templatesSnapshot = await templatesQuery.limit(50).get();
+    
+    for (const doc of templatesSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.description?.toLowerCase().includes(searchQuery)) {
+        return {
+          type: 'document',
+          items: [data],
+          formatted: `【テンプレート】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタイトル: ${data.title || '（タイトルなし）'}\n説明: ${data.description || ''}\n\n[📄 テンプレートページへ移動](/templates)`,
+          pageUrl: '/templates'
+        };
+      }
+    }
+    
+    // 8. ドキュメント（documents）で検索
+    let documentsQuery: any = adminDb.collection('documents');
+    if (companyName) {
+      documentsQuery = documentsQuery.where('companyName', '==', companyName);
+    } else {
+      documentsQuery = documentsQuery.where('userId', '==', userId);
+    }
+    const documentsSnapshot = await documentsQuery.limit(50).get();
+    
+    for (const doc of documentsSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.fileName?.toLowerCase().includes(searchQuery)) {
+        return {
+          type: 'document',
+          items: [data],
+          formatted: `【ドキュメント】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタイトル: ${data.title || '（タイトルなし）'}\nファイル名: ${data.fileName || ''}\n\n[📄 ドキュメントページへ移動](/documents)`,
+          pageUrl: '/documents'
+        };
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[searchByTitle] Error:', error);
+    return null;
+  }
+}
+
 async function searchByIntent(
   intent: Intent,
   message: string,
@@ -994,6 +1207,21 @@ async function searchByIntent(
     }
   }
   
+  // 「○○について教えて」パターンを検出して、データタイトルで検索
+  const aboutPattern = /^(.+?)(について教えて|について|教えて|について知りたい|について確認したい)$/;
+  const aboutMatch = message.match(aboutPattern);
+  
+  if (aboutMatch && aboutMatch[1]) {
+    const titleQuery = aboutMatch[1].trim();
+    if (titleQuery && titleQuery.length > 0) {
+      // 各コレクションでタイトル検索を試みる
+      const titleSearchResult = await searchByTitle(titleQuery, userId, companyName);
+      if (titleSearchResult) {
+        return titleSearchResult;
+      }
+    }
+  }
+
   // unknown intentの場合は検索しない（パフォーマンス向上）
   if (intent.type === 'unknown') {
     return null;
@@ -1539,14 +1767,42 @@ async function searchByIntent(
 
       case 'event': {
         const limit = isGeneralQuery ? 20 : 10;
-        const eventsSnapshot = await adminDb.collection('events')
-          .where('userId', '==', userId)
-          .orderBy('date', 'desc')
-          .limit(limit)
-          .get();
+        
+        // companyNameでフィルタリング（チーム共有）
+        let eventsQuery: any = adminDb.collection('events');
+        
+        if (companyName) {
+          eventsQuery = eventsQuery.where('companyName', '==', companyName);
+        } else {
+          eventsQuery = eventsQuery.where('userId', '==', userId);
+        }
+        
+        eventsQuery = eventsQuery.orderBy('date', 'desc').limit(limit);
+        
+        let eventsSnapshot;
+        try {
+          eventsSnapshot = await eventsQuery.get();
+        } catch (queryError: any) {
+          console.error('Firestoreクエリエラー:', queryError);
+          if (queryError.code === 'failed-precondition') {
+            // インデックスエラーの場合、companyNameフィルターなしで再試行
+            if (companyName) {
+              eventsQuery = adminDb.collection('events')
+                .where('companyName', '==', companyName)
+                .limit(limit);
+            } else {
+              eventsQuery = adminDb.collection('events')
+                .where('userId', '==', userId)
+                .limit(limit);
+            }
+            eventsSnapshot = await eventsQuery.get();
+          } else {
+            throw queryError;
+          }
+        }
         
         const relevantEvents: any[] = [];
-        eventsSnapshot.forEach((doc) => {
+        eventsSnapshot.forEach((doc: any) => {
           const data = doc.data();
           
           // 一般的な質問の場合は、すべてのイベントを返す
@@ -1579,11 +1835,16 @@ async function searchByIntent(
           }
         });
         
+        const pageContext = getPageContext('event');
+        const pageUrl = pageContext?.url || '/calendar';
+        
+        // イベントが見つからない場合でも、カレンダーページの説明を返す
         if (relevantEvents.length === 0) {
+          const pageDescription = pageContext?.description || 'カレンダー・予定管理ページ';
           return {
             type: 'event',
             items: [],
-            formatted: '【カレンダー】\n\n予定・イベントが見つかりませんでした。\n\n別のキーワードで検索していただくか、イベント名・説明で検索してみてください。'
+            formatted: `【カレンダー】\n\n${pageDescription}\n\n予定・イベントの作成・検索・管理ができます。\n\n現在、登録されている予定はありません。\n\n[📅 カレンダーページへ移動](${pageUrl})`
           };
         }
         
@@ -1598,9 +1859,6 @@ async function searchByIntent(
           if (e.description) text += `\n説明: ${e.description}`;
           return text;
         });
-        
-        const pageContext = getPageContext('event');
-        const pageUrl = pageContext?.url || '/calendar';
         
         return {
           type: 'event',
@@ -2050,7 +2308,7 @@ async function searchByIntent(
 
 // intentと結果から応答を構築（BFFベース）
 // 必ず文字列を返すことを保証する関数（runtime safety強化）
-function buildResponse(intent: Intent, result: ContextResult | null, message: string): string {
+async function buildResponse(intent: Intent, result: ContextResult | null, message: string, userId: string, companyName: string): Promise<string> {
   // 1. 検索結果がある場合はformattedを返す（runtime validation）
   if (result) {
     const validatedResult = validateContextResult(result);
@@ -2071,13 +2329,98 @@ function buildResponse(intent: Intent, result: ContextResult | null, message: st
 
   // 2. unknown intentの場合
   if (intent.type === 'unknown') {
+    // カスタムページに関する質問の場合
+    const messageLower = message.toLowerCase();
+    const customPageKeywords = ['カスタム', 'カスタムページ', 'custom', 'custom page', 'カスタムタブ', 'custom tab'];
+    const isCustomPageQuery = customPageKeywords.some(keyword => messageLower.includes(keyword));
+    
+    if (isCustomPageQuery) {
+      // カスタムページの情報を取得
+      if (!adminDb) {
+        return '【カスタムページ】\n\nデータベースに接続できませんでした。';
+      }
+      
+      try {
+        // companyNameでフィルタリング（チーム共有）
+        let customTabsQuery: any = adminDb.collection('customTabs');
+        
+        if (companyName) {
+          customTabsQuery = customTabsQuery.where('companyName', '==', companyName);
+        } else {
+          customTabsQuery = customTabsQuery.where('userId', '==', userId);
+        }
+        
+        // 共有されているタブも含める
+        const sharedTabsQuery = adminDb.collection('customTabs')
+          .where('isShared', '==', true);
+        
+        let customTabsSnapshot;
+        let sharedTabsSnapshot;
+        
+        try {
+          customTabsSnapshot = await customTabsQuery.get();
+          sharedTabsSnapshot = await sharedTabsQuery.get();
+        } catch (queryError: any) {
+          console.error('Firestoreクエリエラー:', queryError);
+          // エラーが発生した場合は、基本的な説明を返す
+          return '【カスタムページ】\n\nカスタムページは、データテーブル、チャート、フォームなどのコンポーネントを自由に追加して、独自のページを構築できる機能です。\n\nサイドバーの「カスタムメニュー」からカスタムページを作成・管理できます。';
+        }
+        
+        const customTabs: any[] = [];
+        
+        // 自分のタブと共有タブをマージ
+        customTabsSnapshot.forEach((doc: any) => {
+          const data = doc.data();
+          customTabs.push({
+            id: doc.id,
+            title: data.title,
+            route: data.route,
+            components: data.components || []
+          });
+        });
+        
+        sharedTabsSnapshot.forEach((doc: any) => {
+          const data = doc.data();
+          // 重複を避ける
+          if (!customTabs.find(tab => tab.id === doc.id)) {
+            customTabs.push({
+              id: doc.id,
+              title: data.title,
+              route: data.route,
+              components: data.components || []
+            });
+          }
+        });
+        
+        if (customTabs.length === 0) {
+          return '【カスタムページ】\n\nカスタムページは、データテーブル、チャート、フォームなどのコンポーネントを自由に追加して、独自のページを構築できる機能です。\n\n現在、登録されているカスタムページはありません。\n\nサイドバーの「カスタムメニュー」からカスタムページを作成できます。';
+        }
+        
+        const tabTexts = customTabs.map(tab => {
+          let text = `ページ名: ${tab.title}`;
+          if (tab.route) {
+            text += `\nURL: ${tab.route}`;
+          }
+          if (tab.components && tab.components.length > 0) {
+            text += `\nコンポーネント数: ${tab.components.length}個`;
+          }
+          return text;
+        });
+        
+        return `【カスタムページ】\n\n${customTabs.length}件のカスタムページが見つかりました。\n\n${tabTexts.join('\n\n---\n\n')}\n\n💡 カスタムページについて\n\nカスタムページは、データテーブル、チャート、フォームなどのコンポーネントを自由に追加して、独自のページを構築できる機能です。\n\nサイドバーの「カスタムメニュー」からカスタムページを作成・管理できます。`;
+      } catch (error) {
+        console.error('[buildResponse] Error getting custom pages', error);
+        return '【カスタムページ】\n\nカスタムページの情報を取得中にエラーが発生しました。';
+      }
+    }
+    
     // 「よくある質問」「FAQ」を検出
     const faqKeywords = ['よくある質問', 'FAQ', 'faq', 'よくある質問を教えて', 'よくある質問について'];
-    const isFAQQuery = faqKeywords.some(keyword => message.toLowerCase().includes(keyword));
+    const isFAQQuery = faqKeywords.some(keyword => messageLower.includes(keyword));
     
     // 「使い方」「方法」「教えて」などの一般的な質問を検出
     const helpKeywords = ['使い方', '使い', '方法', '教えて', 'how to', '使い方を', 'どうやって', 'どう使う'];
-    const isHelpQuery = helpKeywords.some(keyword => message.toLowerCase().includes(keyword));
+    const isHelpQuery = helpKeywords.some(keyword => messageLower.includes(keyword));
     
     try {
       const knowledge = getAppKnowledge();
@@ -2317,7 +2660,7 @@ export async function POST(request: NextRequest) {
     // 3. intentと結果から応答を構築（必ず文字列を返す - runtime safety保証）
     let aiResponse: string;
     try {
-      aiResponse = buildResponse(intent, result, message);
+      aiResponse = await buildResponse(intent, result, message, userId, companyName);
     } catch (error) {
       console.error('[AI Chat] buildResponse threw error', error);
       // catch内でも必ず文字列を設定
