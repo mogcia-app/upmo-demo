@@ -220,6 +220,34 @@ export default function MeetingNotesPage() {
         throw new Error(errorData.error || '議事録の保存に失敗しました');
       }
 
+      const responseData = await response.json();
+      const savedNoteId = responseData.note?.id || editingNote?.id;
+      
+      // アクション項目がある場合は自動的にTODOに追加
+      if (formData.actionItems && formData.actionItems.length > 0 && savedNoteId) {
+        try {
+          const addToTodoResponse = await fetch('/api/meeting-notes/add-to-todo', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ noteId: savedNoteId })
+          });
+          
+          if (addToTodoResponse.ok) {
+            const addToTodoData = await addToTodoResponse.json();
+            const addedCount = addToTodoData.added?.length || 0;
+            if (addedCount > 0) {
+              console.log(`${addedCount}件のアクション項目をTODOに追加しました`);
+            }
+          }
+        } catch (addToTodoError) {
+          console.error('TODO自動追加エラー:', addToTodoError);
+          // TODO追加に失敗しても保存は成功として扱う
+        }
+      }
+
       setShowModal(false);
       setEditingNote(null);
       setSelectedCustomerForNote(null);
@@ -281,6 +309,7 @@ export default function MeetingNotesPage() {
 
   const addActionItem = () => {
     if (actionItemInput.item.trim()) {
+      console.log('アクション項目追加:', actionItemInput);
       setFormData({ ...formData, actionItems: [...formData.actionItems, { ...actionItemInput }] });
       setActionItemInput({ item: '', assignee: '', deadline: '' });
     }
@@ -481,16 +510,20 @@ export default function MeetingNotesPage() {
                         <span className="text-xs font-medium text-gray-600">アクション項目 ({note.actionItems.length}件)</span>
                       </div>
                       <div className="space-y-1">
-                        {note.actionItems.slice(0, 2).map((item, index) => (
+                        {note.actionItems.slice(0, 2).map((item, index) => {
+                          const assigneeMember = teamMembers.find(m => m.id === item.assignee);
+                          const assigneeName = assigneeMember?.displayName || item.assignee || '未指定';
+                          return (
                             <div key={index} className="text-xs bg-gray-50 p-2 border-l-4 border-gray-400">
-                            <div className="font-medium text-gray-700">{item.item}</div>
-                            <div className="text-gray-500 mt-1">
-                              {item.assignee && <span>担当: {item.assignee}</span>}
-                              {item.assignee && item.deadline && <span> • </span>}
-                              {item.deadline && <span>期限: {item.deadline}</span>}
+                              <div className="font-medium text-gray-700">{item.item}</div>
+                              <div className="text-gray-500 mt-1">
+                                {assigneeName !== '未指定' && <span>担当: {assigneeName}</span>}
+                                {assigneeName !== '未指定' && item.deadline && <span> • </span>}
+                                {item.deadline && <span>期限: {item.deadline}</span>}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {note.actionItems.length > 2 && (
                           <div className="text-xs text-gray-500">他 {note.actionItems.length - 2} 件</div>
                         )}
@@ -712,13 +745,18 @@ export default function MeetingNotesPage() {
                         placeholder="項目"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
-                      <input
-                        type="text"
+                      <select
                         value={actionItemInput.assignee}
                         onChange={(e) => setActionItemInput({ ...actionItemInput, assignee: e.target.value })}
-                        placeholder="担当者"
                         className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      >
+                        <option value="">担当者を選択</option>
+                        {teamMembers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.displayName}
+                          </option>
+                        ))}
+                      </select>
                       <input
                         type="date"
                         value={actionItemInput.deadline}
@@ -734,22 +772,26 @@ export default function MeetingNotesPage() {
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.actionItems.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                          <div className="flex-1 grid grid-cols-3 gap-2 text-sm">
-                            <span className="text-gray-700">{item.item}</span>
-                            <span className="text-gray-600">{item.assignee}</span>
-                            <span className="text-gray-600">{item.deadline}</span>
+                      {formData.actionItems.map((item, index) => {
+                        const assigneeMember = teamMembers.find(m => m.id === item.assignee);
+                        const assigneeName = assigneeMember?.displayName || item.assignee || '未指定';
+                        return (
+                          <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                            <div className="flex-1 grid grid-cols-3 gap-2 text-sm">
+                              <span className="text-gray-700">{item.item}</span>
+                              <span className="text-gray-600">{assigneeName}</span>
+                              <span className="text-gray-600">{item.deadline}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeActionItem(index)}
+                              className="text-red-600 hover:text-red-800 ml-2"
+                            >
+                              ×
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeActionItem(index)}
-                            className="text-red-600 hover:text-red-800 ml-2"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                   <div>
@@ -918,16 +960,20 @@ export default function MeetingNotesPage() {
                         </button>
                       </div>
                       <div className="space-y-2">
-                        {selectedNoteForDetail.actionItems.map((item, index) => (
-                          <div key={index} className="bg-gray-50 p-3 border-l-4 border-gray-400">
-                            <div className="font-medium text-gray-800 mb-1">{item.item}</div>
-                            <div className="text-sm text-gray-600">
-                              {item.assignee && <span>担当: {item.assignee}</span>}
-                              {item.assignee && item.deadline && <span> • </span>}
-                              {item.deadline && <span>期限: {item.deadline}</span>}
+                        {selectedNoteForDetail.actionItems.map((item, index) => {
+                          const assigneeMember = teamMembers.find(m => m.id === item.assignee);
+                          const assigneeName = assigneeMember?.displayName || item.assignee || '未指定';
+                          return (
+                            <div key={index} className="bg-gray-50 p-3 border-l-4 border-gray-400">
+                              <div className="font-medium text-gray-800 mb-1">{item.item}</div>
+                              <div className="text-sm text-gray-600">
+                                {assigneeName !== '未指定' && <span>担当: {assigneeName}</span>}
+                                {assigneeName !== '未指定' && item.deadline && <span> • </span>}
+                                {item.deadline && <span>期限: {item.deadline}</span>}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

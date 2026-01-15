@@ -2581,6 +2581,36 @@ export default function Home() {
           console.error('進捗メモタイトル取得エラー:', error);
         }
 
+        // 営業活動管理の会社名を取得
+        try {
+          const activitiesResponse = await fetch('/api/sales/activities', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (activitiesResponse.ok) {
+            const activitiesData = await activitiesResponse.json();
+            console.log('営業活動管理APIレスポンス:', activitiesData);
+            if (activitiesData.success && activitiesData.activities) {
+              // 会社名のみを取得（重複を除去）
+              const companyNames: string[] = Array.from(new Set(
+                activitiesData.activities
+                  .map((activity: any) => activity.companyName || '')
+                  .filter((name: string) => name.trim() !== '')
+              )) as string[];
+              titles['sales-activities'] = companyNames.slice(0, 5);
+              console.log('営業活動管理会社名:', titles['sales-activities']);
+            } else {
+              console.warn('営業活動管理: activitiesが存在しないか、successがfalse', activitiesData);
+              titles['sales-activities'] = [];
+            }
+          } else {
+            console.error('営業活動管理APIエラー:', activitiesResponse.status);
+            titles['sales-activities'] = [];
+          }
+        } catch (error) {
+          console.error('営業活動管理会社名取得エラー:', error);
+          titles['sales-activities'] = [];
+        }
+
         // 顧客リストのタイトルを取得
         try {
           const customersListResponse = await fetch('/api/customers/list', {
@@ -3202,6 +3232,10 @@ export default function Home() {
                                item.id !== 'todo';
                       })
                       .map((item) => {
+                        // デバッグ: 営業活動管理の項目を確認
+                        if (item.href === '/sales/activities' || item.id === 'sales-activity' || item.id === 'sales-activities') {
+                          console.log('営業活動管理項目検出:', { itemId: item.id, itemHref: item.href, itemName: item.name });
+                        }
                         // メニューIDからページタイトルを取得
                         let titles: string[] = [];
                         if (item.id === 'progress-notes') {
@@ -3218,6 +3252,9 @@ export default function Home() {
                           titles = pageTitles['templates'] || [];
                         } else if (item.id === 'minutes-management' || item.href === '/minutes') {
                           titles = pageTitles['meeting-notes'] || [];
+                        } else if (item.href === '/sales/activities' || item.id === 'sales-activities' || item.id === 'sales-activity') {
+                          titles = pageTitles['sales-activities'] || [];
+                          console.log('営業活動管理マッピング:', { itemId: item.id, itemHref: item.href, itemName: item.name, titles, pageTitles: pageTitles['sales-activities'] });
                         }
 
                         return (
@@ -3261,7 +3298,12 @@ export default function Home() {
                           .map((item) => {
                             // カスタムメニューのタイトルを取得（IDベースまたはhrefベース）
                             let titles: string[] = [];
-                            if (item.id === 'minutes-management' || item.id === 'meeting-notes' || item.href === '/minutes' || item.href?.includes('meeting')) {
+                            
+                            // 営業活動管理を最初にチェック
+                            if (item.href === '/sales/activities' || item.id === 'sales-activities' || item.id === 'sales-activity') {
+                              titles = pageTitles['sales-activities'] || [];
+                              console.log('営業活動管理（カスタムメニュー）マッピング:', { itemId: item.id, itemHref: item.href, itemName: item.name, titles, pageTitles: pageTitles['sales-activities'] });
+                            } else if (item.id === 'minutes-management' || item.id === 'meeting-notes' || item.href === '/minutes' || item.href?.includes('meeting')) {
                               // 両方のキーをチェック
                               titles = pageTitles['minutes-management'] || pageTitles['meeting-notes'] || [];
                               console.log('議事録管理 - メニュー項目:', item, '取得したタイトル:', titles, 'pageTitles:', {

@@ -78,11 +78,11 @@ export async function GET(request: NextRequest) {
     
     const db = initAdmin();
     
-    // companyNameでフィルタリング（チーム共有）
+    // companyNameForSharingでフィルタリング（チーム共有）
     let queryRef: any = db.collection('salesActivities');
     
     if (companyName) {
-      queryRef = queryRef.where('companyName', '==', companyName);
+      queryRef = queryRef.where('companyNameForSharing', '==', companyName);
     } else {
       queryRef = queryRef.where('userId', '==', userId);
     }
@@ -105,11 +105,22 @@ export async function GET(request: NextRequest) {
       if (queryError.code === 'failed-precondition') {
         console.warn('インデックスエラーが発生しました。フィルターなしで再試行します。');
         if (companyName) {
+          // companyNameForSharingでフィルタリング（フォールバック）
           queryRef = db.collection('salesActivities').where('companyNameForSharing', '==', companyName).orderBy('activityDate', 'desc');
         } else {
           queryRef = db.collection('salesActivities').where('userId', '==', userId).orderBy('activityDate', 'desc');
         }
-        querySnapshot = await queryRef.get();
+        try {
+          querySnapshot = await queryRef.get();
+        } catch (fallbackError: any) {
+          // さらにフォールバック: 日付ソートなしで取得
+          if (companyName) {
+            queryRef = db.collection('salesActivities').where('companyNameForSharing', '==', companyName);
+          } else {
+            queryRef = db.collection('salesActivities').where('userId', '==', userId);
+          }
+          querySnapshot = await queryRef.get();
+        }
       } else {
         throw queryError;
       }

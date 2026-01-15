@@ -240,26 +240,25 @@ export default function SalesOpportunitiesPage() {
       <Layout>
         <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4 flex items-center justify-between">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">商談管理</h1>
+            <button
+              onClick={handleOpenModal}
+              className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-xs">新規商談</span>
+            </button>
           </div>
 
           {/* コンテンツエリア */}
           <div className="px-6 sm:px-8 py-6">
-            <div className="mb-4 flex items-center justify-between">
-              <button
-                onClick={handleOpenModal}
-                className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="text-xs">新規商談</span>
-              </button>
-            </div>
-
-            {/* フィルター */}
-            <div className="mb-4 flex gap-2">
+            {/* フィルターと商談一覧を結合 */}
+            <div className="bg-white border border-gray-200">
+              {/* フィルター */}
+              <div className="p-4 border-b border-gray-200 flex gap-2">
               <button
                 onClick={() => setFilterStatus('all')}
                 className={`px-3 py-1.5 text-xs transition-colors ${
@@ -310,26 +309,26 @@ export default function SalesOpportunitiesPage() {
             >
               成約
             </button>
-          </div>
+              </div>
 
-          {/* 商談一覧 */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
-              <p className="mt-2 text-gray-600">読み込み中...</p>
-            </div>
-          ) : opportunities.length === 0 ? (
-            <div className="text-center py-12 bg-white border border-gray-200">
-              <p className="text-gray-600">商談がありません</p>
-              <button
-                onClick={handleOpenModal}
-                className="mt-4 px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors text-sm font-medium"
-              >
-                最初の商談を作成
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* 商談一覧 */}
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
+                  <p className="mt-2 text-gray-600">読み込み中...</p>
+                </div>
+              ) : opportunities.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">商談がありません</p>
+                  <button
+                    onClick={handleOpenModal}
+                    className="mt-4 px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors text-sm font-medium"
+                  >
+                    最初の商談を作成
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {opportunities.map((opportunity) => (
                 <div
                   key={opportunity.id}
@@ -406,8 +405,9 @@ export default function SalesOpportunitiesPage() {
                   </div>
                 </div>
               ))}
+                </div>
+              )}
             </div>
-          )}
           </div>
 
           {/* モーダル */}

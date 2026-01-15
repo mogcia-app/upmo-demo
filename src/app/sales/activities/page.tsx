@@ -13,6 +13,8 @@ export default function SalesActivitiesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<SalesActivity | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<SalesActivity | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [teamMembers, setTeamMembers] = useState<Array<{ id: string; displayName: string; email: string }>>([]);
   const [companySearchQuery, setCompanySearchQuery] = useState('');
@@ -207,8 +209,11 @@ export default function SalesActivitiesPage() {
 
   // 保存
   const handleSave = async () => {
-    if (!user || !formData.title || !formData.companyName || !formData.activityDate) {
-      alert('タイトル、会社名、活動日は必須です');
+    // companyNameが空の場合はcompanySearchQueryを使用
+    const finalCompanyName = formData.companyName || companySearchQuery;
+    
+    if (!user || !finalCompanyName || !formData.title || !formData.activityDate) {
+      alert('会社名、タイトル、活動日は必須です');
       return;
     }
 
@@ -218,6 +223,7 @@ export default function SalesActivitiesPage() {
 
       const payload = {
         ...formData,
+        companyName: finalCompanyName,
         activityDate: formData.activityDate instanceof Date 
           ? formData.activityDate.toISOString()
           : new Date(formData.activityDate).toISOString()
@@ -247,7 +253,7 @@ export default function SalesActivitiesPage() {
       alert(editingActivity ? '営業活動を更新しました' : '営業活動を作成しました');
       setShowModal(false);
       resetForm();
-      fetchActivities();
+      await fetchActivities();
     } catch (error) {
       console.error('保存エラー:', error);
       const errorMessage = error instanceof Error ? error.message : '保存に失敗しました';
@@ -333,26 +339,25 @@ export default function SalesActivitiesPage() {
       <Layout>
         <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4 flex items-center justify-between">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">営業活動管理</h1>
+            <button
+              onClick={handleOpenModal}
+              className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-xs">新規活動</span>
+            </button>
           </div>
 
           {/* コンテンツエリア */}
           <div className="px-6 sm:px-8 py-6">
-            <div className="mb-4 flex items-center justify-between">
-              <button
-                onClick={handleOpenModal}
-                className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="text-xs">新規活動</span>
-              </button>
-            </div>
-
-            {/* フィルター */}
-            <div className="mb-4 flex gap-2">
+            {/* フィルターとカードを結合 */}
+            <div className="bg-white border border-gray-200">
+              {/* フィルター */}
+              <div className="p-4 border-b border-gray-200 flex gap-2">
               <button
                 onClick={() => setFilterType('all')}
                 className={`px-3 py-1.5 text-xs transition-colors ${
@@ -383,142 +388,142 @@ export default function SalesActivitiesPage() {
               >
                 電話
             </button>
-            <button
-              onClick={() => setFilterType('meeting')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterType === 'meeting'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              会議
-            </button>
-            <button
-              onClick={() => setFilterType('email')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterType === 'email'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              メール
-            </button>
-          </div>
-
-          {/* 営業活動一覧 */}
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
-              <p className="mt-2 text-gray-600">読み込み中...</p>
-            </div>
-          ) : activities.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <p className="text-gray-600">営業活動がありません</p>
               <button
-                onClick={handleOpenModal}
-                className="mt-4 px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                onClick={() => setFilterType('meeting')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterType === 'meeting'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                最初の活動を記録
+                会議
               </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
+              <button
+                onClick={() => setFilterType('email')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterType === 'email'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                メール
+              </button>
+              </div>
+
+              {/* 営業活動一覧 */}
+              <div className="p-4">
+                {loading ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
+                    <p className="mt-2 text-gray-600">読み込み中...</p>
+                  </div>
+                ) : activities.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600">営業活動がありません</p>
+                    <button
+                      onClick={handleOpenModal}
+                      className="mt-4 px-4 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors"
+                    >
+                      最初の活動を記録
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="bg-white border border-gray-200 p-6 hover:border-gray-300 transition-colors"
+                  onClick={() => {
+                    setSelectedActivity(activity);
+                    setShowDetailModal(true);
+                  }}
+                  className="bg-white border border-gray-200 p-4 hover:border-gray-300 transition-colors flex flex-col cursor-pointer"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {activity.title}
-                        </h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(activity.type)}`}>
-                          {getTypeLabel(activity.type)}
-                        </span>
-                      </div>
+                  <div className="mb-3">
+                    <div className="flex items-start justify-between mb-2">
                       {activity.companyName && (
-                        <p className="text-sm text-gray-600">{activity.companyName}</p>
+                        <h3 className="text-base font-semibold text-gray-900 line-clamp-2 flex-1">
+                          {activity.companyName}
+                        </h3>
                       )}
-                      {activity.companyData && Object.keys(activity.companyData).length > 0 && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          {Object.entries(activity.companyData).slice(0, 3).map(([key, value]) => (
-                            <span key={key} className="mr-3">
-                              {key}: {String(value)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <span className={`px-2 py-0.5 text-xs font-medium ml-2 flex-shrink-0 ${getTypeColor(activity.type)}`}>
+                        {getTypeLabel(activity.type)}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 text-sm">
+                  <div className="space-y-2 mb-3 text-sm flex-1">
                     <div>
-                      <span className="font-medium text-gray-700">活動日:</span>
-                      <p className="text-gray-600">
+                      <span className="font-medium text-gray-700 text-xs">活動日:</span>
+                      <p className="text-gray-600 text-xs">
                         {new Date(activity.activityDate).toLocaleDateString('ja-JP')}
                       </p>
                     </div>
                     {activity.participantNames && activity.participantNames.length > 0 && (
                       <div>
-                        <span className="font-medium text-gray-700">参加者:</span>
-                        <p className="text-gray-600">{activity.participantNames.join(', ')}</p>
+                        <span className="font-medium text-gray-700 text-xs">参加者:</span>
+                        <p className="text-gray-600 text-xs line-clamp-1">{activity.participantNames.join(', ')}</p>
+                      </div>
+                    )}
+                    {activity.description && (
+                      <div>
+                        <span className="font-medium text-gray-700 text-xs">活動内容:</span>
+                        <p className="text-gray-600 text-xs line-clamp-2 mt-1">
+                          {activity.description}
+                        </p>
+                      </div>
+                    )}
+                    {activity.outcome && (
+                      <div>
+                        <span className="font-medium text-gray-700 text-xs">結果:</span>
+                        <p className="text-gray-600 text-xs line-clamp-2 mt-1">{activity.outcome}</p>
+                      </div>
+                    )}
+                    {activity.nextAction && (
+                      <div>
+                        <span className="font-medium text-gray-700 text-xs">次アクション:</span>
+                        <p className="text-gray-600 text-xs line-clamp-1 mt-1">{activity.nextAction}</p>
                       </div>
                     )}
                   </div>
 
-                  {activity.description && (
-                    <p className="text-sm text-gray-700 mb-3">
-                      {activity.description}
-                    </p>
-                  )}
-
-                  {activity.outcome && (
-                    <div className="mb-3">
-                      <span className="font-medium text-gray-700 text-sm">結果:</span>
-                      <p className="text-sm text-gray-600 mt-1">{activity.outcome}</p>
-                    </div>
-                  )}
-
-                  {activity.nextAction && (
-                    <div className="mb-3">
-                      <span className="font-medium text-gray-700 text-sm">次アクション:</span>
-                      <p className="text-sm text-gray-600 mt-1">{activity.nextAction}</p>
-                    </div>
-                  )}
-
                   {activity.tags && activity.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {activity.tags.map((tag, idx) => (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {activity.tags.slice(0, 3).map((tag, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded"
+                          className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs"
                         >
                           {tag}
                         </span>
                       ))}
+                      {activity.tags.length > 3 && (
+                        <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs">
+                          +{activity.tags.length - 3}
+                        </span>
+                      )}
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-4 border-t border-gray-200">
+                  <div className="flex gap-2 pt-3 border-t border-gray-200 mt-auto" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => handleEdit(activity)}
-                      className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                      className="flex-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                     >
                       編集
                     </button>
                     <button
                       onClick={() => handleDelete(activity.id)}
-                      className="px-3 py-2 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                      className="px-3 py-1.5 text-xs bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
                     >
                       削除
                     </button>
                   </div>
                 </div>
               ))}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
           </div>
 
           {/* モーダル */}
@@ -535,37 +540,6 @@ export default function SalesActivitiesPage() {
                   {/* 基本情報 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      活動タイトル <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title || ''}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                      placeholder="例: 初回訪問"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      活動タイプ
-                    </label>
-                    <select
-                      value={formData.type || 'other'}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                    >
-                      <option value="visit">訪問</option>
-                      <option value="call">電話</option>
-                      <option value="email">メール</option>
-                      <option value="meeting">会議</option>
-                      <option value="presentation">プレゼン</option>
-                      <option value="other">その他</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       会社名 <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -573,7 +547,9 @@ export default function SalesActivitiesPage() {
                         type="text"
                         value={companySearchQuery}
                         onChange={(e) => {
-                          setCompanySearchQuery(e.target.value);
+                          const value = e.target.value;
+                          setCompanySearchQuery(value);
+                          setFormData({ ...formData, companyName: value });
                           setShowCompanySearch(true);
                         }}
                         onFocus={() => setShowCompanySearch(true)}
@@ -807,6 +783,123 @@ export default function SalesActivitiesPage() {
               </div>
             </div>
           )}
+
+      {/* 詳細モーダル */}
+      {showDetailModal && selectedActivity && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">営業活動の詳細</h2>
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedActivity(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">会社名</label>
+                <p className="text-gray-900">{selectedActivity.companyName || '未設定'}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">活動タイトル</label>
+                <p className="text-gray-900">{selectedActivity.title}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">活動タイプ</label>
+                <p className="text-gray-900">
+                  <span className={`px-2 py-1 text-xs font-medium ${getTypeColor(selectedActivity.type)}`}>
+                    {getTypeLabel(selectedActivity.type)}
+                  </span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">活動日</label>
+                <p className="text-gray-900">
+                  {new Date(selectedActivity.activityDate).toLocaleDateString('ja-JP')}
+                </p>
+              </div>
+
+              {selectedActivity.participantNames && selectedActivity.participantNames.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">参加者</label>
+                  <p className="text-gray-900">{selectedActivity.participantNames.join(', ')}</p>
+                </div>
+              )}
+
+              {selectedActivity.description && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">活動内容</label>
+                  <p className="text-gray-900 whitespace-pre-wrap">{selectedActivity.description}</p>
+                </div>
+              )}
+
+              {selectedActivity.outcome && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">結果・成果</label>
+                  <p className="text-gray-900 whitespace-pre-wrap">{selectedActivity.outcome}</p>
+                </div>
+              )}
+
+              {selectedActivity.nextAction && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">次アクション</label>
+                  <p className="text-gray-900">{selectedActivity.nextAction}</p>
+                </div>
+              )}
+
+              {selectedActivity.tags && selectedActivity.tags.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">タグ</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedActivity.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-1 bg-gray-100 text-gray-700 text-xs"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 sm:p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedActivity(null);
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 hover:bg-gray-400 transition-colors"
+              >
+                閉じる
+              </button>
+              <button
+                onClick={() => {
+                  setShowDetailModal(false);
+                  handleEdit(selectedActivity);
+                }}
+                className="px-4 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors"
+              >
+                編集
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </div>
       </Layout>
     </ProtectedRoute>
