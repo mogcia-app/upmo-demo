@@ -613,9 +613,8 @@ export default function CompanyPage() {
                                           {contentFields.length > 0 ? (
                                             <div className="space-y-2 pl-4 border-l-2 border-gray-200">
                                               {contentFields.map((field) => (
-                                                <div key={field.id} className={`flex items-start gap-2 ${field.type === 'textarea' ? 'flex-col' : ''}`}>
-                                                  <span className="text-sm font-medium text-gray-700 min-w-[80px]">{field.label}:</span>
-                                                  <span className={`text-sm text-gray-900 flex-1 ${field.type === 'textarea' ? 'whitespace-pre-wrap' : ''}`}>
+                                                <div key={field.id} className={`${field.type === 'textarea' ? 'flex flex-col' : ''}`}>
+                                                  <span className={`text-sm text-gray-900 ${field.type === 'textarea' ? 'whitespace-pre-wrap' : ''}`}>
                                                     {(field.type === 'url' || isUrl(field.value)) && field.value ? (
                                                       <a
                                                         href={field.value.startsWith('http') ? field.value : `https://${field.value}`}
