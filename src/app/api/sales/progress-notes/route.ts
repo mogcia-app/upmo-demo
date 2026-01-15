@@ -149,7 +149,14 @@ export async function GET(request: NextRequest) {
         updatedAt: data.updatedAt?.toDate() || new Date(),
         userId: data.userId || '',
         isFavorite: data.isFavorite || false,
-        sharedWith: data.sharedWith || []
+        sharedWith: data.sharedWith || [],
+        replies: (data.replies || []).map((reply: any) => ({
+          id: reply.id,
+          content: reply.content,
+          userId: reply.userId,
+          userName: reply.userName,
+          createdAt: reply.createdAt?.toDate ? reply.createdAt.toDate() : new Date(reply.createdAt)
+        }))
       } as any);
     });
 

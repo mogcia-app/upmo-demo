@@ -19,6 +19,14 @@ export interface SalesCase {
   userId: string; // 作成者ID
 }
 
+export interface ProgressNoteReply {
+  id: string;
+  content: string; // 返信内容
+  userId: string; // 返信者ID
+  userName: string; // 返信者名
+  createdAt: Date; // 返信日時
+}
+
 export interface ProgressNote {
   id: string;
   caseId?: string; // 関連する案件ID（オプション）
@@ -32,6 +40,7 @@ export interface ProgressNote {
   risks?: string[]; // リスク・懸念事項
   tags?: string[]; // タグ
   priority?: 'high' | 'medium' | 'low'; // 優先度
+  replies?: ProgressNoteReply[]; // 返信一覧
   createdAt: Date;
   updatedAt: Date;
   userId: string; // 作成者ID

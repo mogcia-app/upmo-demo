@@ -6,12 +6,12 @@ export async function createNotificationInServer(
   userId: string,
   companyName: string,
   options: {
-    type: 'create' | 'update' | 'delete' | 'info';
+    type: 'create' | 'update' | 'delete' | 'info' | 'reply';
     pageName: string;
     pageUrl: string;
     title?: string;
     message?: string;
-    action: 'created' | 'updated' | 'deleted';
+    action: 'created' | 'updated' | 'deleted' | 'replied';
   }
 ): Promise<void> {
   try {
@@ -21,9 +21,19 @@ export async function createNotificationInServer(
     const userName = userData?.displayName || userData?.email || '不明なユーザー';
     
     // 通知を作成（作成者は既読として扱う）
+    const getActionLabel = () => {
+      switch (options.action) {
+        case 'created': return '追加';
+        case 'updated': return '編集';
+        case 'deleted': return '削除';
+        case 'replied': return '返信';
+        default: return '更新';
+      }
+    };
+    
     const notificationData = {
       type: options.type,
-      title: options.title || `${options.pageName}が${options.action === 'created' ? '追加' : options.action === 'updated' ? '編集' : '削除'}されました`,
+      title: options.title || `${options.pageName}が${getActionLabel()}されました`,
       message: options.message || '',
       pageUrl: options.pageUrl,
       pageName: options.pageName,

@@ -15,6 +15,10 @@ export default function ProgressNotesPage() {
   const [viewingNote, setViewingNote] = useState<ProgressNote | null>(null);
   const [editingNote, setEditingNote] = useState<ProgressNote | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [replyingToNote, setReplyingToNote] = useState<ProgressNote | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [replyUserName, setReplyUserName] = useState('');
   
   // 検索・フィルター
   const [searchQuery, setSearchQuery] = useState('');
@@ -247,6 +251,68 @@ export default function ProgressNotesPage() {
     } catch (error) {
       console.error('削除エラー:', error);
       alert('削除に失敗しました');
+    }
+  };
+
+  // 返信モーダルを開く
+  const handleOpenReplyModal = (note: ProgressNote) => {
+    setReplyingToNote(note);
+    setReplyContent('');
+    const currentUser = allUsers.find(u => u.id === user?.uid);
+    setReplyUserName(currentUser?.displayName || '');
+    setShowReplyModal(true);
+  };
+
+  // 返信を保存
+  const handleSaveReply = async () => {
+    if (!user || !replyingToNote || !replyContent.trim() || !replyUserName.trim()) {
+      alert('返信内容と担当者名を入力してください');
+      return;
+    }
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/sales/progress-notes/reply', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          noteId: replyingToNote.id,
+          content: replyContent.trim(),
+          userName: replyUserName.trim()
+        })
+      });
+
+      if (response.ok) {
+        await fetchNotes();
+        // 詳細モーダルが開いている場合は、最新のメモを再取得
+        if (showDetailModal && viewingNote?.id === replyingToNote.id) {
+          const updatedResponse = await fetch(`/api/sales/progress-notes?userId=${user.uid}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (updatedResponse.ok) {
+            const data = await updatedResponse.json();
+            const updatedNote = data.notes.find((n: ProgressNote) => n.id === replyingToNote.id);
+            if (updatedNote) {
+              setViewingNote(updatedNote);
+            }
+          }
+        }
+        setShowReplyModal(false);
+        setReplyingToNote(null);
+        setReplyContent('');
+        setReplyUserName('');
+        alert('返信を追加しました');
+      } else {
+        throw new Error('返信の保存に失敗しました');
+      }
+    } catch (error) {
+      console.error('返信保存エラー:', error);
+      alert('返信の保存に失敗しました');
     }
   };
 
@@ -524,6 +590,15 @@ export default function ProgressNotesPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleOpenReplyModal(note);
+                            }}
+                            className="flex-1 px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                          >
+                            返信
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleEdit(note);
                             }}
                             className="flex-1 px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
@@ -774,6 +849,51 @@ export default function ProgressNotesPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* 返信タイムライン */}
+                  {viewingNote.replies && viewingNote.replies.length > 0 && (
+                    <div className="border-t border-gray-200 pt-4">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4">返信</h3>
+                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {[...viewingNote.replies].sort((a, b) => {
+                          const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+                          const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+                          return dateA - dateB;
+                        }).map((reply) => (
+                          <div key={reply.id} className="flex gap-3 pb-4 border-b border-gray-100 last:border-b-0">
+                            <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-blue-600">
+                                {reply.userName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-gray-900">{reply.userName}</span>
+                                <span className="text-xs text-gray-500">
+                                  {reply.createdAt instanceof Date 
+                                    ? reply.createdAt.toLocaleString('ja-JP', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })
+                                    : new Date(reply.createdAt).toLocaleString('ja-JP', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{reply.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
@@ -785,6 +905,12 @@ export default function ProgressNotesPage() {
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                   >
                     閉じる
+                  </button>
+                  <button
+                    onClick={() => handleOpenReplyModal(viewingNote)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    返信
                   </button>
                   <button
                     onClick={() => handleEdit(viewingNote)}
@@ -944,6 +1070,68 @@ export default function ProgressNotesPage() {
                 </div>
               </div>
             )}
+
+          {/* 返信モーダル */}
+          {showReplyModal && replyingToNote && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-gray-200">
+                  <h2 className="text-xl font-bold text-gray-900">返信を追加</h2>
+                  <p className="text-sm text-gray-600 mt-1">{replyingToNote.title}</p>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  {/* 担当者名 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      担当者名 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={replyUserName}
+                      onChange={(e) => setReplyUserName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="担当者名を入力"
+                    />
+                  </div>
+
+                  {/* 返信内容 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      返信内容 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={replyContent}
+                      onChange={(e) => setReplyContent(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={6}
+                      placeholder="返信内容を入力"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowReplyModal(false);
+                      setReplyingToNote(null);
+                      setReplyContent('');
+                      setReplyUserName('');
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleSaveReply}
+                    className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                  >
+                    返信
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Layout>
     </ProtectedRoute>

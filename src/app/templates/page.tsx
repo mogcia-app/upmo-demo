@@ -13,6 +13,8 @@ export default function TemplatesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // フィルター・検索
   const [searchQuery, setSearchQuery] = useState('');
@@ -487,7 +489,16 @@ export default function TemplatesPage() {
                   {filteredTemplates.slice(0, 11).map((template) => (
                     <div
                       key={template.id}
-                      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all"
+                      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer"
+                      onClick={(e) => {
+                        // チェックボックスやボタンのクリックは無視
+                        if ((e.target as HTMLElement).closest('input[type="checkbox"]') || 
+                            (e.target as HTMLElement).closest('button')) {
+                          return;
+                        }
+                        setSelectedTemplate(template);
+                        setShowDetailModal(true);
+                      }}
                     >
                       {/* ヘッダー */}
                       <div className="flex items-start justify-between mb-3">
@@ -495,7 +506,11 @@ export default function TemplatesPage() {
                           <input
                             type="checkbox"
                             checked={selectedTemplates.has(template.id)}
-                            onChange={() => toggleTemplateSelection(template.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleTemplateSelection(template.id);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                           />
                           <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">
@@ -568,13 +583,16 @@ export default function TemplatesPage() {
                       </div>
 
                       {/* アクションボタン */}
-                      <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-2 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => handleEditTemplate(template)}
+                          onClick={() => {
+                            setShowDetailModal(false);
+                            handleEditTemplate(template);
+                          }}
                           className="flex-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
                         >
-                          詳細
-                          </button>
+                          編集
+                        </button>
                           <button
                             onClick={() => handleDelete(template.id)}
                           className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
@@ -741,6 +759,139 @@ export default function TemplatesPage() {
               </div>
             </div>
           )}
+
+        {/* 詳細モーダル */}
+        {showDetailModal && selectedTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900">{selectedTemplate.title}</h2>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setSelectedTemplate(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* 基本情報 */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">基本情報</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">タイプ</label>
+                      <p className="text-sm text-gray-900">{getTypeLabel(selectedTemplate.type)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">ステータス</label>
+                      <p className="text-sm text-gray-900">
+                        <span className={`inline-flex items-center gap-1 ${selectedTemplate.status === 'active' ? 'text-green-600' : 'text-gray-600'}`}>
+                          {selectedTemplate.status === 'active' && (
+                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          )}
+                          {selectedTemplate.status === 'active' ? 'アクティブ' : '非アクティブ'}
+                        </span>
+                      </p>
+                    </div>
+                    {selectedTemplate.category && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">カテゴリ</label>
+                        <p className="text-sm text-gray-900">{selectedTemplate.category}</p>
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">作成日</label>
+                      <p className="text-sm text-gray-900">
+                        {selectedTemplate.createdAt
+                          ? new Date(selectedTemplate.createdAt).toLocaleDateString('ja-JP', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            })
+                          : '不明'}
+                      </p>
+                    </div>
+                    {selectedTemplate.updatedAt && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">更新日</label>
+                        <p className="text-sm text-gray-900">
+                          {new Date(selectedTemplate.updatedAt).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 説明 */}
+                {selectedTemplate.description && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">説明</h3>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTemplate.description}</p>
+                  </div>
+                )}
+
+                {/* タグ */}
+                {selectedTemplate.tags && selectedTemplate.tags.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">タグ</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTemplate.tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 内容 */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">内容</h3>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <pre className="text-sm text-gray-900 whitespace-pre-wrap font-sans">{selectedTemplate.content}</pre>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-4">
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedTemplate(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    handleEditTemplate(selectedTemplate);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  編集
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* カスタムタブ追加モーダル */}
         {showAddTabModal && (
