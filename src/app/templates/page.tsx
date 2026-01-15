@@ -353,59 +353,58 @@ export default function TemplatesPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
-          <div className="max-w-7xl mx-auto">
-            {/* ヘッダー */}
-            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold text-gray-900">テンプレート</h1>
-                <button
-                  onClick={handleOpenModal}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm flex items-center gap-2"
-                >
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
+          {/* ヘッダー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">テンプレート</h1>
+              <button
+                onClick={handleOpenModal}
+                className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-xs">テンプレートを追加</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-gray-600">
+                表示中: 1-{Math.min(20, filteredTemplates.length)} / {filteredTemplates.length}
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-1.5 border border-gray-300 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="date">日付順</option>
+                <option value="title">タイトル順</option>
+                <option value="views">閲覧数順</option>
+                <option value="uses">使用数順</option>
+              </select>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-1.5 border border-gray-300 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button className="p-1.5 text-gray-400 hover:text-gray-600">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  テンプレートを追加
                 </button>
               </div>
-
-              {/* 検索・ソート */}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">
-                    表示中: 1-{Math.min(20, filteredTemplates.length)} / {filteredTemplates.length}
-                  </span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="date">日付順</option>
-                    <option value="title">タイトル順</option>
-                    <option value="views">閲覧数順</option>
-                    <option value="uses">使用数順</option>
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="検索..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button className="p-1.5 text-gray-400 hover:text-gray-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
+          </div>
 
-            {/* タブ */}
-            <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            {/* タブとテンプレート一覧 */}
+            <div className="bg-white border border-gray-200">
+              {/* タブ */}
+              <div className="p-4 border-b border-gray-200">
               <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
                 <button
                   onClick={() => setActiveTab('all')}
@@ -449,31 +448,30 @@ export default function TemplatesPage() {
                   タブを追加
                 </button>
               </div>
-            </div>
 
-            {/* テンプレートグリッド */}
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-2 text-gray-600">読み込み中...</p>
-              </div>
-            ) : filteredTemplates.length === 0 ? (
-              <div className="text-center bg-white rounded-lg border border-gray-200 p-12">
-                <p className="text-gray-600 mb-4">
-                  {searchQuery ? '検索結果が見つかりませんでした' : 'テンプレートがありません'}
-                </p>
-                {!searchQuery && (
-                  <button
-                    onClick={handleOpenModal}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    最初のテンプレートを作成
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4 sm:mb-6">
+              {/* テンプレートグリッド */}
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-gray-600">読み込み中...</p>
+                </div>
+              ) : filteredTemplates.length === 0 ? (
+                <div className="text-center p-12">
+                  <p className="text-gray-600 mb-4">
+                    {searchQuery ? '検索結果が見つかりませんでした' : 'テンプレートがありません'}
+                  </p>
+                  {!searchQuery && (
+                    <button
+                      onClick={handleOpenModal}
+                      className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      最初のテンプレートを作成
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* 追加カード */}
                           <button
                     onClick={handleOpenModal}
@@ -634,12 +632,13 @@ export default function TemplatesPage() {
                     </div>
                   </div>
                 )}
-              </>
-            )}
+                </div>
+              )}
             </div>
           </div>
+          </div>
 
-        {/* モーダル */}
+          {/* モーダル */}
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -783,6 +782,7 @@ export default function TemplatesPage() {
             </div>
           </div>
         )}
+        </div>
       </Layout>
     </ProtectedRoute>
   );

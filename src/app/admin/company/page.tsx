@@ -117,21 +117,18 @@ export default function CompanyPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 sm:py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">会社情報</h1>
-                <p className="text-sm sm:text-base text-gray-600 mt-2">会社の基本情報を管理します</p>
-              </div>
-              <div className="flex items-center gap-3">
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">会社情報</h1>
+              <div className="flex items-center gap-2">
                 {isEditing ? (
                   <>
                     <button
                       onClick={handleSave}
                       disabled={isSaving}
-                      className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base disabled:opacity-50"
+                      className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
                     >
                       {isSaving ? '保存中...' : '保存'}
                     </button>
@@ -140,7 +137,7 @@ export default function CompanyPage() {
                         setIsEditing(false);
                         fetchCompanyInfo();
                       }}
-                      className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition-all duration-200 text-sm sm:text-base"
+                      className="px-3 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors text-sm font-medium"
                     >
                       キャンセル
                     </button>
@@ -148,7 +145,7 @@ export default function CompanyPage() {
                 ) : (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base"
+                    className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
                   >
                     編集
                   </button>
@@ -158,15 +155,15 @@ export default function CompanyPage() {
           </div>
 
           {/* コンテンツ */}
-          <div className="p-4 sm:p-6">
+          <div className="px-6 sm:px-8 py-6">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <span className="ml-3 text-gray-600">読み込み中...</span>
               </div>
             ) : (
-              <div className="max-w-4xl mx-auto">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
+              <div>
+                <div className="bg-white border border-gray-200 p-6 sm:p-8">
                   {/* 基本情報 */}
                   <div className="mb-8">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-2 border-b border-gray-200">基本情報</h2>
@@ -178,11 +175,11 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.name}
                             onChange={(e) => handleChange('name', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                             required
                           />
                         ) : (
-                          <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.name || '未設定'}</p>
+                          <p className="px-4 py-2 bg-gray-50 text-gray-900">{companyInfo.name || '未設定'}</p>
                         )}
                       </div>
                       <div>
@@ -192,7 +189,7 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.nameKana || ''}
                             onChange={(e) => handleChange('nameKana', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                           />
                         ) : (
                           <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.nameKana || '未設定'}</p>
@@ -205,7 +202,7 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.postalCode || ''}
                             onChange={(e) => handleChange('postalCode', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                             placeholder="123-4567"
                           />
                         ) : (
@@ -219,7 +216,7 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.address || ''}
                             onChange={(e) => handleChange('address', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                           />
                         ) : (
                           <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.address || '未設定'}</p>
@@ -232,7 +229,7 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.phone || ''}
                             onChange={(e) => handleChange('phone', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                             placeholder="03-1234-5678"
                           />
                         ) : (
@@ -246,7 +243,7 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.fax || ''}
                             onChange={(e) => handleChange('fax', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                             placeholder="03-1234-5679"
                           />
                         ) : (
@@ -260,7 +257,7 @@ export default function CompanyPage() {
                             type="email"
                             value={companyInfo.email || ''}
                             onChange={(e) => handleChange('email', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                           />
                         ) : (
                           <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.email || '未設定'}</p>
@@ -273,7 +270,7 @@ export default function CompanyPage() {
                             type="url"
                             value={companyInfo.website || ''}
                             onChange={(e) => handleChange('website', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                             placeholder="https://example.com"
                           />
                         ) : (
@@ -294,7 +291,7 @@ export default function CompanyPage() {
                             type="text"
                             value={companyInfo.representative || ''}
                             onChange={(e) => handleChange('representative', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                           />
                         ) : (
                           <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.representative || '未設定'}</p>
@@ -307,7 +304,7 @@ export default function CompanyPage() {
                             type="date"
                             value={companyInfo.establishedDate || ''}
                             onChange={(e) => handleChange('establishedDate', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                           />
                         ) : (
                           <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.establishedDate || '未設定'}</p>
@@ -319,11 +316,11 @@ export default function CompanyPage() {
                           <textarea
                             value={companyInfo.businessDescription || ''}
                             onChange={(e) => handleChange('businessDescription', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                             rows={4}
                           />
                         ) : (
-                          <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900 whitespace-pre-wrap">{companyInfo.businessDescription || '未設定'}</p>
+                          <p className="px-4 py-2 bg-gray-50 text-gray-900 whitespace-pre-wrap">{companyInfo.businessDescription || '未設定'}</p>
                         )}
                       </div>
                     </div>
@@ -349,7 +346,7 @@ export default function CompanyPage() {
                               customItems: [...(companyInfo.customItems || []), newItem],
                             });
                           }}
-                          className="px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2"
+                          className="px-3 py-1.5 text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -361,7 +358,7 @@ export default function CompanyPage() {
                     {companyInfo.customItems && companyInfo.customItems.length > 0 ? (
                       <div className="space-y-4">
                         {companyInfo.customItems.map((item, itemIndex) => (
-                          <div key={item.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <div key={item.id} className="border border-gray-200 p-4 bg-gray-50">
                             {isEditing ? (
                               <div className="space-y-3">
                                 <div className="flex items-start justify-between">
@@ -381,7 +378,7 @@ export default function CompanyPage() {
                                               newItems[itemIndex].fields[fieldIndex] = { ...field, value: e.target.value };
                                               setCompanyInfo({ ...companyInfo, customItems: newItems });
                                             }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                                             required={field.label === 'ツール名' || field.label === '商品名' || field.label === '資材名' || field.label === '部品名' || field.label === 'サービス名'}
                                           />
                                         )}
@@ -394,7 +391,7 @@ export default function CompanyPage() {
                                               newItems[itemIndex].fields[fieldIndex] = { ...field, value: e.target.value };
                                               setCompanyInfo({ ...companyInfo, customItems: newItems });
                                             }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                                             min="0"
                                           />
                                         )}
@@ -407,7 +404,7 @@ export default function CompanyPage() {
                                               newItems[itemIndex].fields[fieldIndex] = { ...field, value: e.target.value };
                                               setCompanyInfo({ ...companyInfo, customItems: newItems });
                                             }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                                             placeholder="https://example.com"
                                             required={field.label === 'URL'}
                                           />
@@ -421,7 +418,7 @@ export default function CompanyPage() {
                                               newItems[itemIndex].fields[fieldIndex] = { ...field, value: e.target.value };
                                               setCompanyInfo({ ...companyInfo, customItems: newItems });
                                             }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                                           />
                                         )}
                                         {field.type === 'textarea' && (
@@ -432,7 +429,7 @@ export default function CompanyPage() {
                                               newItems[itemIndex].fields[fieldIndex] = { ...field, value: e.target.value };
                                               setCompanyInfo({ ...companyInfo, customItems: newItems });
                                             }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                                             rows={3}
                                           />
                                         )}
@@ -444,7 +441,7 @@ export default function CompanyPage() {
                                       const newItems = companyInfo.customItems?.filter((_, i) => i !== itemIndex) || [];
                                       setCompanyInfo({ ...companyInfo, customItems: newItems });
                                     }}
-                                    className="ml-3 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    className="ml-3 p-2 text-red-600 hover:bg-red-50 transition-colors"
                                   >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

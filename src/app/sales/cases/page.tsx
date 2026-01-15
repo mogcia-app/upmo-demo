@@ -241,74 +241,79 @@ export default function SalesCasesPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">営業案件管理</h1>
-              <p className="text-sm text-gray-600 mt-1">案件の作成・編集・管理を行います</p>
-            </div>
-            <button
-              onClick={handleOpenModal}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-            >
-              + 新規案件
-            </button>
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">営業案件管理</h1>
           </div>
 
-          {/* フィルター */}
-          <div className="mb-4 flex gap-2">
-            <button
-              onClick={() => setFilterStatus('all')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'all'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              すべて
-            </button>
-            <button
-              onClick={() => setFilterStatus('prospecting')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'prospecting'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              見込み客
-            </button>
-            <button
-              onClick={() => setFilterStatus('proposal')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'proposal'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              提案中
-            </button>
-            <button
-              onClick={() => setFilterStatus('negotiation')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'negotiation'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              交渉中
-            </button>
-            <button
-              onClick={() => setFilterStatus('closed_won')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'closed_won'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              成約
-            </button>
-          </div>
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                onClick={handleOpenModal}
+                className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-xs">新規案件</span>
+              </button>
+            </div>
+
+            {/* フィルター */}
+            <div className="mb-4 flex gap-2">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'all'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                すべて
+              </button>
+              <button
+                onClick={() => setFilterStatus('prospecting')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'prospecting'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                見込み客
+              </button>
+              <button
+                onClick={() => setFilterStatus('proposal')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'proposal'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                提案中
+              </button>
+              <button
+                onClick={() => setFilterStatus('negotiation')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'negotiation'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                交渉中
+              </button>
+              <button
+                onClick={() => setFilterStatus('closed_won')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'closed_won'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                成約
+              </button>
+            </div>
 
           {/* 案件一覧 */}
           {loading ? (
@@ -317,11 +322,11 @@ export default function SalesCasesPage() {
               <p className="mt-2 text-gray-600">読み込み中...</p>
             </div>
           ) : cases.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <div className="text-center py-12 bg-white border border-gray-200">
               <p className="text-gray-600">案件がありません</p>
               <button
                 onClick={handleOpenModal}
-                className="mt-4 px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                className="mt-4 px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors text-sm font-medium"
               >
                 最初の案件を作成
               </button>
@@ -331,7 +336,7 @@ export default function SalesCasesPage() {
               {cases.map((salesCase) => (
                 <div
                   key={salesCase.id}
-                  className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 p-6 hover:border-gray-300 transition-colors"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -416,7 +421,7 @@ export default function SalesCasesPage() {
           {/* モーダル */}
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-gray-200">
                   <h2 className="text-xl font-bold text-gray-900">
                     {editingCase ? '案件を編集' : '新規案件を作成'}
@@ -433,7 +438,7 @@ export default function SalesCasesPage() {
                       type="text"
                       value={formData.title || ''}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                       placeholder="例: 新規システム導入案件"
                     />
                   </div>
@@ -447,7 +452,7 @@ export default function SalesCasesPage() {
                         type="text"
                         value={formData.customerName || ''}
                         onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                         placeholder="例: 山田太郎"
                       />
                     </div>
@@ -459,7 +464,7 @@ export default function SalesCasesPage() {
                         type="text"
                         value={formData.customerCompany || ''}
                         onChange={(e) => setFormData({ ...formData, customerCompany: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                         placeholder="例: 株式会社サンプル"
                       />
                     </div>
@@ -473,7 +478,7 @@ export default function SalesCasesPage() {
                       <select
                         value={formData.status || 'prospecting'}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                       >
                         <option value="prospecting">見込み客</option>
                         <option value="qualification">見極め中</option>
@@ -491,7 +496,7 @@ export default function SalesCasesPage() {
                         type="text"
                         value={formData.stage || ''}
                         onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                         placeholder="例: 提案準備中"
                       />
                     </div>
@@ -506,7 +511,7 @@ export default function SalesCasesPage() {
                         type="number"
                         value={formData.estimatedValue || ''}
                         onChange={(e) => setFormData({ ...formData, estimatedValue: e.target.value ? Number(e.target.value) : undefined })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                         placeholder="1000000"
                       />
                     </div>
@@ -520,7 +525,7 @@ export default function SalesCasesPage() {
                         max="100"
                         value={formData.probability || ''}
                         onChange={(e) => setFormData({ ...formData, probability: e.target.value ? Number(e.target.value) : undefined })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                         placeholder="50"
                       />
                     </div>
@@ -537,7 +542,7 @@ export default function SalesCasesPage() {
                           ...formData, 
                           expectedCloseDate: e.target.value ? new Date(e.target.value) : undefined 
                         })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                       />
                     </div>
                   </div>
@@ -550,7 +555,7 @@ export default function SalesCasesPage() {
                       value={formData.description || ''}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                      className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2]"
                       placeholder="案件の詳細を入力してください"
                     />
                   </div>
@@ -616,6 +621,7 @@ export default function SalesCasesPage() {
               </div>
             </div>
           )}
+          </div>
         </div>
       </Layout>
     </ProtectedRoute>

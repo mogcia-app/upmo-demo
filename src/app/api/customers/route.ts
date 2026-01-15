@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../notifications/helper';
 
 // Firebase Admin SDK の初期化
 if (!getApps().length) {
@@ -207,6 +208,15 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection('customers').add(customerData);
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName, {
+      type: 'create',
+      pageName: '顧客管理',
+      pageUrl: '/customers',
+      title: `顧客「${name}」が追加されました`,
+      action: 'created',
+    });
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -298,6 +308,15 @@ export async function PUT(request: NextRequest) {
     }
 
     await db.collection('customers').doc(id).update(cleanedUpdateData);
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, userCompanyName || companyName, {
+      type: 'update',
+      pageName: '顧客管理',
+      pageUrl: '/customers',
+      title: `顧客「${customerData?.name || updateData?.name || '（名前なし）'}」が編集されました`,
+      action: 'updated',
+    });
 
     // 更新後のデータを取得
     const updatedDoc = await db.collection('customers').doc(id).get();
@@ -423,7 +442,17 @@ export async function DELETE(request: NextRequest) {
     await Promise.all(deletePromises);
 
     // 顧客を削除
+    const customerName = customerData?.name || '（名前なし）';
     await db.collection('customers').doc(id).delete();
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, userCompanyName || companyName, {
+      type: 'delete',
+      pageName: '顧客管理',
+      pageUrl: '/customers',
+      title: `顧客「${customerName}」が削除されました`,
+      action: 'deleted',
+    });
 
     return NextResponse.json({ success: true });
 

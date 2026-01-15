@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../notifications/helper';
 
 // Firebase Admin SDK の初期化
 if (!getApps().length) {
@@ -190,6 +191,15 @@ export async function POST(request: NextRequest) {
     }
 
     const docRef = await db.collection('meetingNotes').add(noteData);
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, userCompanyName, {
+      type: 'create',
+      pageName: '議事録',
+      pageUrl: `/minutes?id=${docRef.id}`,
+      title: title,
+      action: 'created',
+    });
 
     // アクション項目を処理：TODOまたはカレンダーに自動追加
     if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
@@ -396,6 +406,15 @@ export async function PUT(request: NextRequest) {
     cleanedUpdateData.updatedAt = Timestamp.now();
 
     await db.collection('meetingNotes').doc(id).update(cleanedUpdateData);
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, userCompanyName, {
+      type: 'update',
+      pageName: '議事録',
+      pageUrl: `/minutes?id=${id}`,
+      title: updateData.title || noteData?.title || '議事録',
+      action: 'updated',
+    });
 
     // アクション項目が更新された場合、TODOに追加
     if (cleanedUpdateData.actionItems && Array.isArray(cleanedUpdateData.actionItems)) {
@@ -639,6 +658,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db.collection('meetingNotes').doc(id).delete();
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, userCompanyName, {
+      type: 'delete',
+      pageName: '議事録',
+      pageUrl: `/minutes`,
+      title: noteTitle,
+      action: 'deleted',
+    });
 
     return NextResponse.json({ success: true });
 

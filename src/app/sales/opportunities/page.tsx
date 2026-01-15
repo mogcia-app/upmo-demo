@@ -238,69 +238,74 @@ export default function SalesOpportunitiesPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">商談管理</h1>
-              <p className="text-sm text-gray-600 mt-1">商談の作成・編集・管理を行います</p>
-            </div>
-            <button
-              onClick={handleOpenModal}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-            >
-              + 新規商談
-            </button>
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">商談管理</h1>
           </div>
 
-          {/* フィルター */}
-          <div className="mb-4 flex gap-2">
-            <button
-              onClick={() => setFilterStatus('all')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'all'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              すべて
-            </button>
-            <button
-              onClick={() => setFilterStatus('prospecting')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'prospecting'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              見込み客
-            </button>
-            <button
-              onClick={() => setFilterStatus('proposal')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterStatus === 'proposal'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              提案中
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                onClick={handleOpenModal}
+                className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-xs">新規商談</span>
+              </button>
+            </div>
+
+            {/* フィルター */}
+            <div className="mb-4 flex gap-2">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'all'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                すべて
+              </button>
+              <button
+                onClick={() => setFilterStatus('prospecting')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'prospecting'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                見込み客
+              </button>
+              <button
+                onClick={() => setFilterStatus('proposal')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterStatus === 'proposal'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                提案中
             </button>
             <button
               onClick={() => setFilterStatus('negotiation')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
+              className={`px-3 py-1.5 text-xs transition-colors ${
                 filterStatus === 'negotiation'
                   ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
               }`}
             >
               交渉中
             </button>
             <button
               onClick={() => setFilterStatus('closed_won')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
+              className={`px-3 py-1.5 text-xs transition-colors ${
                 filterStatus === 'closed_won'
                   ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
               }`}
             >
               成約
@@ -314,11 +319,11 @@ export default function SalesOpportunitiesPage() {
               <p className="mt-2 text-gray-600">読み込み中...</p>
             </div>
           ) : opportunities.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <div className="text-center py-12 bg-white border border-gray-200">
               <p className="text-gray-600">商談がありません</p>
               <button
                 onClick={handleOpenModal}
-                className="mt-4 px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                className="mt-4 px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors text-sm font-medium"
               >
                 最初の商談を作成
               </button>
@@ -328,7 +333,7 @@ export default function SalesOpportunitiesPage() {
               {opportunities.map((opportunity) => (
                 <div
                   key={opportunity.id}
-                  className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 p-6 hover:border-gray-300 transition-colors"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -403,11 +408,12 @@ export default function SalesOpportunitiesPage() {
               ))}
             </div>
           )}
+          </div>
 
           {/* モーダル */}
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="bg-white max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="p-4 sm:p-6 border-b border-gray-200">
                   <h2 className="text-xl font-bold text-gray-900">
                     {editingOpportunity ? '商談を編集' : '新規商談を作成'}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../notifications/helper';
 
 // Firebase Admin SDKの初期化
 const initAdmin = () => {
@@ -319,6 +320,20 @@ export async function POST(request: NextRequest) {
 
     const docRef = await adminDb.collection('events').add(eventData);
 
+    // ユーザーのcompanyNameを取得
+    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
+    // 通知を作成
+    await createNotificationInServer(adminDb, decodedToken.uid, companyName, {
+      type: 'create',
+      pageName: 'カレンダー',
+      pageUrl: `/calendar?id=${docRef.id}`,
+      title: title,
+      action: 'created',
+    });
+
     return NextResponse.json({
       success: true,
       event: {
@@ -386,6 +401,20 @@ export async function PUT(request: NextRequest) {
 
     await adminDb.collection('events').doc(id).update(updatedData);
 
+    // ユーザーのcompanyNameを取得
+    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
+    // 通知を作成
+    await createNotificationInServer(adminDb, decodedToken.uid, companyName, {
+      type: 'update',
+      pageName: 'カレンダー',
+      pageUrl: `/calendar?id=${id}`,
+      title: updateData.title || eventData?.title || 'イベント',
+      action: 'updated',
+    });
+
     return NextResponse.json({
       success: true,
       message: 'イベントが更新されました',
@@ -442,6 +471,20 @@ export async function DELETE(request: NextRequest) {
     }
 
     await adminDb.collection('events').doc(id).delete();
+
+    // ユーザーのcompanyNameを取得
+    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
+    // 通知を作成
+    await createNotificationInServer(adminDb, decodedToken.uid, companyName, {
+      type: 'delete',
+      pageName: 'カレンダー',
+      pageUrl: `/calendar`,
+      title: eventData?.title || 'イベント',
+      action: 'deleted',
+    });
 
     return NextResponse.json({
       success: true,

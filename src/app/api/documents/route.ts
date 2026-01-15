@@ -4,6 +4,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { Document } from '@/types/document';
+import { createNotificationInServer } from '../notifications/helper';
 
 // Firebase Admin SDKの初期化
 let adminDb: ReturnType<typeof getFirestore> | null = null;
@@ -159,6 +160,15 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection('documents').add(documentData);
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName, {
+      type: 'create',
+      pageName: 'ドキュメント',
+      pageUrl: `/documents?id=${docRef.id}`,
+      title: title,
+      action: 'created',
+    });
+
     return NextResponse.json({
       id: docRef.id,
       ...documentData,
@@ -218,6 +228,15 @@ export async function DELETE(request: NextRequest) {
     // TODO: Firebase Storageからファイルを削除する処理を追加
 
     await db.collection('documents').doc(id).delete();
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName, {
+      type: 'delete',
+      pageName: 'ドキュメント',
+      pageUrl: `/documents`,
+      title: docData?.title || 'ドキュメント',
+      action: 'deleted',
+    });
 
     return NextResponse.json({
       message: 'ドキュメントが削除されました',

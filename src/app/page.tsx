@@ -8,6 +8,10 @@ import Layout from "../components/Layout";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchChatSession, updateChatSession, saveChatSession } from "../utils/chatHistory";
+import { useSidebarConfig } from "../hooks/useSidebarConfig";
+import { useCustomTabs } from "../hooks/useCustomTabs";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 
 // シンプルなカレンダーコンポーネント（右側用）
@@ -2337,6 +2341,9 @@ const TodayEventsView: React.FC = () => {
 export default function Home() {
   const { user } = useAuth();
   const router = useRouter();
+  const { getEnabledCommonMenuItems, getEnabledAdditionalMenuItems } = useSidebarConfig();
+  const { customTabs } = useCustomTabs();
+  const [pageTitles, setPageTitles] = useState<Record<string, string[]>>({});
 
   // Markdownリンクをレンダリングする関数
   const renderMessageWithLinks = (text: string) => {
@@ -2428,6 +2435,219 @@ export default function Home() {
   const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState('');
 
+  // 各ページのデータタイトルを取得
+  useEffect(() => {
+    const loadPageTitles = async () => {
+      if (!user) {
+        console.log('ユーザーが未認証のため、ページタイトル取得をスキップ');
+        return;
+      }
+
+      console.log('ページタイトル取得開始');
+      try {
+        const token = await user.getIdToken();
+        const titles: Record<string, string[]> = {};
+        console.log('トークン取得完了');
+
+        // TODOリストのタイトルは直接Firestoreから取得する必要があるため、一旦スキップ
+        // TODO: TODOリストのタイトル取得機能を追加
+
+        // 営業案件のタイトルを取得
+        try {
+          const opportunitiesResponse = await fetch('/api/sales/opportunities', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (opportunitiesResponse.ok) {
+            const oppData = await opportunitiesResponse.json();
+            if (oppData.success && oppData.opportunities) {
+              titles['sales-opportunities'] = oppData.opportunities.slice(0, 5).map((opp: any) => opp.title || '').filter((t: string) => t);
+            }
+          }
+        } catch (error) {
+          console.error('営業案件タイトル取得エラー:', error);
+        }
+
+        // 契約書管理のタイトルを取得
+        try {
+          console.log('契約書API呼び出し開始');
+          const contractsResponse = await fetch('/api/admin/get-manual-documents', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          console.log('契約書APIレスポンスステータス:', contractsResponse.status);
+          if (contractsResponse.ok) {
+            const contractsData = await contractsResponse.json();
+            console.log('契約書APIレスポンス:', contractsData);
+            if (contractsData.documents && Array.isArray(contractsData.documents)) {
+              // 契約書タイプのみ
+              const contractTitles = contractsData.documents
+                .filter((doc: any) => doc.type === 'contract')
+                .slice(0, 5)
+                .map((doc: any) => doc.title || '')
+                .filter((t: string) => t);
+              titles['contracts'] = contractTitles;
+              console.log('契約書タイトル:', contractTitles);
+            }
+          }
+        } catch (error) {
+          console.error('契約書タイトル取得エラー:', error);
+        }
+
+        // 議事録管理のタイトルを取得（meetingNotesコレクションから）
+        try {
+          console.log('議事録API呼び出し開始');
+          const meetingNotesResponse = await fetch('/api/meeting-notes', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          console.log('議事録APIレスポンスステータス:', meetingNotesResponse.status);
+          if (meetingNotesResponse.ok) {
+            const meetingNotesData = await meetingNotesResponse.json();
+            console.log('議事録APIレスポンス:', meetingNotesData);
+            if (meetingNotesData.notes && Array.isArray(meetingNotesData.notes)) {
+              const meetingTitles = meetingNotesData.notes
+                .slice(0, 5)
+                .map((note: any) => note.title || '')
+                .filter((t: string) => t);
+              // 両方のキーに保存（'meeting-notes'と'minutes-management'の両方に対応）
+              titles['meeting-notes'] = meetingTitles;
+              titles['minutes-management'] = meetingTitles;
+              console.log('議事録タイトル取得:', {
+                totalNotes: meetingNotesData.notes.length,
+                meetingTitles: meetingTitles
+              });
+            } else {
+              console.warn('notesが配列ではありません:', meetingNotesData);
+              titles['meeting-notes'] = [];
+              titles['minutes-management'] = [];
+            }
+          } else {
+            const errorText = await meetingNotesResponse.text();
+            console.error('議事録APIエラー:', meetingNotesResponse.status, errorText);
+            titles['meeting-notes'] = [];
+            titles['minutes-management'] = [];
+          }
+        } catch (error) {
+          console.error('議事録タイトル取得エラー:', error);
+          titles['meeting-notes'] = [];
+          titles['minutes-management'] = [];
+        }
+
+        // 顧客管理のタイトルを取得
+        try {
+          const customersResponse = await fetch('/api/customers', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (customersResponse.ok) {
+            const customersData = await customersResponse.json();
+            console.log('顧客データ:', customersData);
+            // APIレスポンスは { customers } 形式（successフィールドなし）
+            if (customersData.customers && Array.isArray(customersData.customers)) {
+              titles['customers'] = customersData.customers.slice(0, 5).map((customer: any) => customer.name || '').filter((t: string) => t);
+              console.log('顧客タイトル:', titles['customers']);
+            }
+          }
+        } catch (error) {
+          console.error('顧客管理タイトル取得エラー:', error);
+        }
+
+        // テンプレート管理のタイトルを取得
+        try {
+          const templatesResponse = await fetch('/api/templates', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (templatesResponse.ok) {
+            const templatesData = await templatesResponse.json();
+            console.log('テンプレートデータ:', templatesData);
+            if (templatesData.templates && Array.isArray(templatesData.templates)) {
+              titles['templates'] = templatesData.templates.slice(0, 5).map((template: any) => template.title || '').filter((t: string) => t);
+              console.log('テンプレートタイトル:', titles['templates']);
+            }
+          }
+        } catch (error) {
+          console.error('テンプレートタイトル取得エラー:', error);
+        }
+
+        // 進捗メモのタイトルを取得
+        try {
+          const notesResponse = await fetch('/api/sales/progress-notes', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (notesResponse.ok) {
+            const notesData = await notesResponse.json();
+            if (notesData.success && notesData.notes) {
+              titles['progress-notes'] = notesData.notes.slice(0, 5).map((note: any) => note.title || note.caseTitle || '').filter((t: string) => t);
+            }
+          }
+        } catch (error) {
+          console.error('進捗メモタイトル取得エラー:', error);
+        }
+
+        // 顧客リストのタイトルを取得
+        try {
+          const customersListResponse = await fetch('/api/customers/list', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (customersListResponse.ok) {
+            const listData = await customersListResponse.json();
+            if (listData.success && listData.tabs) {
+              const customerTitles: string[] = [];
+              listData.tabs.forEach((tab: any) => {
+                if (tab.rows && tab.columns && tab.columns.length > 0) {
+                  const firstColumnId = tab.columns[0].id;
+                  tab.rows.slice(0, 3).forEach((row: any) => {
+                    const title = row[firstColumnId];
+                    if (title && typeof title === 'string' && title.trim()) {
+                      customerTitles.push(title);
+                    }
+                  });
+                }
+              });
+              titles['customers-list'] = customerTitles.slice(0, 5);
+            }
+          }
+        } catch (error) {
+          console.error('顧客リストタイトル取得エラー:', error);
+        }
+
+        // カスタムページのタイトルを取得
+        customTabs.forEach((tab) => {
+          const customTitles: string[] = [];
+          tab.components.forEach((component) => {
+            if (component.type === 'data_table' && component.config) {
+              const dataTable = component.config as any;
+              if (dataTable.columns && dataTable.columns.length > 0 && dataTable.data) {
+                const firstColumnId = dataTable.columns[0].id;
+                dataTable.data.slice(0, 3).forEach((row: any) => {
+                  const title = row[firstColumnId];
+                  if (title && typeof title === 'string' && title.trim()) {
+                    customTitles.push(title);
+                  }
+                });
+              }
+            }
+          });
+          if (customTitles.length > 0) {
+            titles[`custom-${tab.id}`] = customTitles.slice(0, 5);
+          }
+        });
+
+        console.log('取得した全タイトル:', titles);
+        console.log('議事録タイトル確認:', {
+          'meeting-notes': titles['meeting-notes'],
+          'minutes-management': titles['minutes-management']
+        });
+        setPageTitles(titles);
+        console.log('pageTitlesを更新しました');
+      } catch (error) {
+        console.error('ページタイトル取得エラー:', error);
+        console.error('エラー詳細:', error);
+        // エラー時も空のオブジェクトを設定
+        setPageTitles({});
+      }
+    };
+
+    loadPageTitles();
+  }, [user, customTabs]);
+
   // タスク統計と契約書件数を取得
   useEffect(() => {
     const loadStats = async () => {
@@ -2480,21 +2700,45 @@ export default function Home() {
         // 契約書を取得
         try {
           const contractsResponse = await fetch('/api/admin/get-manual-documents', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
 
           if (contractsResponse.ok) {
             const contractsData = await contractsResponse.json();
-            if (contractsData.success && contractsData.documents) {
+            // APIレスポンスは { documents } 形式（successフィールドなし）
+            if (contractsData.documents && Array.isArray(contractsData.documents)) {
               contractsData.documents.forEach((doc: any) => {
-                const updatedAt = doc.updatedAt ? new Date(doc.updatedAt.seconds * 1000) : 
-                                 doc.createdAt ? new Date(doc.createdAt.seconds * 1000) : 
-                                 doc.lastUpdated ? new Date(doc.lastUpdated) : new Date();
+                // lastUpdatedまたはcreatedAtをDateオブジェクトに変換
+                let updatedAt: Date;
+                if (doc.lastUpdated) {
+                  if (doc.lastUpdated instanceof Date) {
+                    updatedAt = doc.lastUpdated;
+                  } else if (doc.lastUpdated.seconds) {
+                    updatedAt = new Date(doc.lastUpdated.seconds * 1000);
+                  } else if (typeof doc.lastUpdated === 'string') {
+                    updatedAt = new Date(doc.lastUpdated);
+                  } else {
+                    updatedAt = new Date(doc.lastUpdated);
+                  }
+                } else if (doc.createdAt) {
+                  if (doc.createdAt instanceof Date) {
+                    updatedAt = doc.createdAt;
+                  } else if (doc.createdAt.seconds) {
+                    updatedAt = new Date(doc.createdAt.seconds * 1000);
+                  } else if (typeof doc.createdAt === 'string') {
+                    updatedAt = new Date(doc.createdAt);
+                  } else {
+                    updatedAt = new Date(doc.createdAt);
+                  }
+                } else {
+                  updatedAt = new Date();
+                }
+                
                 if (updatedAt >= fourteenDaysAgo) {
                   updates.push({
-                id: doc.id,
+                    id: doc.id,
                     title: doc.title || '無題',
                     lastUpdated: updatedAt,
                     type: '契約書',
@@ -2502,30 +2746,65 @@ export default function Home() {
                   });
                 }
               });
+            }
           }
-        }
-      } catch (error) {
+        } catch (error) {
           console.error('契約書の取得エラー:', error);
         }
 
-        // TODOを取得
+        // TODOを取得（直接Firestoreから）
         try {
-          const todosResponse = await fetch('/api/todos', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (todosResponse.ok) {
-            const todosData = await todosResponse.json();
-            if (todosData.success && todosData.todos) {
-              todosData.todos.forEach((todo: any) => {
-                const updatedAt = todo.updatedAt ? new Date(todo.updatedAt.seconds * 1000) : 
-                                 todo.createdAt ? new Date(todo.createdAt.seconds * 1000) : new Date();
+          if (db) {
+            // 同じ会社のユーザーIDを取得
+            const usersResponse = await fetch('/api/admin/users', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (usersResponse.ok) {
+              const usersData = await usersResponse.json();
+              const currentUser = usersData.users?.find((u: any) => u.id === user.uid);
+              const currentCompanyName = currentUser?.companyName || '';
+              
+              // 同じ会社のユーザーIDを取得
+              const companyUserIds = usersData.users
+                ?.filter((u: any) => u.companyName === currentCompanyName)
+                .map((u: any) => u.id) || [];
+              
+              // 各ユーザーのTODOを取得
+              const todoPromises = companyUserIds.map((userId: string) => 
+                getDocs(query(
+                  collection(db, 'todos'),
+                  where('userId', '==', userId)
+                ))
+              );
+              
+              const todoSnapshots = await Promise.all(todoPromises);
+              
+              // 全てのTODOをマージ
+              const allDocs = todoSnapshots.flatMap(snapshot => snapshot.docs);
+              
+              // 重複を除去
+              const uniqueDocs = Array.from(
+                new Map(allDocs.map(doc => [doc.id, doc])).values()
+              );
+              
+              uniqueDocs.forEach((doc) => {
+                const data = doc.data();
+                let updatedAt: Date;
+                if (data.updatedAt) {
+                  updatedAt = data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
+                } else if (data.createdAt) {
+                  updatedAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                } else {
+                  updatedAt = new Date();
+                }
+                
                 if (updatedAt >= fourteenDaysAgo) {
                   updates.push({
-                    id: todo.id,
-                    title: todo.text || '無題のタスク',
+                    id: doc.id,
+                    title: data.text || '無題のタスク',
                     lastUpdated: updatedAt,
                     type: 'TODO',
                     href: '/todo'
@@ -2536,36 +2815,6 @@ export default function Home() {
           }
         } catch (error) {
           console.error('TODOの取得エラー:', error);
-        }
-
-        // 顧客を取得
-        try {
-          const customersResponse = await fetch('/api/customers', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (customersResponse.ok) {
-            const customersData = await customersResponse.json();
-            if (customersData.success && customersData.customers) {
-              customersData.customers.forEach((customer: any) => {
-                const updatedAt = customer.updatedAt ? new Date(customer.updatedAt.seconds * 1000) : 
-                                 customer.createdAt ? new Date(customer.createdAt.seconds * 1000) : new Date();
-                if (updatedAt >= fourteenDaysAgo) {
-                  updates.push({
-                    id: customer.id,
-                    title: customer.name || '無題の顧客',
-                    lastUpdated: updatedAt,
-                    type: '顧客',
-                    href: `/customers?customer=${customer.id}`
-                  });
-                }
-              });
-            }
-          }
-        } catch (error) {
-          console.error('顧客の取得エラー:', error);
         }
 
         // 更新日時でソートして最新5件を取得
@@ -2939,6 +3188,126 @@ export default function Home() {
             {/* 右側: サイドバー */}
             <div className="hidden lg:flex w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-gray-200 bg-white flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* メインメニューとカスタムメニューのデータタイトル */}
+                <div className="mb-6 pb-6 border-b border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">メインメニュー</h3>
+                  <div className="space-y-3">
+                    {getEnabledCommonMenuItems()
+                      .filter((item) => {
+                        // カレンダー、利用者管理、ドキュメント管理、TODOリストは除外
+                        return item.href !== '/calendar' && 
+                               item.id !== 'users' && 
+                               item.href !== '/documents' &&
+                               item.id !== 'document-management' &&
+                               item.id !== 'todo';
+                      })
+                      .map((item) => {
+                        // メニューIDからページタイトルを取得
+                        let titles: string[] = [];
+                        if (item.id === 'progress-notes') {
+                          titles = pageTitles['progress-notes'] || [];
+                        } else if (item.id === 'contracts') {
+                          titles = pageTitles['contracts'] || [];
+                        } else if (item.href === '/customers/list') {
+                          titles = pageTitles['customers-list'] || [];
+                        } else if (item.href === '/customers') {
+                          titles = pageTitles['customers'] || [];
+                        } else if (item.href === '/sales/opportunities') {
+                          titles = pageTitles['sales-opportunities'] || [];
+                        } else if (item.href === '/templates') {
+                          titles = pageTitles['templates'] || [];
+                        } else if (item.id === 'minutes-management' || item.href === '/minutes') {
+                          titles = pageTitles['meeting-notes'] || [];
+                        }
+
+                        return (
+                          <div key={item.id} className="space-y-1">
+                            <div className="text-xs font-medium text-gray-600">{item.name}</div>
+                            {titles.length > 0 ? (
+                              <div className="space-y-1 pl-2">
+                                {titles.map((title, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => {
+                                      const query = `${title}について教えて`;
+                                      setChatInput(query);
+                                      setTimeout(() => handleChatSend(), 100);
+                                    }}
+                                    disabled={isChatLoading}
+                                    className="w-full text-left px-2 py-1 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 rounded truncate transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title={title}
+                                  >
+                                    {title}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="px-2 py-1 text-xs text-gray-400 italic pl-2">データなし</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                  
+                  {getEnabledAdditionalMenuItems().length > 0 && (
+                    <>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-3 mt-4">カスタムメニュー</h3>
+                      <div className="space-y-3">
+                        {getEnabledAdditionalMenuItems()
+                          .filter((item) => {
+                            // ドキュメント管理は除外
+                            return item.href !== '/documents' && item.id !== 'document-management';
+                          })
+                          .map((item) => {
+                            // カスタムメニューのタイトルを取得（IDベースまたはhrefベース）
+                            let titles: string[] = [];
+                            if (item.id === 'minutes-management' || item.id === 'meeting-notes' || item.href === '/minutes' || item.href?.includes('meeting')) {
+                              // 両方のキーをチェック
+                              titles = pageTitles['minutes-management'] || pageTitles['meeting-notes'] || [];
+                              console.log('議事録管理 - メニュー項目:', item, '取得したタイトル:', titles, 'pageTitles:', {
+                                'minutes-management': pageTitles['minutes-management'],
+                                'meeting-notes': pageTitles['meeting-notes']
+                              });
+                            } else if (item.href === '/templates') {
+                              titles = pageTitles['templates'] || [];
+                            } else if (item.href === '/customers') {
+                              titles = pageTitles['customers'] || [];
+                            } else {
+                              titles = pageTitles[item.id] || [];
+                            }
+                            return (
+                              <div key={item.id} className="space-y-1">
+                                <div className="text-xs font-medium text-gray-600">{item.name}</div>
+                                {titles.length > 0 ? (
+                                  <div className="space-y-1 pl-2">
+                                    {titles.map((title, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => {
+                                          const query = `${title}について教えて`;
+                                          setChatInput(query);
+                                          setTimeout(() => handleChatSend(), 100);
+                                        }}
+                                        disabled={isChatLoading}
+                                        className="w-full text-left px-2 py-1 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 rounded truncate transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={title}
+                                      >
+                                        {title}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="px-2 py-1 text-xs text-gray-400 italic pl-2">データなし</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </>
+                  )}
+                  
+                </div>
+                
                 {/* よく使う質問 */}
                 <div>
                   <div className="flex items-center justify-between mb-3">

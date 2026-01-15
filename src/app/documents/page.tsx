@@ -47,6 +47,32 @@ export default function DocumentsPage() {
       const data = await response.json();
       let fetchedDocuments = data.documents || [];
 
+      // Firestore TimestampをDateオブジェクトに変換するヘルパー関数
+      const convertToDate = (dateValue: any): Date | null => {
+        if (!dateValue) return null;
+        if (dateValue instanceof Date) {
+          return dateValue;
+        }
+        // Firestore Timestampオブジェクトの場合（toDateメソッドがある）
+        if (dateValue && typeof dateValue.toDate === 'function') {
+          return dateValue.toDate();
+        }
+        // Firestore Timestampオブジェクトの場合（secondsプロパティがある）
+        if (dateValue && typeof dateValue.seconds === 'number') {
+          return new Date(dateValue.seconds * 1000);
+        }
+        // 文字列の場合
+        if (typeof dateValue === 'string') {
+          return new Date(dateValue);
+        }
+        // 数値の場合（タイムスタンプ）
+        if (typeof dateValue === 'number') {
+          return new Date(dateValue);
+        }
+        // デフォルト
+        return null;
+      };
+
       // ソート
       fetchedDocuments.sort((a: Document, b: Document) => {
         switch (sortBy) {
@@ -56,7 +82,11 @@ export default function DocumentsPage() {
             return (b.fileSize || 0) - (a.fileSize || 0);
           case 'date':
           default:
-            return (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0);
+            const dateA = convertToDate(a.createdAt);
+            const dateB = convertToDate(b.createdAt);
+            const timeA = dateA ? dateA.getTime() : 0;
+            const timeB = dateB ? dateB.getTime() : 0;
+            return timeB - timeA;
         }
       });
 
@@ -260,45 +290,53 @@ export default function DocumentsPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
-          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-            {/* メインコンテンツ */}
-            <div className={`flex-1 ${selectedDocument ? 'mr-80' : ''} transition-all`}>
-              {/* ヘッダー */}
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <h1 className="text-2xl font-bold text-gray-900">ドキュメント</h1>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="date">日付順</option>
-                      <option value="title">タイトル順</option>
-                      <option value="size">サイズ順</option>
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="検索..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={() => setShowModal(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      アップロード
-                    </button>
-                  </div>
-                </div>
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
+          {/* ヘッダー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">ドキュメント</h1>
+          </div>
+
+          {/* 検索・ソートバー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-3">
+            <div className="flex items-center gap-4">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-1.5 border border-gray-300 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="date">日付順</option>
+                <option value="title">タイトル順</option>
+                <option value="size">サイズ順</option>
+              </select>
+              <div className="flex-1 relative">
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-1.5 border border-gray-300 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
               </div>
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-xs">アップロード</span>
+              </button>
+            </div>
+          </div>
+
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+              {/* メインコンテンツ */}
+              <div className={`flex-1 ${selectedDocument ? 'mr-80' : ''} transition-all`}>
 
               {/* ドキュメント一覧 */}
               {loading ? (
@@ -307,7 +345,7 @@ export default function DocumentsPage() {
                   <p className="mt-2 text-gray-600">読み込み中...</p>
                 </div>
               ) : documents.length === 0 ? (
-                <div className="text-center bg-white rounded-lg border border-gray-200 p-12">
+                <div className="text-center bg-white border border-gray-200 p-12">
                   <p className="text-gray-600 mb-4">
                     {searchQuery ? '検索結果が見つかりませんでした' : 'ドキュメントがありません'}
                   </p>
@@ -329,10 +367,10 @@ export default function DocumentsPage() {
                       <div
                         key={doc.id}
                         onClick={() => setSelectedDocument(doc)}
-                        className={`bg-white border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                        className={`bg-white border-2 p-4 cursor-pointer transition-all ${
                           selectedDocument?.id === doc.id
-                            ? 'border-blue-500 shadow-md'
-                            : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                            ? 'border-blue-500'
+                            : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
                         <div className="flex items-center gap-4">
@@ -572,6 +610,7 @@ export default function DocumentsPage() {
             </div>
           </div>
         )}
+        </div>
       </Layout>
     </ProtectedRoute>
   );

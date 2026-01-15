@@ -11,6 +11,8 @@ export default function ProgressNotesPage() {
   const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewingNote, setViewingNote] = useState<ProgressNote | null>(null);
   const [editingNote, setEditingNote] = useState<ProgressNote | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -20,7 +22,7 @@ export default function ProgressNotesPage() {
   const [selectedNote, setSelectedNote] = useState<ProgressNote | null>(null);
   
   // タブと表示モード
-  const [activeTab, setActiveTab] = useState<'everyone' | 'favorites' | 'shared'>('everyone');
+  const [activeTab, setActiveTab] = useState<'everyone' | 'favorites' | 'shared' | 'private'>('everyone');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // チームメンバー
@@ -141,6 +143,12 @@ export default function ProgressNotesPage() {
     setShowModal(true);
   };
 
+  // 詳細モーダルを開く（表示のみ）
+  const handleViewDetail = (note: ProgressNote) => {
+    setViewingNote(note);
+    setShowDetailModal(true);
+  };
+
   // モーダルを開く（編集）
   const handleEdit = (note: ProgressNote) => {
     setEditingNote(note);
@@ -152,6 +160,7 @@ export default function ProgressNotesPage() {
       priority: note.priority || 'medium'
     });
     setShowModal(true);
+    setShowDetailModal(false);
   };
 
   // 保存
@@ -300,6 +309,9 @@ export default function ProgressNotesPage() {
       // 共有されたメモ（自分が作成したもの、または自分が共有されているもの）
       return (note as any).sharedWith && 
              ((note as any).sharedWith.includes(user?.uid || '') || note.userId === user?.uid);
+    } else if (activeTab === 'private') {
+      // プライベートメモ（共有者がいない、または共有者が空のメモ）
+      return !(note as any).sharedWith || (note as any).sharedWith.length === 0;
     }
     return true; // 'everyone' の場合はすべて表示
   });
@@ -341,42 +353,47 @@ export default function ProgressNotesPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="min-h-screen bg-gray-50">
-          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
+          {/* ヘッダー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">メモ</h1>
+              <div className="flex items-center gap-4">
+                <div className="relative max-w-md">
+                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="メモを検索..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <button
+                  onClick={handleOpenModal}
+                  className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-xs">新規メモ</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 px-6 sm:px-8 py-6">
             {/* 左側: メインコンテンツ */}
             <div className="flex-1 min-w-0">
-              {/* 検索バー */}
-              <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 relative">
-                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="メモを検索..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    />
-                  </div>
-                  <button
-                    onClick={handleOpenModal}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    新規メモ
-                  </button>
-                </div>
-              </div>
 
-              {/* タブ */}
-              <div className="bg-white rounded-lg shadow-sm mb-4">
+              {/* タブとメモ一覧 */}
+              <div className="bg-white border border-gray-200">
+                {/* タブ */}
                 <div className="flex items-center justify-between border-b border-gray-200">
                   <div className="flex">
-                    {(['everyone', 'favorites', 'shared'] as const).map((tab) => (
+                    {(['everyone', 'private', 'shared', 'favorites'] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -386,78 +403,104 @@ export default function ProgressNotesPage() {
                             : 'border-transparent text-gray-600 hover:text-gray-900'
                         }`}
                       >
-                        {tab === 'everyone' ? 'すべて' : tab === 'favorites' ? 'お気に入り' : '共有'}
+                        {tab === 'everyone' ? 'すべて' : tab === 'private' ? 'プライベート' : tab === 'shared' ? '共有' : 'お気に入り'}
                       </button>
                     ))}
                   </div>
                 </div>
-              </div>
 
-            {/* メモ一覧 */}
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
-                <p className="mt-2 text-gray-600">読み込み中...</p>
-              </div>
-            ) : sortedNotes.length === 0 ? (
-              <div className="text-center bg-white rounded-lg border border-gray-200 flex flex-col items-center justify-center" style={{ minHeight: '400px' }}>
-                <p className="text-gray-600 mb-4">
-                  {searchQuery ? '検索結果が見つかりませんでした' : 'メモがありません'}
-                </p>
-                {!searchQuery && (
-                  <button
-                    onClick={handleOpenModal}
-                    className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-                  >
-                    最初のメモを作成
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                {sortedNotes.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-600">
-                      {sortedNotes.length}件のメモ
-                    </p>
-                  </div>
-                )}
-                {/* カードグリッド */}
-                {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {sortedNotes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all"
-                      >
-                        {/* アバターとアイコン */}
+                {/* メモ一覧 */}
+                <div className="p-4">
+                  {loading ? (
+                    <div className="text-center py-12">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
+                      <p className="mt-2 text-gray-600">読み込み中...</p>
+                    </div>
+                  ) : sortedNotes.length === 0 ? (
+                    <div className="text-center flex flex-col items-center justify-center" style={{ minHeight: '400px' }}>
+                      <p className="text-gray-600 mb-4">
+                        {searchQuery ? '検索結果が見つかりませんでした' : 'メモがありません'}
+                      </p>
+                      {!searchQuery && (
+                        <button
+                          onClick={handleOpenModal}
+                          className="px-4 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors"
+                        >
+                          最初のメモを作成
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {sortedNotes.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-600">
+                            {sortedNotes.length}件のメモ
+                          </p>
+                        </div>
+                      )}
+                      {/* カードグリッド */}
+                      {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {sortedNotes.map((note) => (
+                            <div
+                              key={note.id}
+                              className="bg-gray-50 border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                              onClick={() => handleViewDetail(note)}
+                            >
+                        {/* タイトルとアイコン */}
                         <div className="flex items-start justify-between mb-3">
-                          <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white font-semibold">
-                            {note.title.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="p-1.5 text-gray-400 hover:text-gray-600">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                              </svg>
-                            </button>
-                            <button className="p-1.5 text-gray-400 hover:text-yellow-500">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <h3 className="text-sm font-semibold text-gray-900 flex-1 line-clamp-2 pr-2">
+                            {note.title}
+                          </h3>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(note.id, (note as any).isFavorite || false);
+                              }}
+                              className={`p-1.5 transition-colors ${
+                                (note as any).isFavorite ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'
+                              }`}
+                            >
+                              <svg className="w-4 h-4" fill={(note as any).isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                               </svg>
                             </button>
                           </div>
                         </div>
 
-                        {/* タイトル */}
-                        <h3 className="text-sm font-semibold text-gray-900 mb-2 line-clamp-1">
-                          {note.title}
-                        </h3>
-
                         {/* 日付 */}
                         <p className="text-xs text-gray-500 mb-2">
                           {new Date(note.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
+
+                        {/* 作成者 */}
+                        {note.userId && (
+                          <div className="mb-2">
+                            <p className="text-xs text-gray-500">
+                              作成者: {allUsers.find(u => u.id === note.userId)?.displayName || '不明'}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* 共有者情報 */}
+                        {(note as any).sharedWith && (note as any).sharedWith.length > 0 && (() => {
+                          const sharedWithExcludingCreator = (note as any).sharedWith.filter((userId: string) => userId !== note.userId);
+                          if (sharedWithExcludingCreator.length > 0) {
+                            return (
+                              <div className="mb-2">
+                                <p className="text-xs text-gray-500">
+                                  共有者: {sharedWithExcludingCreator
+                                    .map((userId: string) => allUsers.find(u => u.id === userId)?.displayName || '不明')
+                                    .filter((name: string) => name !== '不明')
+                                    .join(', ')}
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
 
                         {/* 参加者情報 */}
                         {note.participants && note.participants.length > 0 && (
@@ -476,22 +519,8 @@ export default function ProgressNotesPage() {
                           </div>
                         )}
 
-                        {/* アクティビティアイコン */}
-                        <div className="flex gap-2 mb-3">
-                          <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
-                            <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                            </svg>
-                          </div>
-                          <div className="w-6 h-6 bg-green-100 rounded flex items-center justify-center">
-                            <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                        </div>
-
                         {/* アクションボタン */}
-                        <div className="flex gap-2 pt-3 border-t border-gray-100">
+                        <div className="flex gap-2 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -510,19 +539,6 @@ export default function ProgressNotesPage() {
                           >
                             削除
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(note.id, (note as any).isFavorite || false);
-                            }}
-                            className={`px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors ${
-                              (note as any).isFavorite ? 'text-yellow-500 border-yellow-300' : 'text-gray-400'
-                            }`}
-                          >
-                            <svg className="w-4 h-4" fill={((note as any).isFavorite ? 'currentColor' : 'none')} stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                            </svg>
-                          </button>
                         </div>
                       </div>
                     ))}
@@ -532,23 +548,53 @@ export default function ProgressNotesPage() {
                     {sortedNotes.map((note) => (
                       <div
                         key={note.id}
-                        className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all"
+                        className="bg-gray-50 border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                        onClick={() => handleViewDetail(note)}
                       >
                         <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white font-semibold flex-shrink-0">
-                            {note.title.charAt(0).toUpperCase()}
-                          </div>
                           <div className="flex-1">
-                            <h3 className="text-base font-semibold text-gray-900 mb-1">{note.title}</h3>
-                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">{note.content}</p>
+                            <div className="flex items-start justify-between mb-1">
+                              <h3 className="text-base font-semibold text-gray-900 flex-1">{note.title}</h3>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(note.id, (note as any).isFavorite || false);
+                                }}
+                                className={`p-1.5 transition-colors flex-shrink-0 ${
+                                  (note as any).isFavorite ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'
+                                }`}
+                              >
+                                <svg className="w-4 h-4" fill={(note as any).isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                </svg>
+                              </button>
+                            </div>
                             <div className="flex items-center gap-4 text-xs text-gray-500">
                               <span>{new Date(note.date).toLocaleDateString('ja-JP')}</span>
+                              {note.userId && (
+                                <span>作成者: {allUsers.find(u => u.id === note.userId)?.displayName || '不明'}</span>
+                              )}
+                              {(note as any).sharedWith && (note as any).sharedWith.length > 0 && (() => {
+                                const sharedWithExcludingCreator = (note as any).sharedWith.filter((userId: string) => userId !== note.userId);
+                                if (sharedWithExcludingCreator.length > 0) {
+                                  const sharedNames = sharedWithExcludingCreator
+                                    .map((userId: string) => allUsers.find(u => u.id === userId)?.displayName || '不明')
+                                    .filter((name: string) => name !== '不明')
+                                    .slice(0, 2);
+                                  return (
+                                    <span>共有者: {sharedNames.join(', ')}
+                                      {sharedWithExcludingCreator.length > 2 && ` +${sharedWithExcludingCreator.length - 2}`}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                               {note.participants && note.participants.length > 0 && (
                                 <span>参加者: {note.participants.length}名</span>
                               )}
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -567,19 +613,6 @@ export default function ProgressNotesPage() {
                             >
                               削除
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleFavorite(note.id, (note as any).isFavorite || false);
-                              }}
-                              className={`px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 ${
-                                (note as any).isFavorite ? 'text-yellow-500 border-yellow-300' : 'text-gray-400'
-                              }`}
-                            >
-                              <svg className="w-4 h-4" fill={((note as any).isFavorite ? 'currentColor' : 'none')} stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                              </svg>
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -588,29 +621,32 @@ export default function ProgressNotesPage() {
                 )}
               </>
             )}
+                </div>
+              </div>
             </div>
 
             {/* 右側: フィルターサイドバー */}
             <div className="w-64 flex-shrink-0">
-              {/* 使い方セクション */}
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-4">
-                <h2 className="text-sm font-semibold text-gray-900 mb-2">メモとは？</h2>
-                <p className="text-xs text-gray-700 leading-relaxed mb-3">
-                自由に使えるメモ機能です。<br />
-                個人のメモとしても、チームで共有するメモとしても使えます。
-                </p>
-                <div className="text-xs text-gray-700 space-y-1">
-                  <p className="font-medium">使い方：</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>「新規メモ」ボタンからメモを作成</li>
-                    <li>検索バーでキーワード検索が可能</li>
-                    <li>タブで「すべて」「お気に入り」<br />「共有」を切り替え</li>
-                  </ul>
+              <div className="sticky top-6 space-y-4">
+                {/* 使い方セクション */}
+                <div className="bg-blue-50 border border-blue-100 p-4">
+                  <h2 className="text-sm font-semibold text-gray-900 mb-2">メモとは？</h2>
+                  <p className="text-xs text-gray-700 leading-relaxed mb-3">
+                  自由に使えるメモ機能です。<br />
+                  個人のメモとしても、チームで共有するメモとしても使えます。
+                  </p>
+                  <div className="text-xs text-gray-700 space-y-1">
+                    <p className="font-medium">使い方：</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>「新規メモ」ボタンからメモを作成</li>
+                      <li>検索バーでキーワード検索が可能</li>
+                      <li>タブで「すべて」「お気に入り」<br />「共有」を切り替え</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
 
-              {/* 統計情報 */}
-              <div className="bg-white rounded-lg shadow-sm p-4 mb-4 sticky top-6">
+                {/* 統計情報 */}
+                <div className="bg-white border border-gray-200 p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4">統計</h3>
                 
                 <div className="space-y-3">
@@ -642,41 +678,126 @@ export default function ProgressNotesPage() {
                 </div>
               </div>
 
-              {/* 最近のメモ */}
-              <div className="bg-white rounded-lg shadow-sm p-4 sticky top-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">最近のメモ</h3>
-                
-                {notes.length === 0 ? (
-                  <p className="text-xs text-gray-500">メモがありません</p>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {notes
-                      .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-                      .slice(0, 5)
-                      .map((note) => (
-                        <button
-                          key={note.id}
-                          onClick={() => handleEdit(note)}
-                          className="w-full text-left p-2 rounded hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
-                        >
-                          <p className="text-xs font-medium text-gray-900 line-clamp-1 mb-1">
-                            {note.title}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(note.updatedAt || note.createdAt).toLocaleDateString('ja-JP', {
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </p>
-                        </button>
-                      ))}
-                  </div>
-                )}
+                {/* 最近のメモ */}
+                <div className="bg-white border border-gray-200 p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4">最近のメモ</h3>
+                  
+                  {notes.length === 0 ? (
+                    <p className="text-xs text-gray-500">メモがありません</p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {notes
+                        .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+                        .slice(0, 5)
+                        .map((note) => (
+                          <button
+                            key={note.id}
+                            onClick={() => handleViewDetail(note)}
+                            className="w-full text-left p-3 rounded hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
+                          >
+                            <p className="text-xs font-medium text-gray-900 line-clamp-1 mb-1">
+                              {note.title}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(note.updatedAt || note.createdAt).toLocaleDateString('ja-JP', {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </p>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* モーダル */}
+          {/* 詳細表示モーダル */}
+          {showDetailModal && viewingNote && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {viewingNote.title}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setViewingNote(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  {/* 日付 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      日付
+                    </label>
+                    <p className="text-sm text-gray-900">
+                      {new Date(viewingNote.date).toLocaleDateString('ja-JP', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+
+                  {/* 内容 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      内容
+                    </label>
+                    <div className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">
+                      {viewingNote.content}
+                    </div>
+                  </div>
+
+                  {/* 参加者 */}
+                  {viewingNote.participants && viewingNote.participants.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        参加者
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingNote.participants.map((p, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setViewingNote(null);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    閉じる
+                  </button>
+                  <button
+                    onClick={() => handleEdit(viewingNote)}
+                    className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
+                  >
+                    編集
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 編集モーダル */}
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -689,10 +810,11 @@ export default function ProgressNotesPage() {
                   <div className="p-6 space-y-4">
                     {/* タイトル */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="note-title" className="block text-sm font-medium text-gray-700 mb-1">
                         タイトル <span className="text-red-500">*</span>
                       </label>
                       <input
+                        id="note-title"
                         type="text"
                         value={formData.title || ''}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -701,12 +823,28 @@ export default function ProgressNotesPage() {
                       />
                     </div>
 
+                    {/* 内容 */}
+                    <div>
+                      <label htmlFor="note-content" className="block text-sm font-medium text-gray-700 mb-1">
+                        内容 <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        id="note-content"
+                        value={formData.content || ''}
+                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                        rows={8}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
+                        placeholder="メモの内容を入力してください"
+                      />
+                    </div>
+
                     {/* 日付 */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="note-date" className="block text-sm font-medium text-gray-700 mb-1">
                         日付
                       </label>
                       <input
+                        id="note-date"
                         type="date"
                         value={formData.date 
                           ? new Date(formData.date).toISOString().split('T')[0]
@@ -719,20 +857,6 @@ export default function ProgressNotesPage() {
                       />
                     </div>
 
-                    {/* 内容 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        内容 <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        value={formData.content || ''}
-                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                        rows={8}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005eb2]"
-                        placeholder="メモの内容を入力してください"
-                      />
-                    </div>
-
                     {/* 共有者 */}
                     <div>
                       <button
@@ -740,9 +864,9 @@ export default function ProgressNotesPage() {
                         onClick={() => setShowShareSection(!showShareSection)}
                         className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-sm font-medium text-gray-700">
                           共有者
-                        </label>
+                        </span>
                         <svg
                           className={`w-5 h-5 text-gray-500 transition-transform ${showShareSection ? 'transform rotate-180' : ''}`}
                           fill="none"

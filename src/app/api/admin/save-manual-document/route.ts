@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../../notifications/helper';
 
 // Firebase Admin SDK の初期化
 if (!getApps().length) {
@@ -94,6 +95,15 @@ export async function POST(request: NextRequest) {
 
       await docRef.update(updateData);
 
+      // 通知を作成
+      await createNotificationInServer(adminDb, uid, companyName, {
+        type: 'update',
+        pageName: '契約書管理',
+        pageUrl: '/admin/contracts',
+        title: `契約書「${title}」が編集されました`,
+        action: 'updated',
+      });
+
       return NextResponse.json({ 
         success: true, 
         documentId: id,
@@ -118,6 +128,15 @@ export async function POST(request: NextRequest) {
       companyName: companyName,
       createdAt: Timestamp.now(),
       lastUpdated: Timestamp.now()
+    });
+
+    // 通知を作成
+    await createNotificationInServer(adminDb, uid, companyName, {
+      type: 'create',
+      pageName: '契約書管理',
+      pageUrl: '/admin/contracts',
+      title: `契約書「${title}」が追加されました`,
+      action: 'created',
     });
 
     return NextResponse.json({ 

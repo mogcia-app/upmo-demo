@@ -411,17 +411,12 @@ export const useSidebarConfig = () => {
   // 有効化された追加メニュー項目を取得（候補プールから）
   const getEnabledAdditionalMenuItems = useCallback((): AvailableMenuItem[] => {
     if (!config) {
-      console.log('[useSidebarConfig] config is null');
       return [];
     }
     
     if (!config.enabledMenuItems || config.enabledMenuItems.length === 0) {
-      console.log('[useSidebarConfig] enabledMenuItems is empty:', config.enabledMenuItems);
       return [];
     }
-    
-    console.log('[useSidebarConfig] enabledMenuItems:', config.enabledMenuItems);
-    console.log('[useSidebarConfig] AVAILABLE_MENU_ITEMS count:', AVAILABLE_MENU_ITEMS.length);
     
     // 有効化されたIDリストに基づいて、候補プールから該当する項目を取得
     const filtered = AVAILABLE_MENU_ITEMS
@@ -434,7 +429,6 @@ export const useSidebarConfig = () => {
         return (a.order || 0) - (b.order || 0);
       });
     
-    console.log('[useSidebarConfig] filtered items count:', filtered.length);
     return filtered;
   }, [config]);
 

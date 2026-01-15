@@ -646,57 +646,50 @@ export default function CustomersPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="space-y-6">
-          {/* ヘッダーと検索 */}
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-            {/* ヘッダー */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">顧客管理</h1>
-                <p className="text-sm sm:text-base text-gray-600">顧客情報の管理と追跡</p>
-              </div>
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
+          {/* ヘッダー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">顧客管理</h1>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors text-sm sm:text-base"
+                className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
               >
-                <span className="flex items-center">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  顧客を追加
-                </span>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-xs">顧客を追加</span>
               </button>
             </div>
+          </div>
 
-            {/* フィルター */}
-            <div className="border-t border-gray-200 pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">検索</label>
+          {/* 検索バー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-3">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
                 <input
                   type="text"
                   placeholder="名前、メール、会社名で検索..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005eb2] text-sm sm:text-base"
+                  className="w-full px-3 py-2 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#005eb2] text-sm"
                 />
               </div>
-              <div className="flex items-end">
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                  }}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  リセット
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                }}
+                className="px-3 py-2 text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors text-xs"
+              >
+                リセット
+              </button>
             </div>
           </div>
-          </div>
 
-          {/* 顧客一覧 */}
-          <div className="bg-white rounded-lg shadow-sm">
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            {/* 顧客一覧 */}
+            <div className="bg-white border border-gray-200">
             {loading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#005eb2]"></div>
@@ -791,7 +784,7 @@ export default function CustomersPage() {
           {/* 追加/編集モーダル */}
           {showAddModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] flex flex-col">
+              <div className="bg-white w-full max-w-md max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b border-gray-200 flex-shrink-0">
                   <h3 className="text-lg font-medium text-gray-900">
                     {editingCustomer ? '顧客を編集' : '顧客を追加'}
@@ -898,7 +891,7 @@ export default function CustomersPage() {
           {/* 顧客詳細モーダル */}
           {showCustomerDetail && selectedCustomer && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+              <div className="bg-white max-w-4xl w-full max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b border-gray-200 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1405,6 +1398,7 @@ export default function CustomersPage() {
               </div>
             </div>
           )}
+          </div>
         </div>
       </Layout>
     </ProtectedRoute>

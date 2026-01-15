@@ -5,6 +5,7 @@ import { SalesActivity } from '@/types/sales';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../../notifications/helper';
 
 // Firebase Admin SDKの初期化
 let adminDb: ReturnType<typeof getFirestore> | null = null;
@@ -211,6 +212,15 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection('salesActivities').add(activityData);
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, userCompanyName || '', {
+      type: 'create',
+      pageName: '営業活動',
+      pageUrl: `/sales/activities?id=${docRef.id}`,
+      title: title,
+      action: 'created',
+    });
+
     return NextResponse.json({
       success: true,
       activity: {
@@ -308,6 +318,15 @@ export async function PUT(request: NextRequest) {
     const updatedDoc = await db.collection('salesActivities').doc(id).get();
     const updatedData = updatedDoc.data();
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'update',
+      pageName: '営業活動',
+      pageUrl: `/sales/activities?id=${id}`,
+      title: updates.title || activityData?.title || '営業活動',
+      action: 'updated',
+    });
+
     return NextResponse.json({
       success: true,
       activity: {
@@ -363,6 +382,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db.collection('salesActivities').doc(id).delete();
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'delete',
+      pageName: '営業活動',
+      pageUrl: `/sales/activities`,
+      title: activityData?.title || '営業活動',
+      action: 'deleted',
+    });
 
     return NextResponse.json({
       success: true

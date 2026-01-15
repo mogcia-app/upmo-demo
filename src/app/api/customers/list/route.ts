@@ -3,6 +3,7 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp, QueryDocumentSnapshot, DocumentData } from 'firebase-admin/firestore';
 import { CustomerListTab, Column, CustomerListRow, DuplicateCheckResult } from '@/types/customer-list';
+import { createNotificationInServer } from '../../notifications/helper';
 
 // Firebase Admin SDK の初期化
 function initAdmin() {
@@ -268,6 +269,15 @@ export async function POST(request: NextRequest) {
     
     const docRef = await db.collection('customerListTabs').add(tabData);
     
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'create',
+      pageName: '顧客リスト',
+      pageUrl: `/customers/list?tabId=${docRef.id}`,
+      title: name,
+      action: 'created',
+    });
+    
     return NextResponse.json({
       id: docRef.id,
       ...tabData,
@@ -336,6 +346,15 @@ export async function PUT(request: NextRequest) {
     const updatedDoc = await db.collection('customerListTabs').doc(id).get();
     const updatedData = updatedDoc.data();
     
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'update',
+      pageName: '顧客リスト',
+      pageUrl: `/customers/list?tabId=${id}`,
+      title: name || tabData?.name || '顧客リスト',
+      action: 'updated',
+    });
+    
     return NextResponse.json({
       id: updatedDoc.id,
       ...updatedData,
@@ -381,6 +400,15 @@ export async function DELETE(request: NextRequest) {
     }
     
     await db.collection('customerListTabs').doc(tabId).delete();
+    
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'delete',
+      pageName: '顧客リスト',
+      pageUrl: `/customers/list`,
+      title: tabData?.name || '顧客リスト',
+      action: 'deleted',
+    });
     
     return NextResponse.json({ success: true });
   } catch (error) {

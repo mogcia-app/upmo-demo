@@ -331,52 +331,57 @@ export default function SalesActivitiesPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">営業活動管理</h1>
-              <p className="text-sm text-gray-600 mt-1">営業活動の記録・管理を行います</p>
-            </div>
-            <button
-              onClick={handleOpenModal}
-              className="px-4 py-2 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors"
-            >
-              + 新規活動
-            </button>
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">営業活動管理</h1>
           </div>
 
-          {/* フィルター */}
-          <div className="mb-4 flex gap-2">
-            <button
-              onClick={() => setFilterType('all')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterType === 'all'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              すべて
-            </button>
-            <button
-              onClick={() => setFilterType('visit')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterType === 'visit'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              訪問
-            </button>
-            <button
-              onClick={() => setFilterType('call')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                filterType === 'call'
-                  ? 'bg-[#005eb2] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              電話
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                onClick={handleOpenModal}
+                className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-xs">新規活動</span>
+              </button>
+            </div>
+
+            {/* フィルター */}
+            <div className="mb-4 flex gap-2">
+              <button
+                onClick={() => setFilterType('all')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterType === 'all'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                すべて
+              </button>
+              <button
+                onClick={() => setFilterType('visit')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterType === 'visit'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                訪問
+              </button>
+              <button
+                onClick={() => setFilterType('call')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  filterType === 'call'
+                    ? 'bg-[#005eb2] text-white'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                電話
             </button>
             <button
               onClick={() => setFilterType('meeting')}
@@ -421,7 +426,7 @@ export default function SalesActivitiesPage() {
               {activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 p-6 hover:border-gray-300 transition-colors"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -514,11 +519,12 @@ export default function SalesActivitiesPage() {
               ))}
             </div>
           )}
+          </div>
 
           {/* モーダル */}
           {showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="bg-white max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="p-4 sm:p-6 border-b border-gray-200">
                   <h2 className="text-xl font-bold text-gray-900">
                     {editingActivity ? '営業活動を編集' : '新規営業活動を記録'}

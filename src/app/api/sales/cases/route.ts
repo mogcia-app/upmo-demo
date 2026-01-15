@@ -5,6 +5,7 @@ import { SalesCase } from '@/types/sales';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../../notifications/helper';
 
 // Firebase Admin SDKの初期化
 let adminDb: ReturnType<typeof getFirestore> | null = null;
@@ -227,6 +228,20 @@ export async function POST(request: NextRequest) {
     const docRef = await db.collection('salesCases').add(caseData);
     console.log('案件作成成功:', docRef.id);
 
+    // ユーザーのcompanyNameを取得
+    const userDoc = await db.collection('users').doc(authenticatedUserId).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
+    // 通知を作成
+    await createNotificationInServer(db, authenticatedUserId, companyName, {
+      type: 'create',
+      pageName: '営業案件',
+      pageUrl: `/sales/cases?id=${docRef.id}`,
+      title: title,
+      action: 'created',
+    });
+
     return NextResponse.json({
       success: true,
       id: docRef.id,
@@ -299,6 +314,20 @@ export async function PUT(request: NextRequest) {
 
     await db.collection('salesCases').doc(id).update(updateData);
 
+    // ユーザーのcompanyNameを取得
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
+    // 通知を作成
+    await createNotificationInServer(db, decodedToken.uid, companyName, {
+      type: 'update',
+      pageName: '営業案件',
+      pageUrl: `/sales/cases?id=${id}`,
+      title: updateData.title || caseData?.title || '営業案件',
+      action: 'updated',
+    });
+
     // 更新後のデータを取得
     const updatedDoc = await db.collection('salesCases').doc(id).get();
     const data = updatedDoc.data();
@@ -361,6 +390,20 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db.collection('salesCases').doc(id).delete();
+
+    // ユーザーのcompanyNameを取得
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+
+    // 通知を作成
+    await createNotificationInServer(db, decodedToken.uid, companyName, {
+      type: 'delete',
+      pageName: '営業案件',
+      pageUrl: `/sales/cases`,
+      title: caseData?.title || '営業案件',
+      action: 'deleted',
+    });
 
     return NextResponse.json({
       success: true,

@@ -5,6 +5,7 @@ import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, updateDoc,
 import { db, auth } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { CustomComponent } from "../types/components";
+import { createNotification } from "../utils/notifications";
 
 export interface CustomTab {
   id: string;
@@ -156,6 +157,18 @@ export const useCustomTabs = () => {
       const docRef = await addDoc(collection(db, "customTabs"), newTab);
       const addedTab = { id: docRef.id, ...newTab };
       setCustomTabs(prev => [addedTab, ...prev]);
+      
+      // 通知を作成
+      if (auth.currentUser) {
+        await createNotification(auth.currentUser, {
+          type: 'create',
+          pageName: 'カスタムページ',
+          pageUrl: route,
+          title: `カスタムページ「${title}」が追加されました`,
+          action: 'created',
+        });
+      }
+      
       return addedTab;
     } catch (error: any) {
       console.error("Error adding custom tab:", error);
@@ -227,6 +240,17 @@ export const useCustomTabs = () => {
           ? { ...tab, components: components, updatedAt: new Date() }
           : tab
       ));
+      
+      // 通知を作成
+      if (auth.currentUser) {
+        await createNotification(auth.currentUser, {
+          type: 'update',
+          pageName: 'カスタムページ',
+          pageUrl: tab.route,
+          title: `カスタムページ「${tab.title}」が編集されました`,
+          action: 'updated',
+        });
+      }
     } catch (error: any) {
       console.error("Error updating custom tab components:", error);
       // 権限エラーの場合はユーザーに通知

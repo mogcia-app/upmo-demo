@@ -71,6 +71,8 @@ export default function ContractsPage() {
   const [summaryContent, setSummaryContent] = useState('');
   const [summaryDocumentId, setSummaryDocumentId] = useState<string>('');
   const [summaryDocumentType, setSummaryDocumentType] = useState<'meeting' | 'contract' | 'chat' | 'progressNote'>('contract');
+  const [selectedDocument, setSelectedDocument] = useState<ManualDocument | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   const handleSaveDocument = async () => {
     if (!newDocument.title || !user) {
@@ -421,14 +423,48 @@ export default function ContractsPage() {
             }
           });
           
+          // Firestore TimestampをDateオブジェクトに変換するヘルパー関数
+          const convertToDate = (dateValue: any): Date => {
+            if (dateValue instanceof Date) {
+              return dateValue;
+            }
+            // Firestore Timestampオブジェクトの場合（toDateメソッドがある）
+            if (dateValue && typeof dateValue.toDate === 'function') {
+              return dateValue.toDate();
+            }
+            // Firestore Timestampオブジェクトの場合（secondsプロパティがある）
+            if (dateValue && typeof dateValue.seconds === 'number') {
+              return new Date(dateValue.seconds * 1000);
+            }
+            // 文字列の場合
+            if (typeof dateValue === 'string') {
+              return new Date(dateValue);
+            }
+            // 数値の場合（タイムスタンプ）
+            if (typeof dateValue === 'number') {
+              return new Date(dateValue);
+            }
+            // デフォルト
+            return new Date();
+          };
+          
           return {
             ...doc,
             sections: convertedSections,
-            createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
-            lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
+            createdAt: convertToDate(doc.createdAt),
+            lastUpdated: convertToDate(doc.lastUpdated)
           };
         });
-        setDocuments(documents);
+        
+        // 日付でソート（最新順）- 既にconvertToDateでDateオブジェクトに変換済みなので、そのまま使用
+        const sortedDocuments = documents.sort((a: ManualDocument, b: ManualDocument) => {
+          // 念のため、Dateオブジェクトであることを確認
+          const dateA = a.lastUpdated instanceof Date ? a.lastUpdated.getTime() : (typeof a.lastUpdated === 'number' ? a.lastUpdated : new Date(a.lastUpdated).getTime());
+          const dateB = b.lastUpdated instanceof Date ? b.lastUpdated.getTime() : (typeof b.lastUpdated === 'number' ? b.lastUpdated : new Date(b.lastUpdated).getTime());
+          return dateB - dateA;
+        });
+        
+        setDocuments(sortedDocuments);
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -497,200 +533,77 @@ export default function ContractsPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="p-4 sm:p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">文書管理</h1>
-            
-            {/* 目立つ追加ボタン */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 sm:p-6 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">新しい文書を追加</h2>
-                <p className="text-gray-600 text-sm">構造化された手動入力で、高精度な検索・回答が可能な文書を作成できます</p>
-              </div>
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
-                  <button
-                    onClick={() => setShowAIModal(true)}
-                    className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-sm sm:text-base"
-                  >
-                    <span className="flex items-center">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      AI文書解析
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setShowInputModal(true)}
-                    className="px-4 sm:px-6 py-2 sm:py-3 bg-[#005eb2] text-white rounded-lg hover:bg-[#004a96] transition-colors font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-sm sm:text-base"
-                  >
-                    <span className="flex items-center">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      手動入力
-                    </span>
-                  </button>
-                </div>
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
+          {/* ヘッダー */}
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">文書管理</h1>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAIModal(true)}
+                  className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-xs">AI文書解析</span>
+                </button>
+                <button
+                  onClick={() => setShowInputModal(true)}
+                  className="px-3 py-2 bg-[#005eb2] text-white hover:bg-[#004a96] transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="text-xs">手動入力</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* ドキュメントリスト */}
-          <div className="space-y-4">
-            {documents.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">文書がありません</h3>
-                <p className="mt-1 text-sm text-gray-500">最初の文書を追加して始めましょう</p>
-                <div className="mt-6">
-                  <button
-                    onClick={() => setShowInputModal(true)}
-                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#005eb2] hover:bg-[#004a96] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    文書を追加
-                  </button>
-                </div>
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
+            {/* ドキュメントリスト */}
+          {documents.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 border-2 border-dashed border-gray-300">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">文書がありません</h3>
+              <p className="mt-1 text-sm text-gray-500">最初の文書を追加して始めましょう</p>
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowInputModal(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium text-white bg-[#005eb2] hover:bg-[#004a96] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  文書を追加
+                </button>
               </div>
-            ) : (
-              documents.map((doc) => (
-                <div key={doc.id} className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">{doc.title}</h3>
-                      <p className="text-gray-600 text-sm mb-2">{doc.description}</p>
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 text-sm text-gray-500">
-                        <span>作成日: {doc.createdAt instanceof Date ? doc.createdAt.toLocaleDateString('ja-JP') : new Date(doc.createdAt).toLocaleDateString('ja-JP')}</span>
-                        <span>更新日: {doc.lastUpdated instanceof Date ? doc.lastUpdated.toLocaleDateString('ja-JP') : new Date(doc.lastUpdated).toLocaleDateString('ja-JP')}</span>
-                      </div>
-                    </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-white border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+                >
+                  <div
+                    onClick={() => {
+                      setSelectedDocument(doc);
+                      setShowDetailModal(true);
+                    }}
+                    className="cursor-pointer mb-3"
+                  >
+                    <h3 className="text-base font-semibold text-gray-900 mb-2 line-clamp-2">{doc.title}</h3>
+                    <p className="text-sm text-gray-600 line-clamp-3">{doc.description || '説明なし'}</p>
                   </div>
-                  
-                  {/* タグ */}
-                  {doc.tags && doc.tags.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex flex-wrap gap-2">
-                        {doc.tags.map((tag, index) => (
-                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* セクション内容 */}
-                  <div className="mt-4">
-                    {Object.entries(doc.sections)
-                      .filter(([key]) => key !== 'overview') // overviewセクションは表示しない
-                      .map(([key, value]) => {
-                      // Q&Aセクションの特別な処理
-                      if (key === 'qa' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && 'question' in value[0]) {
-                        const qaArray = value as { question: string; answer: string }[];
-                        return (
-                          <div key={key} className="mb-3">
-                            <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
-                            <div className="bg-gray-50 rounded-md p-3 space-y-3">
-                              {qaArray.map((qa, index) => (
-                                <div key={index} className="border-l-4 border-blue-500 pl-3">
-                                  <p className="text-sm font-medium text-gray-800 mb-1">
-                                    Q{index + 1}: {qa.question}
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    A: {qa.answer}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      return (
-                        <div key={key} className="mb-3">
-                          <h4 className="text-sm font-medium text-gray-700 mb-1">{getSectionLabel(key)}:</h4>
-                          <div className="bg-gray-50 rounded-md p-3">
-                            {Array.isArray(value) ? (
-                              <ul className="text-sm text-gray-600 space-y-3">
-                                {value.map((item, index) => {
-                                  // 既存データとの互換性：文字列の場合は変換
-                                  // qaセクションは既に処理されているので、ここではSectionItem型のみを想定
-                                  const itemData = typeof item === 'string' 
-                                    ? { title: '', content: item }
-                                    : ('title' in item && 'content' in item)
-                                    ? { title: item.title || '', content: item.content || '' }
-                                    : { title: '', content: '' };
-                                  
-                                  return (
-                                    <li key={index} className="flex items-start">
-                                      <span className="text-gray-400 mr-2 mt-1">•</span>
-                                      <div className="flex-1">
-                                        {itemData.title && (
-                                          <div className="font-medium text-gray-800 mb-1">{itemData.title}</div>
-                                        )}
-                                        <div className="text-gray-600 whitespace-pre-wrap">{itemData.content}</div>
-                                      </div>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-gray-600">{value}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  
-                  {/* アクションボタン */}
-                  <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                     <button
-                      onClick={() => {
-                        // ドキュメントの内容を文字列に変換
-                        const contentParts: string[] = [];
-                        contentParts.push(`タイトル: ${doc.title}`);
-                        // 概要は表示しない（入力ページがないため）
-                        Object.entries(doc.sections)
-                          .filter(([key]) => key !== 'overview') // overviewセクションは除外
-                          .forEach(([key, value]) => {
-                          if (Array.isArray(value) && value.length > 0) {
-                            const items = value.map((item: any) => {
-                              if (typeof item === 'string') {
-                                return item;
-                              }
-                              const itemData = { title: item.title || '', content: item.content || '' };
-                              if (itemData.title && itemData.content) {
-                                return `${itemData.title}\n${itemData.content}`;
-                              } else if (itemData.title) {
-                                return itemData.title;
-                              } else {
-                                return itemData.content;
-                              }
-                            });
-                            contentParts.push(`${getSectionLabel(key)}:\n${items.join('\n\n')}`);
-                          } else if (typeof value === 'string' && value.trim()) {
-                            contentParts.push(`${getSectionLabel(key)}: ${value}`);
-                          }
-                        });
-                        const content = contentParts.join('\n\n');
-                        
-                        setSummaryContent(content);
-                        setSummaryDocumentId(doc.id);
-                        setSummaryDocumentType(doc.type === 'meeting' ? 'meeting' : 'contract');
-                        setShowSummaryModal(true);
-                      }}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-                    >
-                      要約
-                    </button>
-                    <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         // 既存データを変換（文字列配列をオブジェクト配列に）
                         const convertedSections = { ...doc.sections };
                         ['features', 'pricing', 'procedures', 'support', 'rules', 'terms'].forEach((sectionKey) => {
@@ -705,13 +618,31 @@ export default function ContractsPage() {
                         });
                         
                         setEditingDocument(doc);
+                        const convertToDate = (dateValue: any): Date => {
+                          if (dateValue instanceof Date) {
+                            return dateValue;
+                          }
+                          if (dateValue && typeof dateValue.toDate === 'function') {
+                            return dateValue.toDate();
+                          }
+                          if (dateValue && typeof dateValue.seconds === 'number') {
+                            return new Date(dateValue.seconds * 1000);
+                          }
+                          if (typeof dateValue === 'string') {
+                            return new Date(dateValue);
+                          }
+                          if (typeof dateValue === 'number') {
+                            return new Date(dateValue);
+                          }
+                          return new Date();
+                        };
+                        
                         setNewDocument({
                           ...doc,
                           sections: convertedSections,
-                          createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
-                          lastUpdated: doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
+                          createdAt: convertToDate(doc.createdAt),
+                          lastUpdated: convertToDate(doc.lastUpdated)
                         });
-                        // 入力済みのセクションを展開
                         const sectionsWithContent = Object.entries(convertedSections)
                           .filter(([_, value]) => {
                             if (Array.isArray(value)) return value.length > 0;
@@ -722,20 +653,24 @@ export default function ContractsPage() {
                         setSectionInputs({});
                         setShowInputModal(true);
                       }}
-                      className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                      className="px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
                     >
                       編集
                     </button>
                     <button
-                      onClick={() => handleDeleteDocument(doc.id)}
-                      className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteDocument(doc.id);
+                      }}
+                      className="px-2 py-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"
                     >
                       削除
                     </button>
                   </div>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
+          )}
           </div>
 
           {/* 手動入力モーダル */}
@@ -1394,6 +1329,114 @@ export default function ContractsPage() {
             </div>
           )}
         </div>
+
+        {/* 詳細表示モーダル */}
+        {showDetailModal && selectedDocument && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">{selectedDocument.title}</h2>
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedDocument(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600">{selectedDocument.description || '説明なし'}</p>
+                </div>
+                
+                {/* タグ */}
+                {selectedDocument.tags && selectedDocument.tags.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedDocument.tags.map((tag, index) => (
+                        <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* セクション内容 */}
+                <div className="space-y-4">
+                  {Object.entries(selectedDocument.sections)
+                    .filter(([key]) => key !== 'overview')
+                    .map(([key, value]) => {
+                      // Q&Aセクションの特別な処理
+                      if (key === 'qa' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && 'question' in value[0]) {
+                        const qaArray = value as { question: string; answer: string }[];
+                        return (
+                          <div key={key} className="border border-gray-200 p-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-3">{getSectionLabel(key)}</h4>
+                            <div className="space-y-3">
+                              {qaArray.map((qa, index) => (
+                                <div key={index} className="border-l-4 border-blue-500 pl-3">
+                                  <p className="text-sm font-medium text-gray-800 mb-1">
+                                    Q{index + 1}: {qa.question}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    A: {qa.answer}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div key={key} className="border border-gray-200 p-4">
+                          <h4 className="text-sm font-semibold text-gray-900 mb-3">{getSectionLabel(key)}</h4>
+                          <div>
+                            {Array.isArray(value) ? (
+                              <ul className="text-sm text-gray-600 space-y-2">
+                                {value.map((item, index) => {
+                                  const itemData = typeof item === 'string' 
+                                    ? { title: '', content: item }
+                                    : ('title' in item && 'content' in item)
+                                    ? { title: item.title || '', content: item.content || '' }
+                                    : { title: '', content: '' };
+                                  
+                                  return (
+                                    <li key={index} className="flex items-start">
+                                      <span className="text-gray-400 mr-2 mt-1">•</span>
+                                      <div className="flex-1">
+                                        {itemData.title && (
+                                          <div className="font-medium text-gray-800 mb-1">{itemData.title}</div>
+                                        )}
+                                        <div className="text-gray-600 whitespace-pre-wrap">{itemData.content}</div>
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600">{value}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                
+                {/* 日付情報 */}
+                <div className="mt-6 pt-4 border-t border-gray-200 text-sm text-gray-500">
+                  <p>作成日: {selectedDocument.createdAt instanceof Date ? selectedDocument.createdAt.toLocaleDateString('ja-JP') : new Date(selectedDocument.createdAt).toLocaleDateString('ja-JP')}</p>
+                  <p>更新日: {selectedDocument.lastUpdated instanceof Date ? selectedDocument.lastUpdated.toLocaleDateString('ja-JP') : new Date(selectedDocument.lastUpdated).toLocaleDateString('ja-JP')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 要約モーダル */}
         <SummaryModal

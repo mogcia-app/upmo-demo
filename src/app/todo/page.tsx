@@ -618,7 +618,7 @@ export default function TodoPage() {
     
     return (
       <div
-        className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+        className="bg-white border border-gray-200 p-3 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
         style={{
           animationDelay: `${index * 100}ms`,
           animation: 'fadeInUp 0.5s ease-out forwards'
@@ -902,87 +902,56 @@ export default function TodoPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">TODOリスト</h1>
-              </div>
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">TODOリスト</h1>
               {/* 月切り替えコントロール */}
-              <div className="flex items-center gap-2">
-                  <button
+              <div className="flex items-center gap-1">
+                <button
                   onClick={() => changeMonth('prev')}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                   title="前月"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                  </button>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="month"
-                    value={`${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`}
-                    onChange={(e) => {
-                      const [year, month] = e.target.value.split('-').map(Number);
-                      setSelectedMonth(new Date(year, month - 1));
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {selectedMonth.getFullYear() !== new Date().getFullYear() || selectedMonth.getMonth() !== new Date().getMonth() ? (
+                </button>
+                <input
+                  type="month"
+                  value={`${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`}
+                  onChange={(e) => {
+                    const [year, month] = e.target.value.split('-').map(Number);
+                    setSelectedMonth(new Date(year, month - 1));
+                  }}
+                  className="px-2 py-1.5 border border-gray-300 text-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                />
+                {selectedMonth.getFullYear() !== new Date().getFullYear() || selectedMonth.getMonth() !== new Date().getMonth() ? (
                   <button
-                      onClick={goToCurrentMonth}
-                      className="px-3 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="今月に戻る"
+                    onClick={goToCurrentMonth}
+                    className="px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-100 transition-colors"
+                    title="今月に戻る"
                   >
-                      今月
+                    今月
                   </button>
-                  ) : null}
-                </div>
+                ) : null}
                 <button
                   onClick={() => changeMonth('next')}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                   title="次月"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
-              </div>
-              <div className="flex items-center gap-4">
-                {/* チームメンバーアバター */}
-                <div className="flex -space-x-2">
-                  {teamMembers.slice(0, 3).map((member, index) => {
-                    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-yellow-500'];
-                    return (
-                      <div
-                        key={member.id}
-                        className={`w-7 h-7 sm:w-8 sm:h-8 ${colors[index % colors.length]} rounded-full border-2 border-white flex items-center justify-center text-white text-xs sm:text-sm font-medium`}
-                        title={member.displayName}
-                      >
-                        {member.displayName.charAt(0).toUpperCase()}
-                      </div>
-                    );
-                  })}
-                  {teamMembers.length > 3 && (
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-400 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-medium">
-                      +{teamMembers.length - 3}
-                    </div>
-                  )}
-                  {teamMembers.length === 0 && (
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-300 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-medium">
-                      {user?.email?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
 
           {/* AI検索バー */}
-          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="flex-1 relative">
                 <input
                   type="text"
@@ -995,30 +964,29 @@ export default function TodoPage() {
                     }
                   }}
                   placeholder="自然言語でTODOを作成..."
-                  className="w-full px-4 py-3 pl-12 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 pl-10 text-sm border border-gray-300 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
                   disabled={isAILoading}
                 />
-                <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
               <button
                 onClick={handleAISubmit}
                 disabled={!aiMessage.trim() || isAILoading}
-                className="px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
+                className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm font-medium"
               >
                 {isAILoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>作成中...</span>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs">作成中...</span>
                   </>
                 ) : (
                   <>
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    <span className="hidden sm:inline">AIに聞く</span>
-                    <span className="sm:hidden">作成</span>
+                    <span className="text-xs">AIに聞く</span>
                   </>
                 )}
               </button>
@@ -1026,27 +994,27 @@ export default function TodoPage() {
           </div>
 
           {/* カンバンボード */}
-          <div className="p-2 sm:p-4 lg:p-6">
-            <div className="space-y-4 sm:space-y-6">
-              {/* 共有事項 */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full"></div>
-                    <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
-                      <span className="hidden sm:inline">共有事項</span>
-                      <span className="sm:hidden">共有</span> {getTodosByStatus('shared').length}
-                    </h2>
+          <div className="py-6">
+            <div className="space-y-5">
+                {/* 共有事項 */}
+                <div className="bg-white border border-gray-200">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <h2 className="text-sm font-semibold text-gray-900">
+                        <span className="hidden sm:inline">共有事項</span>
+                        <span className="sm:hidden">共有</span> {getTodosByStatus('shared').length}
+                      </h2>
+                    </div>
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="text-blue-600 hover:text-blue-700 font-medium text-xs sm:text-sm px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                    >
+                      <span className="hidden sm:inline">+ タスクを追加</span>
+                      <span className="sm:hidden">+</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="text-blue-600 hover:text-blue-700 font-medium text-xs sm:text-sm px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                  >
-                    <span className="hidden sm:inline">+ タスクを追加</span>
-                    <span className="sm:hidden">+</span>
-                  </button>
-                </div>
-                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                <div className="-mx-4 lg:-mx-6 px-6 sm:px-8 py-3 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
                   {getTodosByStatus('shared').map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
@@ -1055,7 +1023,6 @@ export default function TodoPage() {
                   ))}
                   {getTodosByStatus('shared').length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                      <div className="text-3xl sm:text-4xl mb-2">📋</div>
                       <p className="text-xs sm:text-sm">共有事項がありません</p>
                     </div>
                   )}
@@ -1064,11 +1031,11 @@ export default function TodoPage() {
               </div>
 
               {/* ToDoリスト */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+              <div className="bg-white border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>
-                    <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <h2 className="text-sm font-semibold text-gray-900">
                       <span className="hidden sm:inline">ToDoリスト</span>
                       <span className="sm:hidden">ToDo</span> {getTodosByStatus('todo').length}
                     </h2>
@@ -1081,7 +1048,7 @@ export default function TodoPage() {
                     <span className="sm:hidden">+</span>
                   </button>
                 </div>
-                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                <div className="-mx-4 lg:-mx-6 px-6 sm:px-8 py-3 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
                   {getTodosByStatus('todo').map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
@@ -1090,7 +1057,6 @@ export default function TodoPage() {
                   ))}
                   {getTodosByStatus('todo').length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                      <div className="text-3xl sm:text-4xl mb-2">📝</div>
                       <p className="text-xs sm:text-sm">ToDoがありません</p>
                     </div>
                   )}
@@ -1099,11 +1065,11 @@ export default function TodoPage() {
               </div>
 
               {/* 進行中 */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+              <div className="bg-white border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-pink-500 rounded-full"></div>
-                    <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
+                    <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                    <h2 className="text-sm font-semibold text-gray-900">
                       <span className="hidden sm:inline">進行中</span>
                       <span className="sm:hidden">進行</span> {getTodosByStatus('in-progress').length}
                     </h2>
@@ -1116,7 +1082,7 @@ export default function TodoPage() {
                     <span className="sm:hidden">+</span>
                   </button>
                 </div>
-                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                <div className="-mx-4 lg:-mx-6 px-6 sm:px-8 py-3 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
                   {getTodosByStatus('in-progress').map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
@@ -1125,7 +1091,6 @@ export default function TodoPage() {
                   ))}
                   {getTodosByStatus('in-progress').length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                      <div className="text-3xl sm:text-4xl mb-2">🚀</div>
                       <p className="text-xs sm:text-sm">進行中のタスクがありません</p>
                     </div>
                   )}
@@ -1134,17 +1099,17 @@ export default function TodoPage() {
               </div>
 
               {/* 完了 */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+              <div className="bg-white border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-500 rounded-full"></div>
-                    <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                    <h2 className="text-sm font-semibold text-gray-900">
                       <span className="hidden sm:inline">完了</span>
                       <span className="sm:hidden">完了</span> {getCompletedTodos().length}
                     </h2>
                   </div>
                 </div>
-                <div className="p-2 sm:p-3 lg:p-4 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
+                <div className="-mx-4 lg:-mx-6 px-6 sm:px-8 py-3 overflow-x-auto todo-horizontal-scroll" style={{ scrollbarWidth: 'thin' }}>
                   <div className="flex gap-3 sm:gap-4 min-w-max">
                     {getCompletedTodos().map((todo, index) => (
                       <div key={todo.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
@@ -1153,10 +1118,9 @@ export default function TodoPage() {
                     ))}
                     {getCompletedTodos().length === 0 && (
                       <div className="text-center py-6 sm:py-8 text-gray-500 w-full">
-                        <div className="text-3xl sm:text-4xl mb-2">✅</div>
                         <p className="text-xs sm:text-sm">完了したタスクがありません</p>
-            </div>
-            )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

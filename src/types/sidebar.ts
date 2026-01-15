@@ -652,7 +652,7 @@ export const AVAILABLE_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'document-management',
-    name: '文書管理',
+    name: 'ドキュメント管理',
     icon: '📚',
     href: '/documents',
     description: '各種ドキュメントの管理',

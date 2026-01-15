@@ -930,7 +930,7 @@ function sectionContentToString(sectionValue: any): string {
 
 // intentに基づいて1系統だけ検索
 // タイトルで検索（「○○について教えて」パターン用）
-async function searchByTitle(titleQuery: string, userId: string, companyName: string): Promise<ContextResult | null> {
+async function searchByTitle(titleQuery: string, userId: string, companyName: string, preferredType?: Intent['type'], preferredMenuId?: string): Promise<ContextResult | null> {
   if (!adminDb) {
     return null;
   }
@@ -967,7 +967,31 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 2. 営業案件（salesOpportunities）で検索
+    // 2. 顧客管理（customers）で検索
+    if (companyName) {
+      const customersSnapshot = await adminDb.collection('customers')
+        .where('companyName', '==', companyName)
+        .limit(50)
+        .get();
+      
+      for (const doc of customersSnapshot.docs) {
+        const data = doc.data();
+        if (data.name?.toLowerCase().includes(searchQuery) || 
+            data.company?.toLowerCase().includes(searchQuery) ||
+            data.email?.toLowerCase().includes(searchQuery)) {
+          const pageContext = getPageContext('customer');
+          const pageUrl = pageContext?.url || '/customers';
+          return {
+            type: 'customer',
+            items: [data],
+            formatted: `【顧客管理】\n\n「${titleQuery}」に関する情報が見つかりました。\n\n顧客名: ${data.name || '（名前なし）'}\n会社名: ${data.company || ''}\nメール: ${data.email || ''}\n電話: ${data.phone || ''}\nステータス: ${data.status || ''}\nメモ: ${data.notes || ''}\n\n[👥 顧客管理ページへ移動](${pageUrl})`,
+            pageUrl
+          };
+        }
+      }
+    }
+    
+    // 3. 営業案件（salesOpportunities）で検索
     let opportunitiesQuery: any = adminDb.collection('salesOpportunities');
     if (companyName) {
       opportunitiesQuery = opportunitiesQuery.where('companyName', '==', companyName);
@@ -992,7 +1016,7 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 3. 営業活動（salesActivities）で検索
+    // 4. 営業活動（salesActivities）で検索
     let activitiesQuery: any = adminDb.collection('salesActivities');
     if (companyName) {
       activitiesQuery = activitiesQuery.where('companyName', '==', companyName);
@@ -1016,7 +1040,7 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 4. TODO（todos）で検索
+    // 5. TODO（todos）で検索
     const todosSnapshot = await adminDb.collection('todos')
       .where('userId', '==', userId)
       .limit(50)
@@ -1037,7 +1061,7 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 5. イベント（events）で検索
+    // 6. イベント（events）で検索
     let eventsQuery: any = adminDb.collection('events');
     if (companyName) {
       eventsQuery = eventsQuery.where('companyName', '==', companyName);
@@ -1061,7 +1085,7 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 6. 進捗メモ（progressNotes）で検索
+    // 7. 進捗メモ（progressNotes）で検索
     let progressNotesQuery: any = adminDb.collection('progressNotes');
     if (companyName) {
       progressNotesQuery = progressNotesQuery.where('companyName', '==', companyName);
@@ -1085,7 +1109,112 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 7. テンプレート（templates）で検索
+    // 8. 契約書管理（manualDocuments）で検索（優先度を上げる）
+    // preferredMenuIdが'contracts'の場合は、最初に契約書管理を検索
+    if (preferredMenuId === 'contracts' || preferredType === 'document') {
+      let manualDocumentsQuery: any = adminDb.collection('manualDocuments');
+      if (companyName) {
+        manualDocumentsQuery = manualDocumentsQuery.where('companyName', '==', companyName);
+      } else {
+        manualDocumentsQuery = manualDocumentsQuery.where('userId', '==', userId);
+      }
+      const manualDocumentsSnapshot = await manualDocumentsQuery.limit(50).get();
+      
+      for (const doc of manualDocumentsSnapshot.docs) {
+        const data = doc.data();
+        // タイトルで完全一致または部分一致をチェック
+        if (data.title?.toLowerCase().includes(searchQuery) || 
+            searchQuery.includes(data.title?.toLowerCase() || '')) {
+          const pageContext = getPageContext('document');
+          const pageUrl = pageContext?.url || '/admin/contracts';
+          
+          // セクション情報も含める
+          const sections = data.sections || {};
+          let sectionInfo = '';
+          if (sections.overview) {
+            const overview = typeof sections.overview === 'string' 
+              ? sections.overview 
+              : Array.isArray(sections.overview) 
+                ? sections.overview.map((v: any) => typeof v === 'string' ? v : `${v.title || ''} ${v.content || ''}`).join('\n')
+                : '';
+            if (overview) sectionInfo += `\n概要: ${overview}`;
+          }
+          
+          return {
+            type: 'document',
+            items: [data],
+            formatted: `【契約書管理】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタイトル: ${data.title || '（タイトルなし）'}${sectionInfo}\n説明: ${data.description || ''}\n\n[📄 契約書管理ページへ移動](${pageUrl})`,
+            pageUrl
+          };
+        }
+      }
+    }
+    
+    // 契約書管理の意図がない場合のみ、通常の順序で検索
+    if (preferredMenuId !== 'contracts' && preferredType !== 'document') {
+      let manualDocumentsQuery: any = adminDb.collection('manualDocuments');
+      if (companyName) {
+        manualDocumentsQuery = manualDocumentsQuery.where('companyName', '==', companyName);
+      } else {
+        manualDocumentsQuery = manualDocumentsQuery.where('userId', '==', userId);
+      }
+      const manualDocumentsSnapshot = await manualDocumentsQuery.limit(50).get();
+      
+      for (const doc of manualDocumentsSnapshot.docs) {
+        const data = doc.data();
+        // タイトルで完全一致または部分一致をチェック
+        if (data.title?.toLowerCase().includes(searchQuery) || 
+            searchQuery.includes(data.title?.toLowerCase() || '')) {
+          const pageContext = getPageContext('document');
+          const pageUrl = pageContext?.url || '/admin/contracts';
+          
+          // セクション情報も含める
+          const sections = data.sections || {};
+          let sectionInfo = '';
+          if (sections.overview) {
+            const overview = typeof sections.overview === 'string' 
+              ? sections.overview 
+              : Array.isArray(sections.overview) 
+                ? sections.overview.map((v: any) => typeof v === 'string' ? v : `${v.title || ''} ${v.content || ''}`).join('\n')
+                : '';
+            if (overview) sectionInfo += `\n概要: ${overview}`;
+          }
+          
+          return {
+            type: 'document',
+            items: [data],
+            formatted: `【契約書管理】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタイトル: ${data.title || '（タイトルなし）'}${sectionInfo}\n説明: ${data.description || ''}\n\n[📄 契約書管理ページへ移動](${pageUrl})`,
+            pageUrl
+          };
+        }
+      }
+    }
+    
+    // 9. 議事録（meetingNotes）で検索
+    let meetingNotesQuery: any = adminDb.collection('meetingNotes');
+    if (companyName) {
+      meetingNotesQuery = meetingNotesQuery.where('companyName', '==', companyName);
+    } else {
+      meetingNotesQuery = meetingNotesQuery.where('userId', '==', userId);
+    }
+    const meetingNotesSnapshot = await meetingNotesQuery.limit(50).get();
+    
+    for (const doc of meetingNotesSnapshot.docs) {
+      const data = doc.data();
+      if (data.title?.toLowerCase().includes(searchQuery) || 
+          data.notes?.toLowerCase().includes(searchQuery)) {
+        const pageContext = getPageContext('meeting');
+        const pageUrl = pageContext?.url || '/minutes';
+        return {
+          type: 'meeting',
+          items: [data],
+          formatted: `【議事録】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nタイトル: ${data.title || '（タイトルなし）'}\n会議日: ${data.meetingDate || ''}\n会議時間: ${data.meetingTime || ''}\n場所: ${data.location || ''}\n担当者: ${data.assignee || ''}\n備考: ${data.notes || ''}\n\n[📝 議事録ページへ移動](${pageUrl})`,
+          pageUrl
+        };
+      }
+    }
+    
+    // 10. テンプレート（templates）で検索
     let templatesQuery: any = adminDb.collection('templates');
     if (companyName) {
       templatesQuery = templatesQuery.where('companyName', '==', companyName);
@@ -1107,7 +1236,7 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
-    // 8. ドキュメント（documents）で検索
+    // 11. ドキュメント（documents）で検索
     let documentsQuery: any = adminDb.collection('documents');
     if (companyName) {
       documentsQuery = documentsQuery.where('companyName', '==', companyName);
@@ -1129,6 +1258,119 @@ async function searchByTitle(titleQuery: string, userId: string, companyName: st
       }
     }
     
+    // 12. カスタムページ（customTabs）で検索
+    try {
+      let customTabsDocs: any[] = [];
+      
+      if (companyName) {
+        // companyNameでフィルタリング
+        const customTabsQuery = adminDb.collection('customTabs')
+          .where('companyName', '==', companyName)
+          .limit(50);
+        const customTabsSnapshot = await customTabsQuery.get();
+        customTabsDocs = customTabsSnapshot.docs;
+      } else {
+        // companyNameがない場合は、userIdまたはisSharedで検索
+        const myTabsQuery = adminDb.collection('customTabs')
+          .where('userId', '==', userId)
+          .limit(50);
+        const sharedTabsQuery = adminDb.collection('customTabs')
+          .where('isShared', '==', true)
+          .limit(50);
+        
+        const [myTabsSnapshot, sharedTabsSnapshot] = await Promise.all([
+          myTabsQuery.get(),
+          sharedTabsQuery.get()
+        ]);
+        
+        // 両方の結果をマージして重複を除去
+        const allDocs = [...myTabsSnapshot.docs, ...sharedTabsSnapshot.docs];
+        customTabsDocs = Array.from(new Map(allDocs.map(doc => [doc.id, doc])).values());
+      }
+      
+      for (const doc of customTabsDocs) {
+        const data = doc.data();
+        // タイトルで検索
+        if (data.title?.toLowerCase().includes(searchQuery)) {
+          const pageUrl = data.route || `/custom/${encodeURIComponent(data.title)}`;
+          // コンポーネント内のデータも検索
+          const components = data.components || [];
+          let componentInfo = '';
+          
+          for (const component of components) {
+            if (component.type === 'DATA_TABLE' && component.config) {
+              const rows = component.config.rows || [];
+              const columns = component.config.columns || [];
+              
+              // 行データ内で検索
+              for (const row of rows) {
+                for (const col of columns) {
+                  const cellValue = String(row[col.id] || '').toLowerCase();
+                  if (cellValue.includes(searchQuery)) {
+                    // マッチした行の情報を収集
+                    const rowInfo = columns.map((c: any) => `${c.name}: ${row[c.id] || '空白'}`).join('\n');
+                    componentInfo += `\n\n【${component.config.title || 'データテーブル'}】\n${rowInfo}`;
+                    break;
+                  }
+                }
+              }
+            } else if (component.type === 'TEXT' && component.config) {
+              const textContent = String(component.config.content || '').toLowerCase();
+              if (textContent.includes(searchQuery)) {
+                componentInfo += `\n\n【${component.config.title || 'テキスト'}】\n${component.config.content || ''}`;
+              }
+            }
+          }
+          
+          return {
+            type: 'unknown', // カスタムページはunknownタイプ
+            items: [data],
+            formatted: `【カスタムページ】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nページ名: ${data.title || '（タイトルなし）'}\nURL: ${pageUrl}${componentInfo}\n\n[📄 カスタムページへ移動](${pageUrl})`,
+            pageUrl
+          };
+        }
+        
+        // コンポーネント内のデータで検索（タイトルが一致しない場合）
+        const components = data.components || [];
+        for (const component of components) {
+          if (component.type === 'DATA_TABLE' && component.config) {
+            const rows = component.config.rows || [];
+            const columns = component.config.columns || [];
+            
+            for (const row of rows) {
+              for (const col of columns) {
+                const cellValue = String(row[col.id] || '').toLowerCase();
+                if (cellValue.includes(searchQuery)) {
+                  const pageUrl = data.route || `/custom/${encodeURIComponent(data.title)}`;
+                  const rowInfo = columns.map((c: any) => `${c.name}: ${row[c.id] || '空白'}`).join('\n');
+                  return {
+                    type: 'unknown',
+                    items: [data],
+                    formatted: `【カスタムページ】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nページ名: ${data.title || '（タイトルなし）'}\nURL: ${pageUrl}\n\n【${component.config.title || 'データテーブル'}】\n${rowInfo}\n\n[📄 カスタムページへ移動](${pageUrl})`,
+                    pageUrl
+                  };
+                }
+              }
+            }
+          } else if (component.type === 'TEXT' && component.config) {
+            const textContent = String(component.config.content || '').toLowerCase();
+            if (textContent.includes(searchQuery)) {
+              const pageUrl = data.route || `/custom/${encodeURIComponent(data.title)}`;
+              return {
+                type: 'unknown',
+                items: [data],
+                formatted: `【カスタムページ】\n\n「${titleQuery}」に関する情報が見つかりました。\n\nページ名: ${data.title || '（タイトルなし）'}\nURL: ${pageUrl}\n\n【${component.config.title || 'テキスト'}】\n${component.config.content || ''}\n\n[📄 カスタムページへ移動](${pageUrl})`,
+                pageUrl
+              };
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[searchByTitle] Error searching custom tabs:', error);
+      // エラーが発生しても続行
+    }
+    
     return null;
   } catch (error) {
     console.error('[searchByTitle] Error:', error);
@@ -1142,6 +1384,24 @@ async function searchByIntent(
   userId: string,
   companyName: string
 ): Promise<ContextResult | null> {
+  // 最初に「○○について教えて」パターンを検出して、データタイトルで検索（最優先）
+  const aboutPattern = /^(.+?)(について教えて|について|教えて|について知りたい|について確認したい)$/;
+  const aboutMatch = message.match(aboutPattern);
+  
+  if (aboutMatch && aboutMatch[1]) {
+    const titleQuery = aboutMatch[1].trim();
+    if (titleQuery && titleQuery.length > 0) {
+      // 各コレクションでタイトル検索を試みる
+      const titleSearchResult = await searchByTitle(titleQuery, userId, companyName, intent.type, intent.menuId);
+      if (titleSearchResult) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AI Chat] Title search result found:', { titleQuery, type: titleSearchResult.type });
+        }
+        return titleSearchResult;
+      }
+    }
+  }
+  
   // メニューIDがある場合は、メタデータベースの検索を使用
   if (intent.menuId) {
     const result = await searchByMenuMetadata(intent.menuId, message, userId, companyName);
@@ -1204,21 +1464,6 @@ async function searchByIntent(
         console.log('[AI Chat] Using metadata-based search (fallback):', { menuId: menuItemWithMetadata.id });
       }
       return result;
-    }
-  }
-  
-  // 「○○について教えて」パターンを検出して、データタイトルで検索
-  const aboutPattern = /^(.+?)(について教えて|について|教えて|について知りたい|について確認したい)$/;
-  const aboutMatch = message.match(aboutPattern);
-  
-  if (aboutMatch && aboutMatch[1]) {
-    const titleQuery = aboutMatch[1].trim();
-    if (titleQuery && titleQuery.length > 0) {
-      // 各コレクションでタイトル検索を試みる
-      const titleSearchResult = await searchByTitle(titleQuery, userId, companyName);
-      if (titleSearchResult) {
-        return titleSearchResult;
-      }
     }
   }
 

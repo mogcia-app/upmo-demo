@@ -5,6 +5,7 @@ import { ProgressNote } from '@/types/sales';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { createNotificationInServer } from '../../notifications/helper';
 
 // Firebase Admin SDKの初期化
 let adminDb: ReturnType<typeof getFirestore> | null = null;
@@ -223,6 +224,15 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection('progressNotes').add(noteData);
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'create',
+      pageName: '進捗メモ',
+      pageUrl: `/sales/progress-notes?id=${docRef.id}`,
+      title: title,
+      action: 'created',
+    });
+
     return NextResponse.json({
       success: true,
       id: docRef.id,
@@ -292,6 +302,15 @@ export async function PUT(request: NextRequest) {
     const updatedDoc = await db.collection('progressNotes').doc(id).get();
     const data = updatedDoc.data();
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'update',
+      pageName: '進捗メモ',
+      pageUrl: `/sales/progress-notes?id=${id}`,
+      title: updateData.title || noteData?.title || '進捗メモ',
+      action: 'updated',
+    });
+
     return NextResponse.json({
       success: true,
       note: {
@@ -351,6 +370,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db.collection('progressNotes').doc(id).delete();
+
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'delete',
+      pageName: '進捗メモ',
+      pageUrl: `/sales/progress-notes`,
+      title: noteData?.title || '進捗メモ',
+      action: 'deleted',
+    });
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,7 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { Template } from '@/types/template';
+import { createNotificationInServer } from '../notifications/helper';
 
 // Firebase Admin SDKの初期化
 let adminDb: ReturnType<typeof getFirestore> | null = null;
@@ -204,6 +205,15 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection('templates').add(templateData);
 
+    // 通知を作成
+    await createNotificationInServer(db, userId, companyName, {
+      type: 'create',
+      pageName: 'テンプレート管理',
+      pageUrl: '/templates',
+      title: `テンプレート「${title}」が追加されました`,
+      action: 'created',
+    });
+
     return NextResponse.json({
       id: docRef.id,
       ...templateData,
@@ -273,6 +283,18 @@ export async function PUT(request: NextRequest) {
     }
 
     await db.collection('templates').doc(id).update(updates);
+
+    // 通知を作成
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data();
+    const companyName = userData?.companyName || '';
+    await createNotificationInServer(db, userId, companyName, {
+      type: 'update',
+      pageName: 'テンプレート管理',
+      pageUrl: '/templates',
+      title: `テンプレート「${templateData.title || '（タイトルなし）'}」が編集されました`,
+      action: 'updated',
+    });
 
     return NextResponse.json({
       message: 'テンプレートが更新されました',

@@ -153,7 +153,12 @@ export async function GET(request: NextRequest) {
       new Map(documents.map(doc => [doc.id, doc])).values()
     );
 
-    uniqueDocuments.sort((a, b) => (b.lastUpdated?.getTime?.() ?? 0) - (a.lastUpdated?.getTime?.() ?? 0));
+    // 日付でソート（最新順）- Dateオブジェクトまたはnullを安全に処理
+    uniqueDocuments.sort((a, b) => {
+      const dateA = a.lastUpdated instanceof Date ? a.lastUpdated.getTime() : (a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0);
+      const dateB = b.lastUpdated instanceof Date ? b.lastUpdated.getTime() : (b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0);
+      return dateB - dateA;
+    });
 
     return NextResponse.json({ success: true, documents: uniqueDocuments });
   } catch (error: any) {

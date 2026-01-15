@@ -245,29 +245,25 @@ export default function UsersPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 -mx-4 lg:-mx-6">
           {/* ヘッダー */}
-          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 sm:py-6">
+          <div className="bg-white border-b border-gray-100 px-6 sm:px-8 py-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">ユーザー管理</h1>
-                <p className="text-sm sm:text-base text-gray-600 mt-2">システムユーザーの管理と権限設定</p>
-              </div>
-              <div className="flex items-center gap-4 sm:gap-6">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900">ユーザー管理</h1>
+              <div className="flex items-center gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{users.length}</div>
-                  <div className="text-sm text-gray-500">総ユーザー数</div>
+                  <div className="text-lg font-semibold text-gray-900">{users.length}</div>
+                  <div className="text-xs text-gray-500">総ユーザー数</div>
                 </div>
-                <div className="text-sm text-gray-500 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                <div className="text-xs text-gray-500 bg-blue-50 px-3 py-1.5 border border-blue-200">
                   利用者の追加は運営会社にご連絡ください
                 </div>
               </div>
             </div>
           </div>
 
-
-          {/* ユーザー一覧 */}
-          <div className="p-4 sm:p-6">
+          {/* コンテンツエリア */}
+          <div className="px-6 sm:px-8 py-6">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -284,7 +280,7 @@ export default function UsersPage() {
                 {filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                    className="bg-white border border-gray-200 p-4 sm:p-5 hover:border-gray-300 transition-colors cursor-pointer group"
                     onClick={() => openUserDetail(user)}
                   >
                     {/* ヘッダー部分 */}

@@ -207,6 +207,16 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection('salesOpportunities').add(opportunityData);
 
+    // 通知を作成
+    const { createNotificationInServer } = await import('../../notifications/helper');
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'create',
+      pageName: '営業案件',
+      pageUrl: '/sales/opportunities',
+      title: `営業案件「${title}」が追加されました`,
+      action: 'created',
+    });
+
     return NextResponse.json({
       success: true,
       opportunity: {
@@ -280,6 +290,16 @@ export async function PUT(request: NextRequest) {
     }
 
     await db.collection('salesOpportunities').doc(id).update(updateData);
+
+    // 通知を作成
+    const { createNotificationInServer } = await import('../../notifications/helper');
+    await createNotificationInServer(db, userId, companyName || '', {
+      type: 'update',
+      pageName: '営業案件',
+      pageUrl: '/sales/opportunities',
+      title: `営業案件「${opportunityData?.title || updateData?.title || '（タイトルなし）'}」が編集されました`,
+      action: 'updated',
+    });
 
     const updatedDoc = await db.collection('salesOpportunities').doc(id).get();
     const updatedData = updatedDoc.data();
