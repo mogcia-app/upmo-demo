@@ -445,7 +445,7 @@ export default function ProgressNotesPage() {
                           {sortedNotes.map((note) => (
                             <div
                               key={note.id}
-                              className="bg-gray-50 border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                              className="bg-white border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
                               onClick={() => handleViewDetail(note)}
                             >
                         {/* タイトルとアイコン */}
@@ -548,7 +548,7 @@ export default function ProgressNotesPage() {
                     {sortedNotes.map((note) => (
                       <div
                         key={note.id}
-                        className="bg-gray-50 border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                        className="bg-white border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
                         onClick={() => handleViewDetail(note)}
                       >
                         <div className="flex items-start gap-4">
