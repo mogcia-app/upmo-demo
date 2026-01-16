@@ -85,21 +85,19 @@ export default function CompanyPage() {
     try {
       setIsLoading(true);
       const token = await user.getIdToken();
-      // TODO: 会社情報取得APIを実装
-      // 現在はローカルストレージから取得（暫定）
-      const saved = localStorage.getItem('companyInfo');
-      if (saved) {
-        setCompanyInfo(JSON.parse(saved));
-      } else {
-        // デフォルト値（ユーザーのcompanyNameから取得）
-        const userDoc = await fetch('/api/admin/users', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const userData = await userDoc.json();
-        const currentUser = userData.users?.find((u: any) => u.id === user.uid);
-        if (currentUser?.companyName) {
-          setCompanyInfo({ ...companyInfo, name: currentUser.companyName });
-        }
+      
+      // 会社情報取得APIから取得
+      const response = await fetch('/api/admin/company', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        throw new Error('会社情報の取得に失敗しました');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.companyInfo) {
+        setCompanyInfo(data.companyInfo);
       }
     } catch (error) {
       console.error('会社情報取得エラー:', error);
@@ -133,16 +131,30 @@ export default function CompanyPage() {
         }));
       }
       
-      // TODO: 会社情報保存APIを実装
-      // 現在はローカルストレージに保存（暫定）
-      localStorage.setItem('companyInfo', JSON.stringify(updatedCompanyInfo));
-      setCompanyInfo(updatedCompanyInfo);
+      // 会社情報保存APIに送信
+      const response = await fetch('/api/admin/company', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedCompanyInfo),
+      });
       
-      setIsEditing(false);
-      alert('会社情報を保存しました');
-    } catch (error) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '会社情報の保存に失敗しました');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setCompanyInfo(updatedCompanyInfo);
+        setIsEditing(false);
+        alert('会社情報を保存しました');
+      }
+    } catch (error: any) {
       console.error('会社情報保存エラー:', error);
-      alert('会社情報の保存に失敗しました');
+      alert(error.message || '会社情報の保存に失敗しました');
     } finally {
       setIsSaving(false);
     }

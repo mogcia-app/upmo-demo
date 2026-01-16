@@ -61,11 +61,20 @@ export default function InvoicePage() {
     
     try {
       setIsLoading(true);
-      // TODO: 請求書一覧取得APIを実装
-      // 現在はローカルストレージから取得（暫定）
-      const saved = localStorage.getItem('invoices');
-      if (saved) {
-        setInvoices(JSON.parse(saved));
+      const token = await user.getIdToken();
+      
+      // 請求書一覧取得APIから取得
+      const response = await fetch('/api/admin/invoice', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        throw new Error('請求書一覧の取得に失敗しました');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.invoices) {
+        setInvoices(data.invoices);
       }
     } catch (error) {
       console.error('請求書取得エラー:', error);
@@ -133,46 +142,81 @@ export default function InvoicePage() {
 
     try {
       setIsSaving(true);
-      // TODO: 請求書保存APIを実装
-      // 現在はローカルストレージに保存（暫定）
-      const newInvoice = {
-        ...currentInvoice,
-        id: currentInvoice.id || Date.now().toString(),
-      };
-      const updatedInvoices = currentInvoice.id
-        ? invoices.map(inv => inv.id === currentInvoice.id ? newInvoice : inv)
-        : [...invoices, newInvoice];
-      localStorage.setItem('invoices', JSON.stringify(updatedInvoices));
-      setInvoices(updatedInvoices);
-      setShowCreateModal(false);
-      setCurrentInvoice({
-        invoiceNumber: '',
-        issueDate: new Date().toISOString().split('T')[0],
-        dueDate: '',
-        customerName: '',
-        customerAddress: '',
-        customerPostalCode: '',
-        items: [{ id: '1', description: '', quantity: 1, unitPrice: 0, amount: 0 }],
-        subtotal: 0,
-        taxRate: 10,
-        taxAmount: 0,
-        total: 0,
-        notes: '',
+      const token = await user.getIdToken();
+      
+      // 請求書保存APIに送信
+      const response = await fetch('/api/admin/invoice', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(currentInvoice),
       });
-      alert('請求書を保存しました');
-    } catch (error) {
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '請求書の保存に失敗しました');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        // 請求書一覧を再取得
+        await fetchInvoices();
+        setShowCreateModal(false);
+        setCurrentInvoice({
+          invoiceNumber: '',
+          issueDate: new Date().toISOString().split('T')[0],
+          dueDate: '',
+          customerName: '',
+          customerAddress: '',
+          customerPostalCode: '',
+          items: [{ id: '1', description: '', quantity: 1, unitPrice: 0, amount: 0 }],
+          subtotal: 0,
+          taxRate: 10,
+          taxAmount: 0,
+          total: 0,
+          notes: '',
+        });
+        alert('請求書を保存しました');
+      }
+    } catch (error: any) {
       console.error('請求書保存エラー:', error);
-      alert('請求書の保存に失敗しました');
+      alert(error.message || '請求書の保存に失敗しました');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = (invoiceId: string) => {
-    if (!confirm('この請求書を削除しますか？')) return;
-    const updatedInvoices = invoices.filter(inv => inv.id !== invoiceId);
-    localStorage.setItem('invoices', JSON.stringify(updatedInvoices));
-    setInvoices(updatedInvoices);
+  const handleDelete = async (invoiceId: string) => {
+    if (!user || !confirm('この請求書を削除しますか？')) return;
+    
+    try {
+      const token = await user.getIdToken();
+      
+      // 請求書削除APIに送信
+      const response = await fetch(`/api/admin/invoice?id=${invoiceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '請求書の削除に失敗しました');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        // 請求書一覧を再取得
+        await fetchInvoices();
+        alert('請求書を削除しました');
+      }
+    } catch (error: any) {
+      console.error('請求書削除エラー:', error);
+      alert(error.message || '請求書の削除に失敗しました');
+    }
   };
 
   const handleEdit = (invoice: Invoice) => {
