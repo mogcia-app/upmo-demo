@@ -92,15 +92,26 @@ export default function CompanyPage() {
       });
       
       if (!response.ok) {
-        throw new Error('会社情報の取得に失敗しました');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('会社情報取得APIエラー:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData.error
+        });
+        throw new Error(errorData.error || '会社情報の取得に失敗しました');
       }
       
       const data = await response.json();
+      console.log('会社情報取得成功:', data);
+      
       if (data.success && data.companyInfo) {
         setCompanyInfo(data.companyInfo);
+      } else {
+        console.warn('会社情報データが無効:', data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('会社情報取得エラー:', error);
+      alert(`会社情報の取得に失敗しました: ${error.message || '不明なエラー'}`);
     } finally {
       setIsLoading(false);
     }
@@ -132,6 +143,7 @@ export default function CompanyPage() {
       }
       
       // 会社情報保存APIに送信
+      console.log('会社情報保存開始:', updatedCompanyInfo);
       const response = await fetch('/api/admin/company', {
         method: 'POST',
         headers: {
@@ -141,16 +153,27 @@ export default function CompanyPage() {
         body: JSON.stringify(updatedCompanyInfo),
       });
       
+      console.log('会社情報保存APIレスポンス:', { status: response.status, ok: response.ok });
+      
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
+        console.error('会社情報保存APIエラー:', errorData);
         throw new Error(errorData.error || '会社情報の保存に失敗しました');
       }
       
       const data = await response.json();
+      console.log('会社情報保存API成功:', data);
+      
       if (data.success) {
-        setCompanyInfo(updatedCompanyInfo);
         setIsEditing(false);
         alert('会社情報を保存しました');
+        
+        // 保存後に再取得して、Firestoreからの最新情報を反映
+        // Firestoreへの書き込みが完了するのを待つため、少し待機
+        setTimeout(async () => {
+          console.log('保存後の再取得を開始');
+          await fetchCompanyInfo();
+        }, 1500);
       }
     } catch (error: any) {
       console.error('会社情報保存エラー:', error);
@@ -325,7 +348,23 @@ export default function CompanyPage() {
                             placeholder="https://example.com"
                           />
                         ) : (
-                          <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">{companyInfo.website || '未設定'}</p>
+                          <div className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">
+                            {companyInfo.website && isUrl(companyInfo.website) ? (
+                              <a
+                                href={companyInfo.website.startsWith('http') ? companyInfo.website : `https://${companyInfo.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                {companyInfo.website}
+                              </a>
+                            ) : (
+                              <span>{companyInfo.website || '未設定'}</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

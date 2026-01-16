@@ -73,12 +73,20 @@ export async function GET(request: NextRequest) {
     }
 
     const companyName = userData.companyName;
+    
+    console.log('会社情報取得:', { userId, companyName });
 
     // 会社情報を取得（companyNameをドキュメントIDとして使用）
     const companyDoc = await db.collection('companies').doc(companyName).get();
     
+    console.log('会社情報ドキュメント存在確認:', { 
+      exists: companyDoc.exists,
+      docId: companyName 
+    });
+    
     if (!companyDoc.exists) {
       // 会社情報が存在しない場合は、基本情報のみを返す
+      console.log('会社情報が存在しないため、デフォルト値を返します');
       return NextResponse.json({
         success: true,
         companyInfo: {
@@ -172,13 +180,15 @@ export async function POST(request: NextRequest) {
     }
 
     const companyName = userData.companyName;
+    
+    console.log('会社情報保存:', { userId, companyName });
 
     // リクエストボディから会社情報を取得
     const companyInfo = await request.json();
 
     // 会社情報を保存（companyNameをドキュメントIDとして使用）
     // 同じ会社のユーザーが編集できるように、companyNameをキーとして使用
-    await db.collection('companies').doc(companyName).set({
+    const companyData = {
       name: companyInfo.name || companyName,
       nameKana: companyInfo.nameKana || '',
       postalCode: companyInfo.postalCode || '',
@@ -194,7 +204,13 @@ export async function POST(request: NextRequest) {
       customGroups: companyInfo.customGroups || [],
       updatedAt: Timestamp.now(),
       updatedBy: userId, // 最終更新者のIDを記録
-    }, { merge: true });
+    };
+    
+    console.log('会社情報保存データ:', { docId: companyName, data: companyData });
+    
+    await db.collection('companies').doc(companyName).set(companyData, { merge: true });
+    
+    console.log('会社情報保存成功:', { docId: companyName });
 
     return NextResponse.json({
       success: true,
