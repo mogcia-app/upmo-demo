@@ -14,6 +14,7 @@ const SimpleCalendarView: React.FC = () => {
     id: string;
     title: string;
     date: string;
+    endDate?: string;
     time?: string;
     member: string;
     userId?: string;
@@ -32,6 +33,7 @@ const SimpleCalendarView: React.FC = () => {
     id: string;
     title: string;
     date: string;
+    endDate?: string;
     time: string;
     description: string;
     location: string;
@@ -42,6 +44,7 @@ const SimpleCalendarView: React.FC = () => {
   const [newEvent, setNewEvent] = useState({
     title: '',
     date: '',
+    endDate: '',
     time: '',
     description: '',
     location: '',
@@ -126,6 +129,7 @@ const SimpleCalendarView: React.FC = () => {
                 id: event.id,
                 title: event.title,
                 date: event.date,
+                endDate: event.endDate || event.date,
                 time: event.time || '',
                 member: memberName,
                 userId: eventUserId,
@@ -247,7 +251,13 @@ const SimpleCalendarView: React.FC = () => {
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
-    let filtered = teamEvents.filter(event => event.date === dateStr);
+    // 日跨ぎイベントも含める（開始日から終了日までの間の日付）
+    let filtered = teamEvents.filter(event => {
+      const eventStartDate = event.date;
+      const eventEndDate = event.endDate || event.date;
+      // 指定された日付が開始日と終了日の間にあるか、または開始日と一致する
+      return dateStr >= eventStartDate && dateStr <= eventEndDate;
+    });
     
     // ステータスでフィルタリング
     filtered = filtered.filter(event => selectedStatus.has(event.status || 'todo'));
@@ -261,6 +271,28 @@ const SimpleCalendarView: React.FC = () => {
     }
     
     return filtered;
+  };
+
+  // イベントが指定された日付で開始日・中間日・終了日のどれかを判定
+  const getEventPositionForDate = (event: typeof teamEvents[0], date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    const eventStartDate = event.date;
+    const eventEndDate = event.endDate || event.date;
+    
+    if (dateStr === eventStartDate && dateStr === eventEndDate) {
+      return 'single'; // 単一日
+    } else if (dateStr === eventStartDate) {
+      return 'start'; // 開始日
+    } else if (dateStr === eventEndDate) {
+      return 'end'; // 終了日
+    } else if (dateStr > eventStartDate && dateStr < eventEndDate) {
+      return 'middle'; // 中間日
+    }
+    return 'none';
   };
 
   // 月を変更
@@ -293,6 +325,7 @@ const SimpleCalendarView: React.FC = () => {
     setNewEvent({
       title: '',
       date: dateStr,
+      endDate: dateStr,
       time: '',
       description: '',
       location: '',
@@ -316,6 +349,7 @@ const SimpleCalendarView: React.FC = () => {
       id: event.id,
       title: event.title,
       date: event.date,
+      endDate: event.endDate || event.date,
       time: event.time || '',
       description: event.description || '',
       location: event.location || '',
@@ -326,6 +360,7 @@ const SimpleCalendarView: React.FC = () => {
     setNewEvent({
       title: event.title,
       date: event.date,
+      endDate: event.endDate || event.date,
       time: event.time || '',
       description: event.description || '',
       location: event.location || '',
@@ -378,6 +413,7 @@ const SimpleCalendarView: React.FC = () => {
               id: event.id,
               title: event.title,
               date: event.date,
+              endDate: event.endDate || event.date,
               time: event.time || '',
               member: memberName,
               userId: eventUserId,
@@ -411,6 +447,7 @@ const SimpleCalendarView: React.FC = () => {
             id: editingEvent.id,
             title: newEvent.title.trim(),
             date: newEvent.date,
+            endDate: newEvent.endDate || newEvent.date,
             time: newEvent.time || '',
             description: newEvent.description || '',
             location: newEvent.location || '',
@@ -430,6 +467,7 @@ const SimpleCalendarView: React.FC = () => {
             setNewEvent({
               title: '',
               date: '',
+              endDate: '',
               time: '',
               description: '',
               location: '',
@@ -453,6 +491,7 @@ const SimpleCalendarView: React.FC = () => {
           body: JSON.stringify({
             title: newEvent.title.trim(),
             date: newEvent.date,
+            endDate: newEvent.endDate || newEvent.date,
             time: newEvent.time || '',
             description: newEvent.description || '',
             location: newEvent.location || '',
@@ -471,6 +510,7 @@ const SimpleCalendarView: React.FC = () => {
             setNewEvent({
               title: '',
               date: '',
+              endDate: '',
               time: '',
               description: '',
               location: '',
@@ -898,29 +938,41 @@ const SimpleCalendarView: React.FC = () => {
                           {date.getDate()}
                         </button>
                         <div className="space-y-1">
-                          {dayEvents.slice(0, 3).map((event) => (
-                            <div
-                              key={event.id}
-                              className="relative group"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEventDetailModal(event);
-                              }}
-                            >
+                          {dayEvents.slice(0, 3).map((event) => {
+                            const position = getEventPositionForDate(event, date);
+                            const isStart = position === 'start';
+                            const isEnd = position === 'end';
+                            const isMiddle = position === 'middle';
+                            const isSingle = position === 'single';
+                            
+                            return (
                               <div
-                                className="px-2 py-1 text-xs text-white flex items-center justify-between cursor-pointer hover:opacity-90"
-                                style={{ backgroundColor: event.color || '#3B82F6' }}
+                                key={event.id}
+                                className="relative group"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEventDetailModal(event);
+                                }}
                               >
-                                <span className="truncate flex-1">{event.title}</span>
-                                <button
-                                  onClick={(e) => handleEventMenuClick(event.id, e)}
-                                  className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                <div
+                                  className={`px-2 py-1 text-xs text-white flex items-center justify-between cursor-pointer hover:opacity-90 ${
+                                    isSingle ? 'rounded' : 
+                                    isStart ? 'rounded-l' : 
+                                    isEnd ? 'rounded-r' : 
+                                    ''
+                                  }`}
+                                  style={{ backgroundColor: event.color || '#3B82F6' }}
                                 >
-                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                                  </svg>
-                                </button>
-                              </div>
+                                  <span className="truncate flex-1">{event.title}</span>
+                                  <button
+                                    onClick={(e) => handleEventMenuClick(event.id, e)}
+                                    className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                                    </svg>
+                                  </button>
+                                </div>
                               {selectedEventId === event.id && (
                                 <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
                                   <button
@@ -946,7 +998,8 @@ const SimpleCalendarView: React.FC = () => {
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                           {dayEvents.length > 3 && (
                             <div className="text-xs text-gray-500 px-2">
                               その他{dayEvents.length - 3}件
@@ -1104,13 +1157,21 @@ const SimpleCalendarView: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">日付 *</label>
+                  <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">開始日 *</label>
                   <input
                     type="date"
                     id="date"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     value={newEvent.date}
-                    onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setNewEvent({ 
+                        ...newEvent, 
+                        date: newDate,
+                        // 終了日が開始日より前の場合は開始日に合わせる
+                        endDate: newEvent.endDate && newEvent.endDate < newDate ? newDate : newEvent.endDate
+                      });
+                    }}
                     required
                   />
                 </div>
@@ -1124,6 +1185,20 @@ const SimpleCalendarView: React.FC = () => {
                     onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
                   />
                 </div>
+              </div>
+              <div>
+                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">終了日</label>
+                <input
+                  type="date"
+                  id="endDate"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={newEvent.endDate}
+                  min={newEvent.date}
+                  onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })}
+                />
+                {newEvent.endDate && newEvent.endDate < newEvent.date && (
+                  <p className="text-xs text-red-500 mt-1">終了日は開始日以降である必要があります</p>
+                )}
               </div>
               <div>
                 <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">場所</label>
@@ -1486,6 +1561,9 @@ const SimpleCalendarView: React.FC = () => {
                   </svg>
                   <span className="text-base">
                     {selectedEventDetail.date.split('-').join('/')}
+                    {selectedEventDetail.endDate && selectedEventDetail.endDate !== selectedEventDetail.date && (
+                      <> ～ {selectedEventDetail.endDate.split('-').join('/')}</>
+                    )}
                   </span>
                 </div>
 

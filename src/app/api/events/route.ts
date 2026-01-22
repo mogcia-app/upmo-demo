@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
     const decodedToken = await verifyAuthToken(authHeader);
 
     const body = await request.json();
-    const { title, date, time, description, location, color, member, sharedWith } = body;
+    const { title, date, endDate, time, description, location, color, member, sharedWith, attendees, status, type } = body;
 
     if (!title || !date) {
       return NextResponse.json(
@@ -308,12 +308,16 @@ export async function POST(request: NextRequest) {
       userId: decodedToken.uid,
       title,
       date,
+      endDate: endDate || date, // 終了日が指定されていない場合は開始日と同じ
       time: time || '',
       description: description || '',
       location: location || '',
       color: color || '#3B82F6',
       member: member || decodedToken.name || decodedToken.email || '自分',
       sharedWith: sharedWith || [],
+      attendees: attendees || [],
+      status: status || 'todo',
+      type: type || 'private',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
