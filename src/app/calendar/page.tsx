@@ -212,11 +212,13 @@ const SimpleCalendarView: React.FC = () => {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startDayOfWeek = firstDay.getDay();
+    // 月曜日を週の始まりにする（日曜日=0を6に、それ以外は-1）
+    const adjustedStartDay = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
 
     const days = [];
     
     // 前月の日付（空白）
-    for (let i = 0; i < startDayOfWeek; i++) {
+    for (let i = 0; i < adjustedStartDay; i++) {
       days.push(null);
     }
     
@@ -1280,7 +1282,7 @@ const SimpleCalendarView: React.FC = () => {
                   {selectedDateForEvents.getFullYear()}年{selectedDateForEvents.getMonth() + 1}月{selectedDateForEvents.getDate()}日の予定
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  {dayNames[selectedDateForEvents.getDay() - 1] || dayNames[6]}曜日
+                  {dayNames[selectedDateForEvents.getDay() === 0 ? 6 : selectedDateForEvents.getDay() - 1]}曜日
                 </p>
               </div>
               <button
